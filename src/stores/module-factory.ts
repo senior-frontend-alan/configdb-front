@@ -40,6 +40,7 @@ export function useModuleStore(moduleId: string) {
 export function createModuleStore(moduleConfig: ModuleConfig) {
   return defineStore(`${moduleConfig.id}`, () => {
     // состояние
+    const moduleName = ref<string>(moduleConfig.name);
     const catalog = ref<CatalogResponse>([]);
     const currentItem = ref<any | null>(null);
     const loading = ref<boolean>(false);
@@ -93,6 +94,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       currentItem,
       loading,
       error,
+      moduleName,
       
       // действия
       getCatalog,

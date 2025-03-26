@@ -40,8 +40,15 @@ try {
     // Маршрут для списка
     routes.push({
       path: `/${module.id}`,
-      name: `${module.id}List`,
-      component: safeImport(`./modules/${module.id}/${module.id.charAt(0).toUpperCase() + module.id.slice(1)}List.vue`)
+      name: `${module.id}Catalog`,
+      component: () => import('./pages/GetCatalogPage.vue')
+    });
+    
+    // Маршрут для просмотра элемента каталога
+    routes.push({
+      path: `/${module.id}/:groupName`,
+      name: `${module.id}CatalogGroup`,
+      component: () => import('./pages/GetCatalogPage.vue')
     });
     
     // Маршрут для детальной информации

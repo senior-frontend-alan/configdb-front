@@ -10,6 +10,7 @@ import { useConfig } from "../config-loader";
 import PanelMenu from "primevue/panelmenu";
 import { useModuleStore } from "../stores/module-factory";
 import type { CatalogGroup } from "../stores/types/moduleStore.type";
+import { useRouter, useRoute } from "vue-router";
 
 // Определяем пропсы компонента
 defineProps({
@@ -19,46 +20,104 @@ defineProps({
   },
 });
 
+const router = useRouter();
+const route = useRoute();
+
 const { config } = useConfig();
 
-// Открытые пункты меню
+// Сохраняем открытые пункты меню
 const openMenuItems = ref<Record<string, boolean>>({});
 
-const handleMenuItemClick = async (event: any) => {
-  console.log("Клик по пункту меню:", event);
+// Функция для обработки клика по пункту меню
+const handleMenuItemClick = async (
+  event: any,
+  path: string,
+  isSubmenuItem = false
+) => {
+  console.log("Клик по пункту меню:", event, path, isSubmenuItem);
+
+  // Предотвращаем стандартное поведение ссылки
+  if (event && event.originalEvent) {
+    event.originalEvent.preventDefault();
+  }
+
+  // Если это главная страница, просто переходим на неё
+  if (path === "/") {
+    router.push(path);
+    return;
+  }
 
   // Получаем модуль из пути
-  const path = event.item.to?.split("/") || [];
+  const pathParts = path.split("/");
 
-  if (path.length >= 2) {
-    const moduleId = path[1];
+  if (pathParts.length >= 2) {
+    const moduleId = pathParts[1];
+
+    // Проверяем, что модуль существует в конфигурации
+    const moduleExists = config.value.modules.some((m) => m.id === moduleId);
+    if (!moduleExists) {
+      console.error(`Модуль ${moduleId} не найден в конфигурации`);
+      return;
+    }
+
     const moduleStore = useModuleStore(moduleId);
-    openMenuItems.value[moduleId] = !openMenuItems.value[moduleId];
+
+    // Переключаем состояние меню только если это не элемент подменю
+    if (!isSubmenuItem) {
+      const isCurrentlyActive = isRouteActive(`/${moduleId}`);
+      // Если это активный пункт меню и он уже открыт, тогда можно его закрыть
+      if (isCurrentlyActive && openMenuItems.value[moduleId]) {
+        openMenuItems.value[moduleId] = false;
+      } else {
+        openMenuItems.value[moduleId] = true;
+      }
+    } else {
+      // Если это элемент подменю, убедимся, что меню открыто
+      openMenuItems.value[moduleId] = true;
+    }
 
     // Проверяем, загружены ли уже данные в сторе
-    if (moduleStore.catalog && moduleStore.catalog.length > 0) {
-      return; // Если данные уже загружены, не загружаем их повторно
-    }
-
-    try {
-      await moduleStore.getCatalog();
-      console.log(
-        `Данные успешно загружены для модуля ${moduleId}:`,
-        moduleStore.catalog
-      );
-    } catch (error) {
-      console.error(
-        `Ошибка при получении данных для модуля ${moduleId}:`,
-        error
-      );
+    if (!moduleStore.catalog || moduleStore.catalog.length === 0) {
+      try {
+        // Загружаем данные, если их еще нет
+        await moduleStore.getCatalog();
+        console.log(
+          `Данные успешно загружены для модуля ${moduleId}:`,
+          moduleStore.catalog
+        );
+      } catch (error) {
+        console.error(
+          `Ошибка при получении данных для модуля ${moduleId}:`,
+          error
+        );
+      }
     }
   }
+
+  router.push(path);
 };
 
-// Базовые элементы меню
-// Функция для обработки клика по элементу каталога
-const handleCatalogItemClick = (moduleId: string, group: CatalogGroup) => {
-  console.log(`Клик по элементу каталога: ${moduleId} - ${group.verbose_name}`);
+const isRouteActive = (path: string) => {
+  // Проверяем, совпадает ли текущий маршрут с путем
+  if (path === "/" && route.path === "/") {
+    return true;
+  }
+
+  // Для модулей и подменю
+  const pathParts = path.split("/");
+  const routeParts = route.path.split("/");
+
+  // Если это просто модуль (2 части пути)
+  if (pathParts.length === 2 && routeParts.length >= 2) {
+    return pathParts[1] === routeParts[1] && routeParts.length === 2;
+  }
+
+  // Если это элемент подменю (3 части пути)
+  if (pathParts.length === 3 && routeParts.length === 3) {
+    return pathParts[1] === routeParts[1] && pathParts[2] === routeParts[2];
+  }
+
+  return false;
 };
 
 // Формируем модель меню для PrimeVue Menu
@@ -67,29 +126,51 @@ const menuItems = computed(() => {
   const homeItem = {
     label: config.value.appConfig.name,
     icon: "pi pi-home",
-    to: "/",
-    command: (event: any) => handleMenuItemClick(event),
+    command: (event: any) => handleMenuItemClick(event, "/"),
+    style: isRouteActive("/")
+      ? {
+          backgroundColor: "var(--primary-color-lighter, #e3f2fd)",
+          color: "var(--primary-color, #2196f3)",
+        }
+      : undefined,
   };
 
   // Пункты меню модулей из конфигурации
   const moduleItems = config.value.modules.map((module) => {
+    const modulePath = `/${module.id}`;
     const moduleItem: any = {
       label: module.name,
       icon: module.icon || "pi pi-folder",
-      to: `/${module.id}`,
-      command: (event: any) => handleMenuItemClick(event),
+      command: (event: any) => handleMenuItemClick(event, modulePath),
       key: module.id, // Уникальный ключ для пункта меню
+      style: isRouteActive(modulePath)
+        ? {
+            backgroundColor: "var(--primary-color-lighter, #e3f2fd)",
+            color: "var(--primary-color, #2196f3)",
+          }
+        : undefined,
     };
 
     // Подменю строится на данных стора каждого модуля
     const moduleStore = useModuleStore(module.id);
     if (moduleStore && moduleStore.catalog && moduleStore.catalog.length > 0) {
-      moduleItem.items = moduleStore.catalog.map((group: CatalogGroup) => ({
-        label: group.verbose_name,
-        icon: "pi pi-folder",
-        command: () => handleCatalogItemClick(module.id, group),
-        key: `${module.id}_${group.name}`, // Уникальный ключ для элемента подменю
-      }));
+      moduleItem.items = moduleStore.catalog.map((group: CatalogGroup) => {
+        const groupPath = `/${module.id}/${group.name}`;
+        return {
+          label: group.verbose_name,
+          icon: "pi pi-folder",
+          command: (event: any) => {
+            handleMenuItemClick(event, groupPath, true);
+          },
+          key: `${module.id}_${group.name}`, // Уникальный ключ для элемента подменю
+          style: isRouteActive(groupPath)
+            ? {
+                backgroundColor: "var(--primary-color-lighter, #e3f2fd)",
+                color: "var(--primary-color, #2196f3)",
+              }
+            : undefined,
+        };
+      });
     }
 
     return moduleItem;
