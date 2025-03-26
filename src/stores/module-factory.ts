@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import api from '../api';
 import { useConfig } from '../config-loader';
 import type { ModuleConfig } from '../config-loader';
+import type { CatalogResponse } from './types/moduleStore.type';
 
 // Функция для получения стора модуля по ID
 export function useModuleStore(moduleId: string) {
@@ -39,90 +40,42 @@ export function useModuleStore(moduleId: string) {
 export function createModuleStore(moduleConfig: ModuleConfig) {
   return defineStore(`${moduleConfig.id}`, () => {
     // состояние
-    const items = ref<any[]>([]);
+    const catalog = ref<CatalogResponse>([]);
     const currentItem = ref<any | null>(null);
     const loading = ref<boolean>(false);
     const error = ref<any | null>(null);
     
-    // геттеры
-    const getItemById = (id: number | string) => {
-      return items.value.find(item => item.id === id);
-    };
-    
+
     // действия
-    const fetchItems = async () => {
+    const getCatalog = async (): Promise<CatalogResponse> => {
       loading.value = true;
       try {
-        const response = await api.get(moduleConfig.routes.list);
-        items.value = response.data;
+        const routes = moduleConfig.routes as unknown as Record<string, string>;
+        const url = routes['getCatalog'];
+        
+        console.log(`Отправка запроса на ${url}`);
+        const response = await api.get<CatalogResponse>(url);
+        catalog.value = response.data;
         error.value = null;
+        return response.data;
       } catch (err) {
         error.value = err;
         console.error(`Ошибка при получении ${moduleConfig.name}:`, err);
+        return [];
       } finally {
         loading.value = false;
       }
     };
     
-    const fetchItemById = async (id: number | string) => {
-      loading.value = true;
-      try {
-        const url = moduleConfig.routes.get.replace('{id}', id.toString());
-        const response = await api.get(url);
-        currentItem.value = response.data;
-        error.value = null;
-        return response.data;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при получении ${moduleConfig.name} с ID ${id}:`, err);
-        return null;
-      } finally {
-        loading.value = false;
-      }
-    };
+  
     
-    const createItem = async (item: any) => {
-      loading.value = true;
-      try {
-        const response = await api.post(moduleConfig.routes.create, item);
-        items.value.push(response.data);
-        error.value = null;
-        return response.data;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при создании ${moduleConfig.name}:`, err);
-        return null;
-      } finally {
-        loading.value = false;
-      }
-    };
-    
-    const updateItem = async (id: number | string, item: any) => {
-      loading.value = true;
-      try {
-        const url = moduleConfig.routes.update.replace('{id}', id.toString());
-        const response = await api.put(url, item);
-        const index = items.value.findIndex(i => i.id === id);
-        if (index !== -1) {
-          items.value[index] = response.data;
-        }
-        error.value = null;
-        return response.data;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при обновлении ${moduleConfig.name} с ID ${id}:`, err);
-        return null;
-      } finally {
-        loading.value = false;
-      }
-    };
     
     const deleteItem = async (id: number | string) => {
       loading.value = true;
       try {
         const url = moduleConfig.routes.delete.replace('{id}', id.toString());
         await api.delete(url);
-        items.value = items.value.filter(item => item.id !== id);
+        catalog.value = catalog.value.filter(item => item.id !== id);
         error.value = null;
         return true;
       } catch (err) {
@@ -136,19 +89,13 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     
     return {
       // состояние
-      items,
+      catalog,
       currentItem,
       loading,
       error,
       
-      // геттеры
-      getItemById,
-      
       // действия
-      fetchItems,
-      fetchItemById,
-      createItem,
-      updateItem,
+      getCatalog,
       deleteItem
     };
   });

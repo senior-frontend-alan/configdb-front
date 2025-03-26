@@ -29,10 +29,10 @@
   },
   "modules": [
     {
-      "id": "users",
-      "name": "Пользователи",
+      "id": "applicationReferences",
+      "name": "Application References",
       "routes": {
-        "list": "/api/users",
+        "getCatalog": "/api/v1/draConfig/-catalog/",
         "get": "/api/users/{id}",
         "create": "/api/users",
         "update": "/api/users/{id}",
@@ -43,7 +43,7 @@
       "id": "products",
       "name": "Продукты",
       "routes": {
-        "list": "/api/products",
+        "getCatalog": "/api/products",
         "get": "/api/products/{id}",
         "create": "/api/products",
         "update": "/api/products/{id}",

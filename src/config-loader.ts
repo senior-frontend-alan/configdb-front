@@ -4,7 +4,7 @@ import configData from '../app.config.json';
 
 // Типы для конфигурации
 export interface ModuleRoutes {
-  list: string;
+  getCatalog: string;
   get: string;
   create: string;
   update: string;
