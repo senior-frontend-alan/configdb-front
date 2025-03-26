@@ -1,0 +1,93 @@
+// настройка axios для всего приложения
+import axios from 'axios';
+import { useConfig, initConfig } from './config-loader';
+
+// Инициализируем конфигурацию
+const config = initConfig();
+
+// Создаем экземпляр axios
+const api = axios.create({
+  baseURL: config.appConfig.routes.apiRoot,
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  timeout: config.appConfig.apiTimeoutMs
+});
+
+// Функция для настройки API с использованием конфигурации
+export function setupApi() {
+  const { getApiBaseUrl, getApiTimeout } = useConfig();
+  api.defaults.baseURL = getApiBaseUrl();
+  api.defaults.timeout = getApiTimeout();
+  
+  console.log('API настроен с базовым URL:', api.defaults.baseURL);
+  console.log('API таймаут установлен:', api.defaults.timeout, 'мс');
+}
+
+// Интерцепторы для обработки запросов
+api.interceptors.request.use(
+  (config) => {
+    // Добавляем токен авторизации, если он есть
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Создаем класс для API ошибок с дополнительной информацией
+export class ApiError extends Error {
+  status?: number;
+  data?: any;
+  type: string = 'ApiError';
+  
+  constructor(message: string, status?: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
+// Интерцепторы для обработки ответов
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // Создаем информативный объект ошибки
+    let apiError: ApiError;
+    
+    if (error.response) {
+      // Ошибка от сервера (статус не 2xx)
+      const status = error.response.status;
+      const data = error.response.data;
+      
+      // Проверяем наличие поля detail в ответе
+      let errorMessage = 'Ошибка запроса';
+      if (data && typeof data === 'object' && 'detail' in data) {
+        errorMessage = String(data.detail);
+      }
+      
+      apiError = new ApiError(errorMessage, status, data);
+      
+    } else if (error.request) {
+      // Запрос был сделан, но ответ не получен
+      apiError = new ApiError('Нет ответа от сервера');
+      console.error('Нет ответа от сервера.');
+    } else {
+      // Что-то пошло не так при настройке запроса
+      apiError = new ApiError(error.message || 'Ошибка при настройке запроса');
+      console.error('Ошибка при настройке запроса:', error.message);
+    }
+    
+    // Заменяем оригинальную ошибку на нашу ApiError
+    return Promise.reject(apiError);
+  }
+);
+
+export default api;

@@ -1,0 +1,54 @@
+{
+  "appConfig": {
+    "name": "Конфигуратор",
+    "routes": {
+      "apiRoot": "/",
+      "apiHelpRoot": "/help",
+      "apiPrefix": "/api/v1",
+      "apiSession": "/api/v1/session/",
+      "apiTransaction": "/api/v1/auditTransaction/",
+      "apiBuildInfo": "/api/v1/status/",
+      "apiApplication": "/api/v1/application/",
+      "apiVersion": "/api/v1/productVersion/?current=1",
+      "apiLoginSSO": "/api/v1/auth/login/"
+    },
+    "apiTimeoutMs": 5000,
+    "apiRetryTimeoutMs": 30000,
+    "apiCacheMaxAge": 900000,
+    "apiCallHistoryLimit": 100,
+    "siteTitle": "NG-Core Example",
+    "siteCopyright": "© Nexign, JSC, 1992–2025",
+    "theme": "light",
+    "i18n": {
+      "defaultLanguage": "ru",
+      "locales": {
+        "en": "English",
+        "ru": "Русский"
+      }
+    }
+  },
+  "modules": [
+    {
+      "id": "users",
+      "name": "Пользователи",
+      "routes": {
+        "list": "/api/users",
+        "get": "/api/users/{id}",
+        "create": "/api/users",
+        "update": "/api/users/{id}",
+        "delete": "/api/users/{id}"
+      }
+    },
+    {
+      "id": "products",
+      "name": "Продукты",
+      "routes": {
+        "list": "/api/products",
+        "get": "/api/products/{id}",
+        "create": "/api/products",
+        "update": "/api/products/{id}",
+        "delete": "/api/products/{id}"
+      }
+    }
+  ]
+}
