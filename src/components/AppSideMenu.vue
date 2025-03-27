@@ -1,5 +1,12 @@
 <template>
   <div v-show="visible">
+    <div class="topbar-brand">
+      <span class="logo-letter">R</span>
+
+      <span class="topbar-brand-text">
+        <span class="topbar-title">RSC Management Console</span>
+      </span>
+    </div>
     <PanelMenu :model="menuItems" :expandedKeys="openMenuItems" />
   </div>
 </template>
@@ -28,7 +35,44 @@ const { config } = useConfig();
 // Сохраняем открытые пункты меню
 const openMenuItems = ref<Record<string, boolean>>({});
 
-// Функция для обработки клика по пункту меню
+// Функция для управления состоянием меню (открытие/закрытие)
+const handleMenuState = (moduleId: string, isSubmenuItem = false) => {
+  // Переключаем состояние меню только если это не элемент подменю
+  if (!isSubmenuItem) {
+    const isCurrentlyActive = isRouteActive(`/${moduleId}`);
+    // Если это активный пункт меню и он уже открыт, тогда можно его закрыть
+    if (isCurrentlyActive && openMenuItems.value[moduleId]) {
+      openMenuItems.value[moduleId] = false;
+    } else {
+      openMenuItems.value[moduleId] = true;
+    }
+  } else {
+    // Если это элемент подменю, убедимся, что меню открыто
+    openMenuItems.value[moduleId] = true;
+  }
+};
+
+// Функция для загрузки данных модуля
+const loadModuleData = async (moduleId: string) => {
+  console.log(`Запрос на загрузку данных для модуля: ${moduleId}`);
+
+  // Получаем стор модуля
+  const moduleStore = useModuleStore(moduleId);
+  if (!moduleStore) {
+    console.error(`Не удалось получить стор для модуля ${moduleId}`);
+    return;
+  }
+
+  try {
+    // Вызываем метод getCatalog, который уже содержит проверку на наличие данных
+    // и не будет делать повторный запрос, если данные уже загружены
+    await moduleStore.getCatalog();
+    console.log(`Загрузка данных для модуля ${moduleId} завершена`);
+  } catch (error) {
+    console.error(`Ошибка при загрузке данных для модуля ${moduleId}:`, error);
+  }
+};
+
 const handleMenuItemClick = async (
   event: any,
   path: string,
@@ -60,40 +104,12 @@ const handleMenuItemClick = async (
       return;
     }
 
-    const moduleStore = useModuleStore(moduleId);
-
-    // Переключаем состояние меню только если это не элемент подменю
-    if (!isSubmenuItem) {
-      const isCurrentlyActive = isRouteActive(`/${moduleId}`);
-      // Если это активный пункт меню и он уже открыт, тогда можно его закрыть
-      if (isCurrentlyActive && openMenuItems.value[moduleId]) {
-        openMenuItems.value[moduleId] = false;
-      } else {
-        openMenuItems.value[moduleId] = true;
-      }
-    } else {
-      // Если это элемент подменю, убедимся, что меню открыто
-      openMenuItems.value[moduleId] = true;
-    }
-
-    // Проверяем, загружены ли уже данные в сторе
-    if (!moduleStore.catalog || moduleStore.catalog.length === 0) {
-      try {
-        // Загружаем данные, если их еще нет
-        await moduleStore.getCatalog();
-        console.log(
-          `Данные успешно загружены для модуля ${moduleId}:`,
-          moduleStore.catalog
-        );
-      } catch (error) {
-        console.error(
-          `Ошибка при получении данных для модуля ${moduleId}:`,
-          error
-        );
-      }
-    }
+    // Управление состоянием меню
+    handleMenuState(moduleId, isSubmenuItem);
+    await loadModuleData(moduleId);
   }
 
+  // Навигация
   router.push(path);
 };
 
@@ -153,6 +169,8 @@ const menuItems = computed(() => {
 
     // Подменю строится на данных стора каждого модуля
     const moduleStore = useModuleStore(module.id);
+
+    // Проверяем, есть ли уже данные в сторе, но не загружаем их автоматически
     if (moduleStore && moduleStore.catalog && moduleStore.catalog.length > 0) {
       moduleItem.items = moduleStore.catalog.map((group: CatalogGroup) => {
         const groupPath = `/${module.id}/${group.name}`;
@@ -188,5 +206,22 @@ const menuItems = computed(() => {
   --p-panelmenu-gap: 0;
   --p-panelmenu-panel-border-width: 0;
   --p-panelmenu-panel-border-color: transparent;
+}
+
+.topbar-brand {
+  padding: 1.5rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.logo-letter {
+  background-color: #0ba52a;
+  color: white;
+  font-size: 1.8rem;
+  font-weight: bold;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  margin-right: 0.5rem;
 }
 </style>

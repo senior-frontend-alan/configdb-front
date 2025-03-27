@@ -1,6 +1,7 @@
 // настройка axios для всего приложения
 import axios from 'axios';
 import { useConfig, initConfig } from './config-loader';
+import { ref } from 'vue';
 
 // Инициализируем конфигурацию
 const config = initConfig();
@@ -24,17 +25,39 @@ export function setupApi() {
   console.log('API таймаут установлен:', api.defaults.timeout, 'мс');
 }
 
+// Состояние загрузки для отображения индикатора прогресса
+export const isLoading = ref(false);
+
+// Счетчик активных запросов
+const activeRequests = ref(0);
+
+// Функция для создания искусственной задержки
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Интерцепторы для обработки запросов
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Добавляем токен авторизации, если он есть
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Увеличиваем счетчик активных запросов
+    activeRequests.value++;
+    isLoading.value = true;
+    
+    // Добавляем искусственную задержку в 2 секунды
+    await delay(2000);
+    
     return config;
   },
   (error) => {
+    // Уменьшаем счетчик в случае ошибки
+    activeRequests.value = Math.max(0, activeRequests.value - 1);
+    if (activeRequests.value === 0) {
+      isLoading.value = false;
+    }
     return Promise.reject(error);
   }
 );
@@ -56,9 +79,20 @@ export class ApiError extends Error {
 // Интерцепторы для обработки ответов
 api.interceptors.response.use(
   (response) => {
+    // Уменьшаем счетчик при получении ответа
+    activeRequests.value = Math.max(0, activeRequests.value - 1);
+    if (activeRequests.value === 0) {
+      isLoading.value = false;
+    }
     return response;
   },
   (error) => {
+    // Уменьшаем счетчик в случае ошибки
+    activeRequests.value = Math.max(0, activeRequests.value - 1);
+    if (activeRequests.value === 0) {
+      isLoading.value = false;
+    }
+    
     // Создаем информативный объект ошибки
     let apiError: ApiError;
     

@@ -47,9 +47,36 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     const error = ref<any | null>(null);
     
 
+    // Флаг для отслеживания запросов в процессе
+    const isRequestInProgress = ref<boolean>(false);
+    
     // действия
     const getCatalog = async (): Promise<CatalogResponse> => {
+      // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
+      if (catalog.value && catalog.value.length > 0) {
+        console.log(`Данные для модуля ${moduleConfig.id} уже загружены, используем кэшированные данные`);
+        return catalog.value;
+      }
+      
+      // Если запрос уже выполняется, ожидаем его завершения
+      if (isRequestInProgress.value) {
+        console.log(`Запрос для модуля ${moduleConfig.id} уже выполняется, ожидаем...`);
+        // Ждем завершения запроса и возвращаем результат
+        await new Promise(resolve => {
+          const checkInterval = setInterval(() => {
+            if (!isRequestInProgress.value) {
+              clearInterval(checkInterval);
+              resolve(true);
+            }
+          }, 100);
+        });
+        return catalog.value;
+      }
+      
+      // Устанавливаем флаги загрузки
+      isRequestInProgress.value = true;
       loading.value = true;
+      
       try {
         const routes = moduleConfig.routes as unknown as Record<string, string>;
         const url = routes['getCatalog'];
@@ -65,6 +92,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         return [];
       } finally {
         loading.value = false;
+        isRequestInProgress.value = false;
       }
     };
     
@@ -95,6 +123,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       loading,
       error,
       moduleName,
+      isRequestInProgress,
       
       // действия
       getCatalog,

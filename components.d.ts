@@ -8,11 +8,14 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppBreadcrumb: typeof import('./src/components/AppBreadcrumb.vue')['default']
     AppConfig: typeof import('./src/components/AppConfig.vue')['default']
     AppFooter: typeof import('./src/components/AppFooter.vue')['default']
     AppMenubar: typeof import('./src/components/AppMenubar.vue')['default']
+    AppProgressBar: typeof import('./src/components/AppProgressBar.vue')['default']
     AppSideMenu: typeof import('./src/components/AppSideMenu.vue')['default']
     AppTopbar: typeof import('./src/components/AppTopbar.vue')['default']
+    BreadCrumb: typeof import('primevue/breadcrumb')['default']
     Button: typeof import('primevue/button')['default']
     Chart: typeof import('primevue/chart')['default']
     Column: typeof import('primevue/column')['default']
@@ -22,6 +25,7 @@ declare module 'vue' {
     InputText: typeof import('primevue/inputtext')['default']
     PanelMenu: typeof import('primevue/panelmenu')['default']
     ProductOverviewWidget: typeof import('./src/components/dashboard/ProductOverviewWidget.vue')['default']
+    ProgressBar: typeof import('primevue/progressbar')['default']
     RecentActivityWidget: typeof import('./src/components/dashboard/RecentActivityWidget.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
