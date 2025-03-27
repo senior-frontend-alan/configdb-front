@@ -1,6 +1,9 @@
 // src/utils/localstorage.ts
 import type { Session } from '../stores/types/authStoreTypes';
 
+// Переменная для хранения последнего известного CSRF токена из заголовка
+let lastKnownCsrfToken = '';
+
 /**
  * Ключи для хранения данных в localStorage
  */
@@ -54,7 +57,7 @@ export function saveCsrfToken(token: string): void {
 }
 
 /**
- * Получение CSRF-токена из cookie и localStorage
+ * Получение CSRF-токена из разных источников
  */
 export function getCsrfToken(): string {
   // Сначала пробуем получить токен из cookie csrftoken
@@ -63,13 +66,19 @@ export function getCsrfToken(): string {
     .find(row => row.startsWith('csrftoken='))
     ?.split('=')[1];
   
-  console.log('Все cookie:', document.cookie);
-  console.log('Найденный csrftoken в cookie:', cookieValue);
-  
+  // Если нашли в cookie, сохраняем в localStorage и возвращаем
   if (cookieValue && cookieValue.length > 0) {
-    // Если нашли в cookie, сохраняем в localStorage и возвращаем
+    console.log('Найден csrftoken в cookie:', cookieValue);
     saveCsrfToken(cookieValue);
+    lastKnownCsrfToken = cookieValue; // Сохраняем в переменную
     return cookieValue;
+  }
+  
+  // Проверяем последний известный токен из заголовка
+  if (lastKnownCsrfToken && lastKnownCsrfToken.length > 0) {
+    console.log('Используем последний известный CSRF токен из заголовка:', lastKnownCsrfToken);
+    saveCsrfToken(lastKnownCsrfToken);
+    return lastKnownCsrfToken;
   }
   
   // Если не нашли в cookie, пробуем взять из localStorage
@@ -77,6 +86,7 @@ export function getCsrfToken(): string {
     const token = localStorage.getItem(STORAGE_KEYS.CSRF_TOKEN);
     if (token && token.length > 0) {
       console.log('Используем CSRF-токен из localStorage:', token);
+      lastKnownCsrfToken = token; // Сохраняем в переменную
       return token;
     }
   } catch (e) {
@@ -90,10 +100,41 @@ export function getCsrfToken(): string {
     if (metaValue && metaValue.length > 0) {
       console.log('Найден CSRF-токен в meta-теге:', metaValue);
       saveCsrfToken(metaValue);
+      lastKnownCsrfToken = metaValue; // Сохраняем в переменную
       return metaValue;
     }
   }
   
-  console.error('Не удалось получить CSRF-токен ни из cookie, ни из localStorage, ни из meta-тега');
+  // Если токен не найден, возвращаем пустую строку
+  console.log('Не удалось найти CSRF-токен, используем пустой токен');
   return '';
+}
+
+/**
+ * Удаление сессионных cookie и токенов
+ */
+/**
+ * Установка значения CSRF токена из заголовка
+ */
+export function setCsrfTokenFromHeader(token: string): void {
+  if (token && token.length > 0) {
+    console.log('Установлен CSRF токен из заголовка:', token);
+    lastKnownCsrfToken = token;
+    saveCsrfToken(token);
+  }
+}
+
+export function clearSessionData(): void {
+  try {
+    // Удаляем из localStorage
+    localStorage.removeItem(STORAGE_KEYS.CSRF_TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    
+    // Сбрасываем последний известный CSRF токен
+    lastKnownCsrfToken = '';
+    
+    console.log('Данные сессии в localStorage удалены');
+  } catch (error) {
+    console.error('Ошибка при удалении данных сессии:', error);
+  }
 }

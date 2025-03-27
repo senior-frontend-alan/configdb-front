@@ -2,7 +2,12 @@
   <div class="catalog-page">
     <Card>
       <template #title>
-        <h4>{{ moduleTitle }}</h4>
+        <!-- Переключатель режимов отображения -->
+        <div class="display-mode-switch">
+          <h4>{{ moduleTitle }}</h4>
+          <InputSwitch v-model="tabMode" />
+          <span style="font-size: 0.875rem; color: var(--text-color-secondary);">TabView</span>
+        </div>
       </template>
       <template #content>
         <div v-if="loading">
@@ -16,8 +21,9 @@
           <Message severity="info">Данные каталога отсутствуют</Message>
         </div>
         <div v-else class="catalog-container">
-          <!-- Отображаем группы каталога -->
+          <!-- Отображение в виде JSON для отладки -->
           <pre
+            v-if="showDebugJson"
             style="
               background-color: #f5f5f5;
               padding: 10px;
@@ -27,7 +33,9 @@
             "
             >{{ JSON.stringify(catalogData, null, 2) }}</pre
           >
-          <div class="catalog-accordion-container">
+
+          <!-- Отображение в виде аккордеона -->
+          <div v-if="!tabMode" class="catalog-accordion-container">
             <div
               v-for="group in catalogData"
               :key="group.name"
@@ -69,6 +77,15 @@
               </div>
             </div>
           </div>
+
+          <!-- Отображение в виде табов -->
+          <AppCatalogTabView 
+            v-else
+            :catalogData="catalogData" 
+            :moduleId="moduleId" 
+            :groupName="groupName"
+            @error="handleTabViewError"
+          />
         </div>
       </template>
     </Card>
@@ -76,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { useRoute } from "vue-router";
 import { useModuleStore } from "../stores/module-factory";
 import type { CatalogGroup } from "../stores/types/moduleStore.type";
@@ -84,12 +101,20 @@ import type { CatalogGroup } from "../stores/types/moduleStore.type";
 import Card from "primevue/card";
 import Message from "primevue/message";
 import ProgressSpinner from "primevue/progressspinner";
+import InputSwitch from "primevue/inputswitch";
+import AppCatalogTabView from "../components/AppCatalogTabView.vue";
 
 const route = useRoute();
+
 const loading = ref(true);
 const error = ref<string | null>(null);
 const catalogData = ref<CatalogGroup[]>([]);
 const moduleTitle = ref("Каталог элементов");
+
+
+// Переменные для переключения режимов отображения
+const tabMode = ref(false); // Режим отображения: false - аккордеон, true - табы
+const showDebugJson = ref(false); // Показывать ли JSON для отладки
 
 // Загружаем название модуля из стора
 // Вычисляемые свойства для получения данных из URL
@@ -136,17 +161,20 @@ const loadCatalogData = async () => {
     const data = await moduleStore.getCatalog();
     loadModuleTitle();
 
-    // Фильтруем данные по группе, если она указана
-    catalogData.value = groupName.value
-      ? data.filter((group: CatalogGroup) => group.name === groupName.value)
-      : data;
-
-    // Проверяем наличие данных после фильтрации
-    if (groupName.value && catalogData.value.length === 0) {
-      error.value = `Группа "${groupName.value}" не найдена в модуле ${moduleId.value}`;
+    // Сохраняем все данные каталога
+    catalogData.value = data;
+    
+    // Если указана группа и она не найдена, устанавливаем ошибку
+    if (groupName.value) {
+      const groupExists = data.some((group: CatalogGroup) => group.name === groupName.value);
+      if (!groupExists) {
+        error.value = `Группа "${groupName.value}" не найдена в модуле ${moduleId.value}`;
+      }
     }
   } catch (err) {
-    error.value = `Ошибка при загрузке данных каталога: ${err instanceof Error ? err.message : String(err)}`;
+    error.value = `Ошибка при загрузке данных каталога: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
   } finally {
     loading.value = false;
   }
@@ -157,6 +185,72 @@ onMounted(loadCatalogData);
 
 // Отслеживаем изменения маршрута
 watch([() => route.path, () => route.params], loadCatalogData, { deep: true });
+
+// Обработчик ошибок от компонента табов
+const handleTabViewError = (message: string) => {
+  error.value = message;
+};
 </script>
 
-<style></style>
+<style scoped>
+.catalog-page {
+  padding: 1rem;
+}
+
+/* Стили для переключателя режимов */
+.display-mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background-color: var(--surface-section);
+  border-radius: 6px;
+  width: fit-content;
+}
+
+/* Стили для аккордеона */
+.catalog-accordion-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.catalog-accordion-item {
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.catalog-accordion-header {
+  background-color: var(--surface-section);
+  padding-left: 1rem;
+  cursor: pointer;
+}
+
+.catalog-accordion-content {
+  padding-left: 1rem;
+}
+
+/* Стили для табов */
+.catalog-tabs-container {
+  margin-top: 1rem;
+}
+
+/* Общие стили для элементов каталога */
+.catalog-items-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.group-description {
+  margin-bottom: 1rem;
+  color: var(--text-color-secondary);
+}
+
+.catalog-item {
+  width: 100%;
+}
+</style>

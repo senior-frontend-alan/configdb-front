@@ -2,26 +2,30 @@
 import axios from 'axios';
 import { useConfig, initConfig } from './config-loader';
 import { ref } from 'vue';
+import { setCsrfTokenFromHeader } from './utils/localstorage';
 
 // Инициализируем конфигурацию
 const config = initConfig();
 
 // Создаем экземпляр axios
 const api = axios.create({
-  baseURL: config.appConfig.routes.apiRoot,
+  // Устанавливаем пустой baseURL, чтобы запросы проходили через прокси Vite
+  baseURL: '',
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: config.appConfig.apiTimeoutMs
+  timeout: config.appConfig.apiTimeoutMs,
+  // Включаем куки для всех запросов по умолчанию
+  withCredentials: true
 });
 
 // Функция для настройки API с использованием конфигурации
 export function setupApi() {
-  const { getApiBaseUrl, getApiTimeout } = useConfig();
-  api.defaults.baseURL = getApiBaseUrl();
+  const { getApiTimeout } = useConfig();
+  // Не устанавливаем baseURL, чтобы запросы проходили через прокси Vite
   api.defaults.timeout = getApiTimeout();
   
-  console.log('API настроен с базовым URL:', api.defaults.baseURL);
+  console.log('API настроен с базовым URL:', api.defaults.baseURL || 'пустой (используется прокси Vite)');
   console.log('API таймаут установлен:', api.defaults.timeout, 'мс');
 }
 
@@ -84,6 +88,14 @@ api.interceptors.response.use(
     if (activeRequests.value === 0) {
       isLoading.value = false;
     }
+    
+    // Сохраняем CSRF токен из заголовка ответа, если он есть
+    const csrfToken = response.headers['x-csrftoken'];
+    if (csrfToken) {
+      console.log('Получен CSRF токен из заголовка ответа:', csrfToken);
+      setCsrfTokenFromHeader(csrfToken);
+    }
+    
     return response;
   },
   (error) => {

@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppBreadcrumb: typeof import('./src/components/AppBreadcrumb.vue')['default']
+    AppCatalogTabView: typeof import('./src/components/AppCatalogTabView.vue')['default']
     AppConfig: typeof import('./src/components/AppConfig.vue')['default']
     AppFooter: typeof import('./src/components/AppFooter.vue')['default']
     AppMenubar: typeof import('./src/components/AppMenubar.vue')['default']
@@ -22,6 +23,7 @@ declare module 'vue' {
     DataTable: typeof import('primevue/datatable')['default']
     IconField: typeof import('primevue/iconfield')['default']
     InputIcon: typeof import('primevue/inputicon')['default']
+    InputSwitch: typeof import('primevue/inputswitch')['default']
     InputText: typeof import('primevue/inputtext')['default']
     PanelMenu: typeof import('primevue/panelmenu')['default']
     ProductOverviewWidget: typeof import('./src/components/dashboard/ProductOverviewWidget.vue')['default']
@@ -31,6 +33,8 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SalesTrendWidget: typeof import('./src/components/dashboard/SalesTrendWidget.vue')['default']
     StatsWidget: typeof import('./src/components/dashboard/StatsWidget.vue')['default']
+    TabPanel: typeof import('primevue/tabpanel')['default']
+    TabView: typeof import('primevue/tabview')['default']
     Tag: typeof import('primevue/tag')['default']
   }
   export interface ComponentCustomProperties {

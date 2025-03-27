@@ -2,7 +2,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import api from '../api';
-import { loadSessionFromStorage, saveSessionToStorage, getCsrfToken } from '../utils/localstorage';
+import { useConfig } from '../config-loader';
+import { loadSessionFromStorage, saveSessionToStorage, getCsrfToken, clearSessionData } from '../utils/localstorage';
 import type { AuthSessionData, Session, ApiErrorState, AuthState } from './types/authStoreTypes';
 
 // Начальное состояние хранилища
@@ -89,18 +90,56 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = JSON.parse(JSON.stringify(initialState.error));
     
     try {
+      // Получаем CSRF токен для запроса
+      const csrfToken = getCsrfToken();
+      
+      // Получаем URL для выхода из конфигурации
+      const { config } = useConfig();
+      const sessionUrl = config.value.appConfig.routes.apiSession;
+      console.log('Отправляем запрос на выход по адресу:', sessionUrl);
+      
       // Отправляем запрос на выход в Django
-      await api.delete('/api/v1/session/', {
+      await api.delete(sessionUrl, {
         headers: {
-          'X-CSRFToken': getCsrfToken()
+          'X-CSRFToken': csrfToken
         },
         withCredentials: true
       });
       
+      // Удаляем данные сессии из localStorage
+      clearSessionData();
+      
+      // Очищаем сессию в хранилище
       session.value = null;
+      
+      // Дополнительный запрос на получение нового CSRF токена
+      // Это поможет сбросить сессию на сервере
+      try {
+        await api.get('/api/v1/csrf/', {
+          withCredentials: true
+        });
+      } catch (csrfErr) {
+        console.log('Не удалось получить новый CSRF токен, но это не критично:', csrfErr);
+      }
+      
       return true;
     } catch (err) {
+      console.error('Ошибка при выходе из системы:', err);
       saveError(err);
+      
+      // Даже в случае ошибки удаляем данные сессии из localStorage
+      clearSessionData();
+      session.value = null;
+      
+      // Пробуем получить новый CSRF токен даже в случае ошибки
+      try {
+        await api.get('/api/v1/csrf/', {
+          withCredentials: true
+        });
+      } catch (csrfErr) {
+        console.log('Не удалось получить новый CSRF токен после ошибки:', csrfErr);
+      }
+      
       return false;
     } finally {
       loading.value = false;

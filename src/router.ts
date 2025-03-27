@@ -2,6 +2,7 @@
 // @ts-ignore - Игнорируем ошибки типизации для vue-router
 import { createRouter, createWebHistory } from 'vue-router';
 import { useConfig } from './config-loader';
+import { useAuthStore } from './stores/authStore';
 
 const { config } = useConfig();
 
@@ -81,6 +82,32 @@ const router = createRouter({
   routes
 });
 
+// Маршруты, которые доступны без авторизации
+const publicRoutes = ['/login'];
 
+// Проверка авторизации перед каждым переходом
+router.beforeEach((to, _, next) => {
+  const authStore = useAuthStore();
+  const isAuthenticated = authStore.isAuthenticated;
+  
+  // Если пользователь не авторизован и пытается попасть на защищенный маршрут
+  if (!isAuthenticated && !publicRoutes.includes(to.path)) {
+    console.log('Пользователь не авторизован, перенаправление на страницу входа');
+    next('/login');
+  } else {
+    // Если пользователь авторизован и пытается попасть на страницу входа
+    if (isAuthenticated && to.path === '/login') {
+      console.log('Пользователь авторизован и переходит на /login - выполняем разлогинивание');
+      // Выполняем разлогинивание
+      authStore.logout().finally(() => {
+        // После разлогинивания разрешаем переход на страницу входа
+        next();
+      });
+    } else {
+      // В остальных случаях разрешаем переход
+      next();
+    }
+  }
+});
 
 export default router;

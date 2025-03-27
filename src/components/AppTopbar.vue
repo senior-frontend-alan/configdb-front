@@ -1,24 +1,21 @@
 <template>
   <div class="topbar">
+    <!-- Кнопка пользователя -->
+    <Button
+      :label="username"
+      icon="pi pi-user"
+      link
+      @click="(event) => menu.toggle(event)"
+    />
+
+    <!-- Меню пользователя -->
+    <Menu id="user-menu" ref="menu" :model="userMenuItems" :popup="true" />
     <!-- Кнопка переключения темы -->
     <Button type="button" @click="toggleDarkMode" text rounded>
       <i :class="['pi', isDarkMode ? 'pi-moon' : 'pi-sun']" />
     </Button>
     <div class="relative">
-      <Button
-        v-styleclass="{
-          selector: '@next',
-          enterFromClass: 'hidden',
-          enterActiveClass: 'animate-scalein',
-          leaveToClass: 'hidden',
-          leaveActiveClass: 'animate-fadeout',
-          hideOnOutsideClick: true,
-        }"
-        icon="pi pi-cog"
-        text
-        rounded
-        aria-label="Settings"
-      />
+      <Button link icon="pi pi-cog" aria-label="Настройки" />
       <AppConfig />
     </div>
   </div>
@@ -27,6 +24,9 @@
 <script setup>
 import { useLayout } from "../composables/useLayout";
 import AppConfig from "./AppConfig.vue";
+import Menu from "primevue/menu";
+import { ref, computed } from "vue";
+import { useAuthStore } from "../stores/authStore";
 
 const { isDarkMode, toggleDarkMode } = useLayout();
 
@@ -37,6 +37,52 @@ const emit = defineEmits(["toggle-sidebar"]);
 const toggleSidebar = () => {
   emit("toggle-sidebar");
 };
+
+// Ссылка на меню пользователя
+const menu = ref(null);
+
+// Получаем хранилище аутентификации
+const authStore = useAuthStore();
+
+// Получаем имя пользователя из хранилища аутентификации
+const username = computed(() => {
+  if (authStore.session && authStore.session.user) {
+    return authStore.session.user.username;
+  }
+  return "username";
+});
+
+// Пункты меню пользователя
+const userMenuItems = ref([
+  {
+    label: "Профиль",
+    icon: "pi pi-user",
+    command: () => {
+      // Логика перехода на страницу профиля
+      console.log("Переход на страницу профиля");
+    },
+  },
+  {
+    label: "Настройки",
+    icon: "pi pi-cog",
+    command: () => {
+      // Логика перехода на страницу настроек
+      console.log("Переход на страницу настроек");
+    },
+  },
+  {
+    separator: true,
+  },
+  {
+    label: "Выход",
+    icon: "pi pi-sign-out",
+    command: () => {
+      // Логика выхода из системы
+      authStore.logout();
+      console.log("Выход из системы");
+    },
+  },
+]);
 </script>
 
 <style scoped>
@@ -49,6 +95,7 @@ const toggleSidebar = () => {
   align-items: center;
   border: 1px solid var(--p-surface-200);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  justify-content: space-between;
 }
 
 :deep(.p-dark) .topbar {
@@ -61,70 +108,5 @@ const toggleSidebar = () => {
     display: flex;
     flex-direction: column;
   }
-}
-
-.topbar-title {
-  font-size: 1.25rem;
-  font-weight: 300;
-  color: var(--p-surface-700);
-  line-height: 1;
-}
-
-:deep(.p-dark) .topbar-title {
-  color: var(--p-surface-100);
-}
-
-.topbar-subtitle {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--p-primary-500);
-  line-height: 1.25;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.topbar-theme-button {
-  width: 2.5rem;
-  height: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  transition: all 0.2s;
-  color: var(--p-surface-900);
-}
-
-:deep(.p-dark) .topbar-theme-button {
-  color: var(--p-surface-0);
-}
-
-.topbar-theme-button:hover,
-.topbar-menu-button:hover {
-  background-color: var(--p-surface-100);
-}
-
-:deep(.p-dark) .topbar-theme-button:hover,
-:deep(.p-dark) .topbar-menu-button:hover {
-  background-color: var(--p-surface-800);
-}
-
-.topbar-menu-button {
-  width: 2.5rem;
-  height: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  transition: all 0.2s;
-  color: var(--p-surface-900);
-  margin-right: 0.5rem;
-}
-
-:deep(.p-dark) .topbar-menu-button {
-  color: var(--p-surface-0);
 }
 </style>

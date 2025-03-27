@@ -238,7 +238,7 @@ const login = async () => {
   color: #f44336;
   transform: translateY(100%);
   font-size: 0.875rem;
-  background-color: rgba(244, 67, 54, 0.2);
+  background-color: #1d0a0933;
   border-left: 3px solid #f44336;
   padding: 0.5rem;
   border-radius: 4px;
