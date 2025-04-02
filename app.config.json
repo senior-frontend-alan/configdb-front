@@ -1,6 +1,6 @@
 {
   "appConfig": {
-    "name": "Конфигуратор",
+    "name": "Home",
     "routes": {
       "apiRoot": "/",
       "apiHelpRoot": "/help",
@@ -10,7 +10,8 @@
       "apiBuildInfo": "/api/v1/status/",
       "apiApplication": "/api/v1/application/",
       "apiVersion": "/api/v1/productVersion/?current=1",
-      "apiLoginSSO": "/api/v1/auth/login/"
+      "apiLoginSSO": "/api/v1/auth/login/",
+      "settings": "/settings"
     },
     "apiTimeoutMs": 5000,
     "apiRetryTimeoutMs": 30000,
@@ -32,22 +33,14 @@
       "id": "applicationReferences",
       "name": "Application References",
       "routes": {
-        "getCatalog": "/api/v1/draConfig/-catalog/",
-        "get": "/api/users/{id}",
-        "create": "/api/users",
-        "update": "/api/users/{id}",
-        "delete": "/api/users/{id}"
+        "getCatalog": "/api/v1/draConfig/-catalog/"
       }
     },
     {
-      "id": "products",
-      "name": "Продукты",
+      "id": "applicationReferences1",
+      "name": "Application References 1",
       "routes": {
-        "getCatalog": "/api/products",
-        "get": "/api/products/{id}",
-        "create": "/api/products",
-        "update": "/api/products/{id}",
-        "delete": "/api/products/{id}"
+        "getCatalog": "/api/v1/draConfig/-catalog/"
       }
     }
   ]

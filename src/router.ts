@@ -1,13 +1,12 @@
 // src/router.ts
-// @ts-ignore - Игнорируем ошибки типизации для vue-router
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useConfig } from './config-loader';
 import { useAuthStore } from './stores/authStore';
 
 const { config } = useConfig();
 
 // Базовые маршруты
-const routes = [
+const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'Home',
@@ -38,40 +37,16 @@ try {
       });
     };
     
-    // Маршрут для списка
+    // Страница 1 - Отображение списка справочников
     routes.push({
       path: `/${module.id}`,
       name: `${module.id}Catalog`,
-      component: () => import('./pages/GetCatalogPage.vue')
+      component: () => import('./pages/Page1CatalogList.vue'),
+      meta: {
+        moduleId: module.id // Всегда знаем какой модуль открыт на странице чтобы найти его стор
+      }
     });
     
-    // Маршрут для просмотра элемента каталога
-    routes.push({
-      path: `/${module.id}/:groupName`,
-      name: `${module.id}CatalogGroup`,
-      component: () => import('./pages/GetCatalogPage.vue')
-    });
-    
-    // Маршрут для детальной информации
-    routes.push({
-      path: `/${module.id}/:id`,
-      name: `${module.id}Detail`,
-      component: safeImport(`./modules/${module.id}/${module.id.charAt(0).toUpperCase() + module.id.slice(1)}Detail.vue`)
-    });
-    
-    // Маршрут для создания
-    routes.push({
-      path: `/${module.id}/create`,
-      name: `${module.id}Create`,
-      component: safeImport(`./modules/${module.id}/${module.id.charAt(0).toUpperCase() + module.id.slice(1)}Form.vue`)
-    });
-    
-    // Маршрут для редактирования
-    routes.push({
-      path: `/${module.id}/:id/edit`,
-      name: `${module.id}Edit`,
-      component: safeImport(`./modules/${module.id}/${module.id.charAt(0).toUpperCase() + module.id.slice(1)}Form.vue`)
-    });
   });
 } catch (error) {
   console.error('Ошибка при создании динамических маршрутов:', error);

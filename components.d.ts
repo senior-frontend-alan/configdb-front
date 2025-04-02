@@ -20,11 +20,13 @@ declare module 'vue' {
     Button: typeof import('primevue/button')['default']
     Chart: typeof import('primevue/chart')['default']
     Column: typeof import('primevue/column')['default']
+    CompPage1TabView: typeof import('./src/components/CompPage1TabView.vue')['default']
     DataTable: typeof import('primevue/datatable')['default']
     IconField: typeof import('primevue/iconfield')['default']
     InputIcon: typeof import('primevue/inputicon')['default']
     InputSwitch: typeof import('primevue/inputswitch')['default']
     InputText: typeof import('primevue/inputtext')['default']
+    ListViewP1: typeof import('./src/components/ListViewP1.vue')['default']
     PanelMenu: typeof import('primevue/panelmenu')['default']
     ProductOverviewWidget: typeof import('./src/components/dashboard/ProductOverviewWidget.vue')['default']
     ProgressBar: typeof import('primevue/progressbar')['default']
@@ -35,6 +37,7 @@ declare module 'vue' {
     StatsWidget: typeof import('./src/components/dashboard/StatsWidget.vue')['default']
     TabPanel: typeof import('primevue/tabpanel')['default']
     TabView: typeof import('primevue/tabview')['default']
+    TabViewP1: typeof import('./src/components/TabViewP1.vue')['default']
     Tag: typeof import('primevue/tag')['default']
   }
   export interface ComponentCustomProperties {

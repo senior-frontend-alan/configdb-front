@@ -45,6 +45,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     const currentItem = ref<any | null>(null);
     const loading = ref<boolean>(false);
     const error = ref<any | null>(null);
+    const diamApplicationList = ref<any[]>([]);
     
 
     // Флаг для отслеживания запросов в процессе
@@ -116,6 +117,40 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
     
+    // Получение списка DIAM приложений
+    const getDiamApplicationList = async () => {
+      loading.value = true;
+      try {
+        const routes = moduleConfig.routes as unknown as Record<string, string>;
+        const url = routes['getDiamApplicationList'];
+        
+        if (!url) {
+          throw new Error(`Маршрут getDiamApplicationList не найден в конфигурации модуля ${moduleConfig.id}`);
+        }
+        
+        console.log(`Отправка запроса на ${url}`);
+        const response = await api.get(url);
+        
+        // Проверяем, есть ли в ответе поле results
+        if (response.data && response.data.results) {
+          diamApplicationList.value = response.data.results;
+          error.value = null;
+          return response.data.results;
+        } else {
+          // Если нет поля results, используем данные как есть
+          diamApplicationList.value = response.data;
+          error.value = null;
+          return response.data;
+        }
+      } catch (err) {
+        error.value = err;
+        console.error(`Ошибка при получении списка DIAM приложений:`, err);
+        return [];
+      } finally {
+        loading.value = false;
+      }
+    };
+    
     return {
       // состояние
       catalog,
@@ -124,9 +159,11 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       error,
       moduleName,
       isRequestInProgress,
+      diamApplicationList,
       
       // действия
       getCatalog,
+      getDiamApplicationList,
       deleteItem
     };
   });
