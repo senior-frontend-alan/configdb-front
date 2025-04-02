@@ -28,7 +28,7 @@
             :key="item.name"
             class="catalog-item"
           >
-            <Card @click="handleCardClick(item)" class="catalog-card">
+            <Card @click="emit('card-click', item)" class="catalog-card">
               <template #title>
                 <div>{{ item.verbose_name || "Без названия" }}</div>
               </template>
@@ -73,10 +73,7 @@ const navigateToGroup = (groupName: string) => {
   router.push(`/${props.moduleId}?group=${groupName}`);
 };
 
-// Обработка клика по карточке
-const handleCardClick = (item: any) => {
-  emit("card-click", item);
-};
+
 </script>
 
 <style scoped>

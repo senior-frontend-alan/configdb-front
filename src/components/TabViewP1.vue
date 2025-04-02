@@ -30,7 +30,7 @@
               :key="item.name"
               class="catalog-item"
             >
-              <Card @click="handleCardClick(item)" class="catalog-card">
+              <Card @click="emit('card-click', item)" class="catalog-card">
                 <template #title>
                   <div>{{ item.verbose_name || "Без названия" }}</div>
                 </template>
@@ -53,10 +53,8 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from "vue";
-import { useRouter } from "vue-router";
 
 import type { CatalogGroup } from "../stores/types/moduleStore.type";
-import { useModuleStore } from "../stores/module-factory";
 
 import Card from "primevue/card";
 import Message from "primevue/message";
@@ -77,7 +75,6 @@ const emit = defineEmits<{
   (e: 'card-click', item: any): void;
 }>();
 
-const router = useRouter();
 // Используем конфигурацию для обработки кликов по карточкам
 const activeTabValue = ref("");
 
@@ -116,28 +113,7 @@ watch(() => activeTabValue.value, (newValue) => {
   }
 });
 
-// Обработка клика по карточке
-const handleCardClick = async (item: any) => {
-  try {
-    // Получаем стор модуля
-    const moduleStore = useModuleStore(props.moduleId);
-    if (!moduleStore) {
-      throw new Error(`Модуль ${props.moduleId} не найден`);
-    }
-    
-    // Загружаем данные приложений
-    await moduleStore.getDiamApplicationList();
-    
-    // Переходим на страницу списка приложений
-    router.push(`/${props.moduleId}/getDiamApplicationList`);
-    
-    // Отправляем событие о клике по карточке
-    emit('card-click', item);
-  } catch (err) {
-    console.error('Ошибка при обработке клика по карточке:', err);
-    emit('error', `Ошибка при загрузке данных: ${err instanceof Error ? err.message : String(err)}`);
-  }
-};
+
 </script>
 
 <style scoped>

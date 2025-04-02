@@ -63,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useModuleStore } from "../stores/module-factory";
 import type { CatalogGroup } from "../stores/types/moduleStore.type";
@@ -112,46 +112,62 @@ const filteredCatalogData = computed(() => {
   return catalogData.value;
 });
 
-// Загрузка данных каталога
-onMounted(async () => {
-  try {
-    loading.value = true;
-    error.value = null;
-
-    if (!moduleId.value || !moduleStore) {
-      error.value = "Не удалось определить модуль";
-      return;
-    }
-
-    // Загружаем данные каталога
-    const data = await moduleStore.getCatalog();
-    catalogData.value = data;
-  } catch (err) {
-    error.value = `Ошибка при загрузке данных: ${
-      err instanceof Error ? err.message : String(err)
-    }`;
-  } finally {
-    loading.value = false;
+// Следим за изменениями данных в сторе
+onMounted(() => {
+  if (!moduleId.value || !moduleStore) {
+    error.value = "Не удалось определить модуль";
+    return;
   }
+
+  // Синхронизируем локальное состояние со стором
+  catalogData.value = moduleStore.catalog;
+  loading.value = moduleStore.loading;
+  error.value = moduleStore.error ? String(moduleStore.error) : null;
 });
+
+// Следим за изменениями в сторе
+watch(
+  () => moduleStore?.catalog,
+  (newCatalog: CatalogGroup[]) => {
+    if (newCatalog) {
+      catalogData.value = newCatalog;
+    }
+  }
+);
+
+watch(
+  () => moduleStore?.loading,
+  (newLoading: boolean) => {
+    loading.value = newLoading;
+  }
+);
+
+watch(
+  () => moduleStore?.error,
+  (newError: any) => {
+    error.value = newError ? String(newError) : null;
+  }
+);
 
 // Обработчик ошибок от компонента табов
 const handleTabViewError = (message: string) => {
   error.value = message;
 };
 
-const handleCardClick = (item: any) => {
+const handleCardClick = async (item: any) => {
   try {
-    if (item && item.href) {
-      // Перенаправление по ссылке из item.href
-      router.push(item.href);
-    } else {
-      console.warn("Ссылка (href) не указана для элемента:", item);
-      error.value = "Не удалось перейти по ссылке: ссылка не указана";
+    if (item && item.viewname) {
+      // Формируем новый URL из модуля и viewname элемента
+      const moduleId = route.meta.moduleId as string;
+      const newPath = `/${moduleId}/${item.viewname}`;
+      
+      // Загрузка данных будет инициирована роутером
+      console.log(`Переход по пути: ${newPath}`);
+      router.push(newPath);
     }
   } catch (err) {
     console.error("Ошибка при обработке клика по карточке:", err);
-    error.value = `Ошибка при переходе по ссылке: ${
+    error.value = `Ошибка при переходе: ${
       err instanceof Error ? err.message : String(err)
     }`;
   }

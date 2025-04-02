@@ -1,6 +1,6 @@
 // src/stores/module-factory.ts
 import { defineStore, getActivePinia } from 'pinia';
-import { ref } from 'vue';
+import { ref, reactive } from 'vue';
 import api from '../api';
 import { useConfig } from '../config-loader';
 import type { ModuleConfig } from '../config-loader';
@@ -47,7 +47,9 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     const error = ref<any | null>(null);
     const diamApplicationList = ref<any[]>([]);
     
-
+    // Сохраненные данные по различным viewname - используем reactive вместо ref
+    const catalogDetails = reactive<Record<string, any>>({});
+    
     // Флаг для отслеживания запросов в процессе
     const isRequestInProgress = ref<boolean>(false);
     
@@ -62,7 +64,6 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       // Если запрос уже выполняется, ожидаем его завершения
       if (isRequestInProgress.value) {
         console.log(`Запрос для модуля ${moduleConfig.id} уже выполняется, ожидаем...`);
-        // Ждем завершения запроса и возвращаем результат
         await new Promise(resolve => {
           const checkInterval = setInterval(() => {
             if (!isRequestInProgress.value) {
@@ -151,6 +152,45 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
     
+    // Загрузка данных по URL и сохранение их в соответствующее поле catalogDetails
+    const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
+      // Проверяем, есть ли уже загруженные данные для этого viewname
+      if (catalogDetails[viewname] && !loading.value) {
+        console.log(`Используем кэшированные данные для ${viewname}`);
+        return catalogDetails[viewname];
+      }
+      
+      loading.value = true;
+      error.value = null;
+      
+      try {
+        console.log(`Загрузка данных по URL: ${url}`);
+        const response = await api.get(url);
+        
+        // Создаем новый объект с добавлением поля viewname для удобства
+        const detailsData = {
+          ...response.data,
+          viewname: viewname,
+          href: url,
+          _timestamp: new Date().getTime() // Добавляем временную метку для отслеживания изменений
+        };
+        
+        // Напрямую обновляем реактивный объект (reactive вместо ref)
+        catalogDetails[viewname] = detailsData;
+        
+        console.log(`Данные для ${viewname} успешно загружены в стор:`, catalogDetails[viewname]);
+        
+        error.value = null;
+        return detailsData;
+      } catch (err) {
+        error.value = err;
+        console.error(`Ошибка при загрузке данных для ${viewname}:`, err);
+        return null;
+      } finally {
+        loading.value = false;
+      }
+    };
+    
     return {
       // состояние
       catalog,
@@ -160,11 +200,13 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       moduleName,
       isRequestInProgress,
       diamApplicationList,
+      catalogDetails,
       
       // действия
       getCatalog,
       getDiamApplicationList,
-      deleteItem
+      deleteItem,
+      loadCatalogDetails
     };
   });
 }

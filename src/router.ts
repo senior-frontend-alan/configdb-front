@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useConfig } from './config-loader';
 import { useAuthStore } from './stores/authStore';
+import { useModuleStore } from './stores/module-factory';
 
 const { config } = useConfig();
 
@@ -47,6 +48,17 @@ try {
       }
     });
     
+    // Страница 2 - Отображение деталей элемента каталога
+    routes.push({
+      path: `/${module.id}/:viewname`,
+      name: `${module.id}CatalogDetails`,
+      component: () => import('./pages/Page2CatalogDetails.vue'),
+      meta: {
+        moduleId: module.id // Передаем ID модуля для доступа к стору
+      },
+      props: true // Передаем параметры маршрута как props компонента
+    });
+    
   });
 } catch (error) {
   console.error('Ошибка при создании динамических маршрутов:', error);
@@ -72,7 +84,6 @@ router.beforeEach((to, _, next) => {
   } else {
     // Если пользователь авторизован и пытается попасть на страницу входа
     if (isAuthenticated && to.path === '/login') {
-      console.log('Пользователь авторизован и переходит на /login - выполняем разлогинивание');
       // Выполняем разлогинивание
       authStore.logout().finally(() => {
         // После разлогинивания разрешаем переход на страницу входа
@@ -82,6 +93,63 @@ router.beforeEach((to, _, next) => {
       // В остальных случаях разрешаем переход
       next();
     }
+  }
+});
+
+// Загрузка данных перед разрешением перехода
+router.beforeResolve(async (to, _from, next) => {
+  try {
+    // Проверяем наличие moduleId в метаданных маршрута
+    if (to.meta.moduleId) {
+      const moduleId = to.meta.moduleId as string;
+      
+      // Проверяем существование стора с соответствующим ID
+      const moduleStore = useModuleStore(moduleId);
+      
+      if (moduleStore) {
+        // Если стор существует, загружаем данные каталога
+        console.log(`Загрузка данных каталога для модуля ${moduleId}`);
+        await moduleStore.getCatalog();
+        
+        // Проверяем, если это маршрут деталей каталога (/:viewname)
+        if (to.params.viewname) {
+          const viewname = to.params.viewname as string;
+          console.log(`Обнаружен параметр viewname: ${viewname}`);
+          
+          // Проверяем, есть ли данные в сторе для этого viewname
+          if (!moduleStore.catalogDetails[viewname]) {
+            // Ищем элемент в каталоге с соответствующим viewname
+            const catalogItem = moduleStore.catalog
+              .flatMap((group: { items?: any[] }) => group.items || [])
+              .find((item: { viewname: string; href?: string }) => item.viewname === viewname);
+            
+            if (catalogItem && catalogItem.href) {
+              console.log(`Загрузка данных для ${viewname} по ссылке: ${catalogItem.href}`);
+              try {
+                // Загружаем данные по URL и сохраняем их в стор
+                await moduleStore.loadCatalogDetails(viewname, catalogItem.href);
+                console.log(`Данные успешно загружены для ${viewname}`);
+              } catch (loadError) {
+                console.error(`Ошибка при загрузке данных для ${viewname}:`, loadError);
+              }
+            } else {
+              console.warn(`Не найден элемент каталога для viewname: ${viewname}`);
+            }
+          } else {
+            console.log(`Данные для ${viewname} уже загружены в стор`);
+          }
+        }
+      } else {
+        console.error(`Не удалось получить стор для модуля ${moduleId}`);
+      }
+    }
+    
+    // В любом случае разрешаем переход
+    next();
+  } catch (error) {
+    console.error(`Ошибка при загрузке данных:`, error);
+    // В случае ошибки всё равно разрешаем переход, ошибка будет обработана на странице
+    next();
   }
 });
 

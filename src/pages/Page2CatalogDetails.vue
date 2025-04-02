@@ -1,5 +1,5 @@
 <template>
-  <div class="diam-application-list-page">
+  <div class="catalog-details-page">
     <Card>
       <template #title>
         <h4>{{ moduleTitle }}</h4>
@@ -14,21 +14,18 @@
           <Message severity="error">{{ error }}</Message>
         </div>
 
-        <div
-          v-else-if="diamApplicationList.length === 0"
-          class="empty-container"
-        >
-          <Message severity="info">Список приложений пуст</Message>
+        <div v-else-if="!catalogDetails" class="empty-container">
+          <Message severity="info">Данные каталога отсутствуют</Message>
         </div>
 
-        <div v-else class="application-list">
+        <div v-else class="catalog-details">
+          <!-- Отображение в виде таблицы -->
           <DataTable
-            :value="diamApplicationList"
+            :value="tableData"
             stripedRows
             responsiveLayout="scroll"
             reorderableColumns
             removableSort
-            sortMode="multiple"
             @column-reorder="onColumnReorder"
             class="p-datatable-sm"
           >
@@ -66,7 +63,7 @@
                 </template>
                 <!-- Обычные значения -->
                 <template v-else>
-                  {{ slotProps.data[col.field] }}
+                  {{ formatValue(slotProps.data[col.field]) }}
                 </template>
               </template>
             </Column>
@@ -74,17 +71,20 @@
         </div>
 
         <!-- Отладочная информация -->
-        <!-- <div v-if="showDebugInfo" class="debug-info">
+        <div v-if="showDebugInfo" class="debug-info">
           <h3>Отладочная информация:</h3>
-          <pre>{{ JSON.stringify(diamApplicationList, null, 2) }}</pre>
-        </div> -->
+          <h4>Данные для таблицы:</h4>
+          <pre>{{ JSON.stringify(tableData, null, 2) }}</pre>
+          <h4>Полные данные из стора:</h4>
+          <pre>{{ JSON.stringify(catalogDetails, null, 2) }}</pre>
+        </div>
       </template>
     </Card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, computed, watchEffect } from "vue";
 import { useRoute } from "vue-router";
 import { useModuleStore } from "../stores/module-factory";
 
@@ -94,18 +94,23 @@ import ProgressSpinner from "primevue/progressspinner";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
 
+// Получаем параметры маршрута
 const route = useRoute();
-const loading = ref(true);
+const viewname = computed(() => route.params.viewname as string);
+
+// Состояние компонента
+const loading = ref(true); // Начальное состояние - загрузка
 const error = ref<string | null>(null);
-const diamApplicationList = ref<any[]>([]);
-const moduleTitle = ref("Список DIAM приложений");
+const catalogDetails = ref<any>(null);
 const showDebugInfo = ref(false); // Флаг для отображения отладочной информации
 
-// Колонки для таблицы
-const columns = ref<Array<{ field: string; header: string }>>([]);
+// Заголовок страницы
+const moduleTitle = computed(() => {
+  return `Детали каталога: ${viewname.value}`;
+});
 
 // Получаем ID модуля из meta-данных маршрута
-const moduleId = computed(() => route.meta.moduleId as string || "");
+const moduleId = computed(() => (route.meta.moduleId as string) || "");
 
 // Функция для получения стора модуля
 const getModuleStore = (moduleId: string) => {
@@ -116,91 +121,90 @@ const getModuleStore = (moduleId: string) => {
   return moduleStore;
 };
 
-// Функция для загрузки данных
-const loadDiamApplicationList = async () => {
-  loading.value = true;
-  error.value = null;
-
+// Данные для таблицы
+const tableData = computed(() => {
   try {
     const moduleStore = getModuleStore(moduleId.value);
+    const details = moduleStore.catalogDetails[viewname.value];
 
-    // Загружаем данные
-    const data = await moduleStore.getDiamApplicationList();
-    diamApplicationList.value = data;
+    // Сбрасываем загрузку при любом доступе к данным
+    loading.value = false;
 
-    // Динамически создаем колонки на основе полученных данных
-    if (data.length > 0) {
-      const sampleItem = data[0];
-
-      // Очищаем массив колонок перед добавлением новых
-      columns.value = [];
-
-      // Формируем список колонок на основе полученных данных
-      const dynamicColumns = Object.keys(sampleItem)
-        .filter((key) => key !== "__v" && key !== "_id") // Исключаем служебные поля
-        .map((key) => {
-          // Форматируем заголовки колонок
-          let header =
-            key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
-
-          // Русифицируем известные поля
-          if (key === "id") header = "ID";
-          if (key === "name") header = "Имя";
-          if (key === "description") header = "Описание";
-          if (key === "date_created") header = "Дата создания";
-          if (key === "date_updated") header = "Дата обновления";
-
-          return {
-            field: key,
-            header: header,
-          };
-        });
-
-      // Сортируем колонки в логичном порядке
-      const priorityFields = ["id", "name", "description"];
-
-      // Сначала добавляем приоритетные поля в заданном порядке
-      priorityFields.forEach((field) => {
-        const column = dynamicColumns.find((col) => col.field === field);
-        if (column) {
-          columns.value.push(column);
-        }
-      });
-
-      // Затем добавляем остальные поля
-      dynamicColumns.forEach((column) => {
-        if (!priorityFields.includes(column.field)) {
-          columns.value.push(column);
-        }
-      });
-
-      // Включаем отладочную информацию для проверки структуры данных
-      showDebugInfo.value = true;
+    if (!details) {
+      catalogDetails.value = null;
+      return [];
     }
+
+    // Если есть поле results и оно является массивом
+    if (
+      details.results &&
+      Array.isArray(details.results) &&
+      details.results.length > 0
+    ) {
+      catalogDetails.value = details;
+      return details.results;
+    }
+
+    // Иначе возвращаем сам объект в массиве
+    catalogDetails.value = details;
+    return [details];
   } catch (err) {
-    error.value = `Ошибка при загрузке списка приложений: ${
+    console.error("Ошибка при получении данных из стора:", err);
+    error.value = `Ошибка при получении данных: ${
       err instanceof Error ? err.message : String(err)
     }`;
-  } finally {
     loading.value = false;
+    return [];
   }
-};
+});
 
-// Инициализация и обработка изменений маршрута
-onMounted(() => loadDiamApplicationList());
+// Динамические колонки для таблицы
+const columns = computed<Array<{ field: string; header: string }>>(() => {
+  if (tableData.value.length === 0) return [];
 
-// Отслеживаем изменения маршрута
-watch(() => route.path, loadDiamApplicationList);
+  // Используем первый элемент для определения колонок
+  const sampleItem = tableData.value[0];
+  if (!sampleItem) return [];
+
+  // Просто берем все поля из первого элемента данных
+  return Object.keys(sampleItem).map((key) => ({
+    field: key,
+    header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
+  }));
+});
 
 // Обработка перетаскивания столбцов
 const onColumnReorder = (event: any) => {
   console.log("Порядок столбцов изменен:", event);
   // Здесь можно сохранить порядок столбцов в localStorage или на сервере
 };
+
+// Функция для форматирования значений
+const formatValue = (value: any) => {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return value;
+};
+
+// Дебаг информация для отслеживания данных
+watchEffect(() => {
+  // Показываем отладочную информацию, если есть данные
+  const data = tableData.value;
+  if (data.length > 0) {
+    showDebugInfo.value = true;
+    console.log(
+      `Загружено ${data.length} записей, колонок: ${columns.value.length}`
+    );
+  }
+});
 </script>
 
 <style scoped>
-.diam-application-list-page {
+.catalog-details-page {
   padding: 1rem;
 }
 
@@ -214,7 +218,7 @@ const onColumnReorder = (event: any) => {
   padding: 2rem;
 }
 
-.application-list {
+.catalog-details {
   margin-top: 1rem;
 }
 
