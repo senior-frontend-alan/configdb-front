@@ -30,7 +30,12 @@ export interface CatalogItem {
   discriminators: any | null;
   tags: string[] | null;
   model_name: string;
-  model_info: any | null;
+  model_info: {
+    date_updated?: string;
+    valid_date?: string;
+    content_type?: number;
+    [key: string]: any;
+  } | null;
 }
 
 // Группа каталога

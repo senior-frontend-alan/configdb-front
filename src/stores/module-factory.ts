@@ -98,60 +98,6 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
     
-  
-    
-    
-    const deleteItem = async (id: number | string) => {
-      loading.value = true;
-      try {
-        const url = moduleConfig.routes.delete.replace('{id}', id.toString());
-        await api.delete(url);
-        catalog.value = catalog.value.filter(item => item.id !== id);
-        error.value = null;
-        return true;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при удалении ${moduleConfig.name} с ID ${id}:`, err);
-        return false;
-      } finally {
-        loading.value = false;
-      }
-    };
-    
-    // Получение списка DIAM приложений
-    const getDiamApplicationList = async () => {
-      loading.value = true;
-      try {
-        const routes = moduleConfig.routes as unknown as Record<string, string>;
-        const url = routes['getDiamApplicationList'];
-        
-        if (!url) {
-          throw new Error(`Маршрут getDiamApplicationList не найден в конфигурации модуля ${moduleConfig.id}`);
-        }
-        
-        console.log(`Отправка запроса на ${url}`);
-        const response = await api.get(url);
-        
-        // Проверяем, есть ли в ответе поле results
-        if (response.data && response.data.results) {
-          diamApplicationList.value = response.data.results;
-          error.value = null;
-          return response.data.results;
-        } else {
-          // Если нет поля results, используем данные как есть
-          diamApplicationList.value = response.data;
-          error.value = null;
-          return response.data;
-        }
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при получении списка DIAM приложений:`, err);
-        return [];
-      } finally {
-        loading.value = false;
-      }
-    };
-    
     // Загрузка данных по URL и сохранение их в соответствующее поле catalogDetails
     const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
       // Проверяем, есть ли уже загруженные данные для этого viewname
@@ -172,7 +118,6 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
           ...response.data,
           viewname: viewname,
           href: url,
-          _timestamp: new Date().getTime() // Добавляем временную метку для отслеживания изменений
         };
         
         // Напрямую обновляем реактивный объект (reactive вместо ref)
@@ -204,8 +149,6 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       
       // действия
       getCatalog,
-      getDiamApplicationList,
-      deleteItem,
       loadCatalogDetails
     };
   });

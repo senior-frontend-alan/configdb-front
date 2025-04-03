@@ -1,10 +1,25 @@
 <script setup>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import BreadCrumb from "primevue/breadcrumb";
+import { useModuleStore } from "../stores/module-factory";
 
 const route = useRoute();
 const router = useRouter();
+
+const moduleId = computed(() => {
+  return route.meta.moduleId || "";
+});
+
+const moduleStore = moduleId.value ? useModuleStore(moduleId.value) : null;
+
+const catalogData = computed(() => moduleStore?.catalog || []);
+
+// Функция для получения названия группы по её идентификатору
+const getGroupVerboseName = (groupName) => {
+  const group = catalogData.value?.find((g) => g.name === groupName);
+  return group?.verbose_name || group?.name || groupName;
+};
 
 // Хлебные крошки
 const home = ref({
@@ -23,6 +38,8 @@ const updateBreadcrumbs = () => {
     const pathSegments = route.path.split("/").filter((segment) => segment);
 
     let currentPath = "";
+    let currentQuery = {};
+
     pathSegments.forEach((segment) => {
       currentPath += `/${segment}`;
       // Преобразуем сегмент пути для отображения (первая буква заглавная, дефисы заменяем на пробелы)
@@ -31,19 +48,26 @@ const updateBreadcrumbs = () => {
 
       items.push({
         label,
-        route: currentPath,
+        route: { path: currentPath, query: currentQuery },
       });
     });
+
+    // Добавляем группу в хлебные крошки, если она указана в параметрах запроса
+    if (route.query.group) {
+      const groupId = route.query.group;
+      const groupDisplayName = getGroupVerboseName(groupId);
+      items.push({
+        label: `Группа: ${groupDisplayName}`,
+        route: { path: route.path, query: { group: groupId } },
+      });
+    }
   }
 
   breadcrumbItems.value = items;
 };
 
-// Следим за изменениями маршрута
-watch(
-  () => route.path,
-  () => updateBreadcrumbs()
-);
+// Следим за изменениями маршрута и параметров запроса
+watch([() => route.path, () => route.query], () => updateBreadcrumbs());
 
 // Инициализируем хлебные крошки при загрузке
 onMounted(() => {

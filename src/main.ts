@@ -10,7 +10,7 @@ import router from './router';
 import { useConfig } from './config-loader';
 import { createModuleStore } from './stores/module-factory';
 import { useAuthStore } from './stores/authStore';
-import { useSettingsStore } from './stores/userSettingsStore';
+import { useSettingsStore } from './stores/settingsStore';
 
 const app = createApp(App);
 const pinia = createPinia();

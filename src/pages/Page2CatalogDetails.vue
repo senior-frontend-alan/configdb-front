@@ -102,7 +102,7 @@ const viewname = computed(() => route.params.viewname as string);
 const loading = ref(true); // Начальное состояние - загрузка
 const error = ref<string | null>(null);
 const catalogDetails = ref<any>(null);
-const showDebugInfo = ref(false); // Флаг для отображения отладочной информации
+const showDebugInfo = ref(true); // Флаг для отображения отладочной информации
 
 // Заголовок страницы
 const moduleTitle = computed(() => {
@@ -129,30 +129,15 @@ const tableData = computed(() => {
 
     // Сбрасываем загрузку при любом доступе к данным
     loading.value = false;
-
-    if (!details) {
-      catalogDetails.value = null;
-      return [];
-    }
-
-    // Если есть поле results и оно является массивом
-    if (
-      details.results &&
-      Array.isArray(details.results) &&
-      details.results.length > 0
-    ) {
-      catalogDetails.value = details;
-      return details.results;
-    }
-
-    // Иначе возвращаем сам объект в массиве
     catalogDetails.value = details;
-    return [details];
+
+    if (!details) return [];
+
+    // Если есть поле results и оно массив, возвращаем его
+    return Array.isArray(details.results) ? details.results : [details];
   } catch (err) {
-    console.error("Ошибка при получении данных из стора:", err);
-    error.value = `Ошибка при получении данных: ${
-      err instanceof Error ? err.message : String(err)
-    }`;
+    console.error("Ошибка при получении данных:", err);
+    error.value = `Ошибка: ${err instanceof Error ? err.message : String(err)}`;
     loading.value = false;
     return [];
   }
@@ -160,17 +145,31 @@ const tableData = computed(() => {
 
 // Динамические колонки для таблицы
 const columns = computed<Array<{ field: string; header: string }>>(() => {
-  if (tableData.value.length === 0) return [];
-
-  // Используем первый элемент для определения колонок
-  const sampleItem = tableData.value[0];
-  if (!sampleItem) return [];
-
-  // Просто берем все поля из первого элемента данных
-  return Object.keys(sampleItem).map((key) => ({
-    field: key,
-    header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
-  }));
+  // Если есть данные, используем их для определения колонок
+  if (tableData.value.length > 0) {
+    const sampleItem = tableData.value[0];
+    if (sampleItem) {
+      return Object.keys(sampleItem).map((key) => ({
+        field: key,
+        header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
+      }));
+    }
+  }
+  
+  // Если данных нет, но есть catalogDetails, используем схему из него
+  if (catalogDetails.value && catalogDetails.value.schema) {
+    return Object.keys(catalogDetails.value.schema).map((key) => ({
+      field: key,
+      header: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
+    }));
+  }
+  
+  // Если ничего нет, возвращаем базовые колонки
+  return [
+    { field: "id", header: "ID" },
+    { field: "name", header: "Имя" },
+    { field: "description", header: "Описание" }
+  ];
 });
 
 // Обработка перетаскивания столбцов

@@ -56,31 +56,42 @@ watch(
 
 const handleMenuItemClick = async (event: any, path: string) => {
   console.log("Клик по пункту меню:", event, path);
-  // Загружаем данные модуля
-  const currentId = moduleId.value;
-  const moduleStore = useModuleStore(currentId);
-  if (moduleStore) {
-    try {
-      await moduleStore.getCatalog(); // если данные каталога загружены повторного запроса не будет
-      console.log(`Загрузка данных для модуля ${currentId} завершена`);
-    } catch (error) {
-      console.error(
-        `Ошибка при загрузке данных для модуля ${currentId}:`,
-        error
-      );
-    }
-  }
 
   // Предотвращаем стандартное поведение ссылки
   if (event && event.originalEvent) {
     event.originalEvent.preventDefault();
   }
 
-  // Если это главная страница, просто переходим на неё
-  if (path === "/") {
-    router.push(path);
-    return;
+  // Проверяем, является ли путь путем к модулю
+  const isModulePath =
+    path !== "/" &&
+    path !== "/settings" &&
+    path !== "/login" &&
+    path !== "/widgets";
+
+  // Загружаем данные модуля только если это путь к модулю
+  if (isModulePath) {
+    const cleanPath = path.split("?")[0]; // Удаляем все после ?
+
+    const pathParts = cleanPath.split("/");
+    const pathModuleId = pathParts[1]; // Получаем ID модуля
+
+    if (pathModuleId) {
+      try {
+        const moduleStore = useModuleStore(pathModuleId);
+        if (moduleStore) {
+          await moduleStore.getCatalog(); // если данные каталога загружены повторного запроса не будет
+          console.log(`Загрузка данных для модуля ${pathModuleId} завершена`);
+        }
+      } catch (error) {
+        console.error(
+          `Ошибка при загрузке данных для модуля ${pathModuleId}:`,
+          error
+        );
+      }
+    }
   }
+
   // Навигация
   router.push(path);
 };
@@ -95,27 +106,27 @@ const isRouteActive = (path: string) => {
   if (path === "/") {
     return route.path === "/";
   }
-  
+
   // Разбираем URL на базовый путь и query параметры
   const [basePath, queryString] = path.split("?");
   const pathModuleId = basePath.split("/")[1];
-  
+
   // Проверяем совпадение модуля
   if (pathModuleId !== moduleId.value) {
     return false;
   }
-  
+
   // Если нет query параметров, проверяем только модуль
   if (!queryString) {
     return route.path === basePath && !route.query.group;
   }
-  
+
   // Если есть query параметр group, проверяем его значение
   const groupMatch = queryString.match(/group=([^&]+)/);
   if (groupMatch) {
     return route.path === basePath && route.query.group === groupMatch[1];
   }
-  
+
   return false;
 };
 
@@ -127,6 +138,19 @@ const menuItems = computed(() => {
     icon: "pi pi-home",
     command: (event: any) => handleMenuItemClick(event, "/"),
     style: isRouteActive("/")
+      ? {
+          backgroundColor: "var(--primary-color-lighter, #e3f2fd)",
+          color: "var(--primary-color, #2196f3)",
+        }
+      : undefined,
+  };
+
+  // Пункт Настройки
+  const settingsItem = {
+    label: "Settings",
+    icon: "pi pi-cog",
+    command: (event: any) => handleMenuItemClick(event, "/settings"),
+    style: isRouteActive("/settings")
       ? {
           backgroundColor: "var(--primary-color-lighter, #e3f2fd)",
           color: "var(--primary-color, #2196f3)",
@@ -179,8 +203,8 @@ const menuItems = computed(() => {
     return moduleItem;
   });
 
-  // Объединяем главный пункт и модули
-  return [homeItem, ...moduleItems];
+  // Объединяем главный пункт, модули и настройки
+  return [homeItem, ...moduleItems, settingsItem];
 });
 
 // Примечание: Загрузка данных каталога теперь происходит при клике на пункт меню

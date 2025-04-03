@@ -4,7 +4,7 @@ import { computed, ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "./stores/authStore";
 import AppTopbar from "./components/AppTopbar.vue";
-import AppSideMenu from "./components/AppSideMenu.vue";
+import SideMenu from "./components/SideMenu.vue";
 import AppBreadcrumb from "./components/AppBreadcrumb.vue";
 import AppProgressBar from "./components/AppProgressBar.vue";
 import Button from "primevue/button";
@@ -76,7 +76,7 @@ onUnmounted(() => {
 
     <!-- Боковое меню -->
     <div class="layout-sidebar">
-      <AppSideMenu
+      <SideMenu
         v-if="showSideMenu"
         :visible="true"
         @toggle-sidebar="toggleSidebar"

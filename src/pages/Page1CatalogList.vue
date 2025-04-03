@@ -2,13 +2,10 @@
   <div class="catalog-page">
     <Card>
       <template #title>
-        <!-- Переключатель режимов отображения -->
-        <div class="display-mode-switch">
+        <div class="title-container">
           <h4>{{ moduleTitle }}</h4>
-          <ToggleSwitch v-model="tabMode" />
-          <span style="font-size: 0.875rem; color: var(--text-color-secondary)"
-            >TabView</span
-          >
+          <!-- Панель инструментов с поиском -->
+          <ToolBar :initialQuery="searchQuery" @search="handleSearch" />
         </div>
       </template>
       <template #content>
@@ -19,9 +16,7 @@
         <div v-else-if="error">
           <Message severity="error">{{ error }}</Message>
         </div>
-        <div
-          v-else-if="!filteredCatalogData || filteredCatalogData.length === 0"
-        >
+        <div v-else-if="!filteredData || filteredData.length === 0">
           <Message severity="info">Данные каталога отсутствуют</Message>
         </div>
         <div v-else class="catalog-container">
@@ -41,7 +36,7 @@
           <!-- Отображение в виде списка -->
           <ListViewP1
             v-if="!tabMode"
-            :catalogData="filteredCatalogData"
+            :catalogData="filteredData"
             :moduleId="moduleId"
             :groupName="queryGroupName"
             @error="handleTabViewError"
@@ -51,7 +46,7 @@
           <!-- Отображение в виде табов -->
           <TabViewP1
             v-else
-            :catalogData="filteredCatalogData"
+            :catalogData="filteredData"
             :moduleId="moduleId"
             :groupName="queryGroupName"
             @error="handleTabViewError"
@@ -66,12 +61,12 @@
 import { ref, onMounted, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useModuleStore } from "../stores/module-factory";
+import { useSettingsStore } from "../stores/settingsStore";
 import type { CatalogGroup } from "../stores/types/moduleStore.type";
 
 import Card from "primevue/card";
 import Message from "primevue/message";
 import ProgressSpinner from "primevue/progressspinner";
-import ToggleSwitch from "primevue/toggleswitch";
 import TabViewP1 from "../components/TabViewP1.vue";
 import ListViewP1 from "../components/ListViewP1.vue";
 
@@ -85,7 +80,9 @@ const moduleTitle = computed(
   () => moduleStore?.moduleName || "Каталог элементов"
 );
 
-const tabMode = ref(false); // Переменные для переключения режимов отображения
+// Используем настройки из хранилища
+const settingsStore = useSettingsStore();
+const tabMode = computed(() => settingsStore.useTabMode); // Режим отображения из настроек
 const showDebugJson = ref(false); // Показывать ли JSON для отладки
 
 const moduleId = computed(() => {
@@ -94,23 +91,51 @@ const moduleId = computed(() => {
 const moduleStore = useModuleStore(moduleId.value);
 
 const queryGroupName = computed(() => (route.query.group as string) || "");
+const searchQuery = computed(() => (route.query.search as string) || "");
 
-// Фильтруем данные каталога по query-параметру group
-const filteredCatalogData = computed(() => {
+// Фильтрация данных каталога с учетом всех фильтров
+const filteredData = computed(() => {
   if (!catalogData.value || catalogData.value.length === 0) {
     return [];
   }
 
-  // Если указана группа в query-параметрах, фильтруем по ней
+  let data = [...catalogData.value];
+
+  // Фильтрация по группе (group)
   if (queryGroupName.value) {
-    return catalogData.value.filter(
-      (group) => group.name === queryGroupName.value
-    );
+    data = data.filter((group) => group.name === queryGroupName.value);
   }
 
-  // Иначе возвращаем все данные
-  return catalogData.value;
+  // Фильтрация по поиску (search) по всем группам, которые остались в data после предыдущей фильтрации
+  if (searchQuery.value && searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase().trim();
+
+    data = data
+      .map((group) => {
+        const newGroup = { ...group };
+
+        if (newGroup.items && newGroup.items.length > 0) {
+          newGroup.items = newGroup.items.filter((item) => {
+            // Ищем в названии и описании
+            return (
+              (item.verbose_name &&
+                item.verbose_name.toLowerCase().includes(query)) ||
+              (item.description &&
+                item.description.toLowerCase().includes(query)) ||
+              (item.name && item.name.toLowerCase().includes(query))
+            );
+          });
+        }
+
+        return newGroup;
+      })
+      .filter((group) => group.items && group.items.length > 0); // Оставляем только группы с элементами
+  }
+
+  return data;
 });
+
+// Фильтрация данных уже выполнена в filteredData
 
 // Следим за изменениями данных в сторе
 onMounted(() => {
@@ -160,7 +185,7 @@ const handleCardClick = async (item: any) => {
       // Формируем новый URL из модуля и viewname элемента
       const moduleId = route.meta.moduleId as string;
       const newPath = `/${moduleId}/${item.viewname}`;
-      
+
       // Загрузка данных будет инициирована роутером
       console.log(`Переход по пути: ${newPath}`);
       router.push(newPath);
@@ -172,6 +197,12 @@ const handleCardClick = async (item: any) => {
     }`;
   }
 };
+
+// Обработчик поиска
+const handleSearch = (query: string) => {
+  console.log(`Поиск по запросу: ${query}`);
+  // Не нужно обновлять searchQuery.value, так как оно вычисляется из URL
+};
 </script>
 
 <style scoped>
@@ -179,23 +210,21 @@ const handleCardClick = async (item: any) => {
   padding: 1rem;
 }
 
-/* Стили для переключателя режимов */
-.display-mode-switch {
+.title-container {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  padding: 0.5rem;
   background-color: var(--surface-section);
-  border-radius: 6px;
-  width: fit-content;
+}
+
+.title-container h4 {
+  margin: 0;
 }
 
 /* Стили для аккордеона */
 .catalog-accordion-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
 }
 
 .catalog-accordion-item {
