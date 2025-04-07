@@ -1,4 +1,4 @@
-import { slugify as slugify_ } from 'transliteration';
+// import { slugify as slugify_ } from 'transliteration';
 
 export function logDebug(...vargs) {
     console.log("DEBUG:", ...vargs);
@@ -412,21 +412,21 @@ export function joinUrlPath(...args) {
     return comps.join('/');
 }
 
-export function slugify(s) {
-    // return slugify_(s, {
-    //     allowedChars: 'A-Za-z0-9-.',
-    //     separator: '',
-    //     lowercase: false,
-    // });
-    let comps = s.toLowerCase().replace(/[^a-z0-9-.,_~\/\\ ]/g, '').split(/[-.,_~\/\\ ]+/);
-    let tokens = 0;
-    for (var i = 0; i < comps.length; i++) {
-        if (comps[i]) {
-        tokens++;
-        if (tokens > 1) {
-            comps[i] = comps[i][0].toUpperCase() + comps[i].substring(1);
-        }
-        }
-    }
-    return comps.join('');
-}
+// export function slugify(s) {
+//     // return slugify_(s, {
+//     //     allowedChars: 'A-Za-z0-9-.',
+//     //     separator: '',
+//     //     lowercase: false,
+//     // });
+//     let comps = s.toLowerCase().replace(/[^a-z0-9-.,_~\/\\ ]/g, '').split(/[-.,_~\/\\ ]+/);
+//     let tokens = 0;
+//     for (var i = 0; i < comps.length; i++) {
+//         if (comps[i]) {
+//         tokens++;
+//         if (tokens > 1) {
+//             comps[i] = comps[i][0].toUpperCase() + comps[i].substring(1);
+//         }
+//         }
+//     }
+//     return comps.join('');
+// }

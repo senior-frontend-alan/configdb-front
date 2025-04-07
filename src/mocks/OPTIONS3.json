@@ -1,0 +1,856 @@
+{
+    "name": "Ns Instance With Vnf List",
+    "description": "",
+    "renders": [
+        "application/json",
+        "text/html"
+    ],
+    "parses": [
+        "application/json",
+        "multipart/form-data"
+    ],
+    "actions": {
+        "POST": {
+            "id": {
+                "type": "string",
+                "required": true,
+                "read_only": false,
+                "label": "NS Instance Id",
+                "help_text": "Identifier of the NS instance"
+            },
+            "name": {
+                "type": "string",
+                "required": true,
+                "read_only": false,
+                "label": "NS Instance",
+                "help_text": "Human readable name of the NS instance.",
+                "max_length": 250
+            },
+            "description": {
+                "type": "string",
+                "required": true,
+                "read_only": false,
+                "label": "Description",
+                "help_text": "Human readable description of the NS instance",
+                "max_length": 2000
+            },
+            "nsdId": {
+                "type": "string",
+                "required": true,
+                "read_only": false,
+                "label": "NS Descriptor",
+                "help_text": "Identifier of the NSD on which the NS instance is based."
+            },
+            "vnf_ns": {
+                "type": "field",
+                "required": false,
+                "read_only": true,
+                "label": "Vnf ns",
+                "child": {
+                    "type": "nested object",
+                    "required": false,
+                    "read_only": true,
+                    "children": {
+                        "id": {
+                            "type": "string",
+                            "required": true,
+                            "read_only": false,
+                            "label": "VNF Instance ID",
+                            "help_text": "Identifier of the vnf instance"
+                        },
+                        "member_vnf_index": {
+                            "type": "string",
+                            "required": true,
+                            "read_only": false,
+                            "label": "VNF Index",
+                            "help_text": "Member VNF index.",
+                            "max_length": 30
+                        },
+                        "vnfInstanceName": {
+                            "type": "string",
+                            "required": false,
+                            "read_only": false,
+                            "label": "VNF Instance Name",
+                            "help_text": "Name of the VNF instance.",
+                            "max_length": 250
+                        },
+                        "vnfInstanceDescription": {
+                            "type": "string",
+                            "required": false,
+                            "read_only": false,
+                            "label": "Description",
+                            "help_text": "Human readable description of the VNF instance",
+                            "max_length": 2000
+                        },
+                        "vnfdId": {
+                            "type": "string",
+                            "required": true,
+                            "read_only": false,
+                            "label": "VNF Descriptor",
+                            "help_text": "Identifier of the VNFD on which the VNF instance is based."
+                        },
+                        "ns_id": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": false,
+                            "label": "NS Instance",
+                            "help_text": "Identifier of the NS for which the VNF instance is created."
+                        },
+                        "nsdId": {
+                            "type": "string",
+                            "required": true,
+                            "read_only": false,
+                            "label": "NS Descriptor",
+                            "help_text": "Identifier of the NSD on which the NS instance is based."
+                        },
+                        "nsState": {
+                            "type": "choice",
+                            "required": true,
+                            "read_only": false,
+                            "label": "State",
+                            "help_text": "The state of the NS instance.",
+                            "choices": [
+                                {
+                                    "value": 1,
+                                    "display_name": "NOT_INSTANTIATED"
+                                },
+                                {
+                                    "value": 2,
+                                    "display_name": "INSTANTIATED"
+                                },
+                                {
+                                    "value": 3,
+                                    "display_name": "TERMINATING"
+                                },
+                                {
+                                    "value": 4,
+                                    "display_name": "BROKEN"
+                                },
+                                {
+                                    "value": 5,
+                                    "display_name": "READY"
+                                },
+                                {
+                                    "value": 6,
+                                    "display_name": "DELETED"
+                                },
+                                {
+                                    "value": 7,
+                                    "display_name": "BUILDING"
+                                }
+                            ]
+                        },
+                        "ip_address": {
+                            "type": "string",
+                            "required": false,
+                            "read_only": false,
+                            "label": "VNF IP",
+                            "max_length": 30
+                        },
+                        "vdui_vnf": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": false,
+                            "label": "Vdui vnf",
+                            "child": {
+                                "type": "nested object",
+                                "required": false,
+                                "read_only": false,
+                                "children": {
+                                    "id": {
+                                        "type": "string",
+                                        "required": true,
+                                        "read_only": false,
+                                        "label": "Id"
+                                    },
+                                    "count_index": {
+                                        "type": "integer",
+                                        "required": false,
+                                        "read_only": false,
+                                        "label": "Count_index",
+                                        "help_text": "Identifier of VDU instance. 0 - base instance, >0 - scaling instance.",
+                                        "min_value": -2147483648,
+                                        "max_value": 2147483647
+                                    },
+                                    "vdu_id": {
+                                        "type": "field",
+                                        "required": true,
+                                        "read_only": false,
+                                        "label": "VDU",
+                                        "help_text": "Identifier of the VDU."
+                                    },
+                                    "host_id": {
+                                        "type": "field",
+                                        "required": true,
+                                        "read_only": false,
+                                        "label": "VM",
+                                        "help_text": "Identifier of Host where this vdu is instantiated(Real VM)."
+                                    },
+                                    "vnf_id": {
+                                        "type": "field",
+                                        "required": false,
+                                        "read_only": false,
+                                        "label": "VNF",
+                                        "help_text": "Identifier of VNF instance where this vdu is instantiated."
+                                    }
+                                }
+                            }
+                        },
+                        "date_created": {
+                            "type": "datetime",
+                            "required": false,
+                            "read_only": true,
+                            "label": "Date created"
+                        },
+                        "date_updated": {
+                            "type": "datetime",
+                            "required": false,
+                            "read_only": true,
+                            "label": "Date updated"
+                        }
+                    }
+                }
+            },
+            "state": {
+                "type": "choice",
+                "required": false,
+                "read_only": false,
+                "label": "State",
+                "help_text": "The state of the NS instance.",
+                "choices": [
+                    {
+                        "value": 1,
+                        "display_name": "NOT_INSTANTIATED"
+                    },
+                    {
+                        "value": 2,
+                        "display_name": "INSTANTIATED"
+                    },
+                    {
+                        "value": 3,
+                        "display_name": "TERMINATING"
+                    },
+                    {
+                        "value": 4,
+                        "display_name": "BROKEN"
+                    },
+                    {
+                        "value": 5,
+                        "display_name": "READY"
+                    },
+                    {
+                        "value": 6,
+                        "display_name": "BUILDING"
+                    },
+                    {
+                        "value": 7,
+                        "display_name": "DELETED"
+                    }
+                ]
+            },
+            "administrative_state": {
+                "type": "choice",
+                "required": false,
+                "read_only": false,
+                "label": "Administrative state",
+                "help_text": "The administrative state of the NS instance. Locked - administratively prohibited from using, UnLocked - administratively permitted to using.",
+                "choices": [
+                    {
+                        "value": 1,
+                        "display_name": "LOCKED"
+                    },
+                    {
+                        "value": 2,
+                        "display_name": "UNLOCKED"
+                    }
+                ]
+            },
+            "additional_param_for_vnf": {
+                "type": "field",
+                "required": false,
+                "read_only": true,
+                "label": "Additional param for vnf",
+                "child": {
+                    "type": "nested object",
+                    "required": false,
+                    "read_only": true,
+                    "children": {
+                        "id": {
+                            "type": "integer",
+                            "required": false,
+                            "read_only": true,
+                            "label": "ID"
+                        },
+                        "vnfd": {
+                            "type": "field",
+                            "required": true,
+                            "read_only": false,
+                            "label": "VNF Descriptor"
+                        },
+                        "param": {
+                            "type": "field",
+                            "required": true,
+                            "read_only": false,
+                            "label": "Param"
+                        },
+                        "custom_value": {
+                            "type": "string",
+                            "required": false,
+                            "read_only": false,
+                            "label": "Custom value",
+                            "max_length": 2000
+                        },
+                        "ns": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": false,
+                            "label": "NS Instance"
+                        }
+                    }
+                }
+            },
+            "date_created": {
+                "type": "datetime",
+                "required": false,
+                "read_only": true,
+                "label": "Date created"
+            },
+            "date_updated": {
+                "type": "datetime",
+                "required": false,
+                "read_only": true,
+                "label": "Date updated"
+            },
+            "has_vnf": {
+                "type": "boolean",
+                "required": false,
+                "read_only": true,
+                "label": "Has vnf"
+            },
+            "Last_LCM_operation": {
+                "type": "string",
+                "required": false,
+                "read_only": true,
+                "label": "Last lcm operation"
+            },
+            "Last_LCM_operation_status": {
+                "type": "string",
+                "required": false,
+                "read_only": true,
+                "label": "Last lcm operation status"
+            },
+            "last_operation_id": {
+                "type": "string",
+                "required": false,
+                "read_only": true,
+                "label": "Last operation id"
+            }
+        }
+    },
+    "layout": {
+        "class_name": "ViewSetLayout",
+        "element_id": "nsinstancewithvnf",
+        "name": "nsinstancewithvnf",
+        "elements": [
+            {
+                "class_name": "LayoutField",
+                "element_id": "nsinstancewithvnf/id",
+                "name": "id",
+                "label": "NS Instance Id",
+                "help_text": "Identifier of the NS instance",
+                "field_class": "UUIDField",
+                "required": true,
+                "input_type": "text"
+            },
+            {
+                "class_name": "LayoutField",
+                "element_id": "nsinstancewithvnf/name",
+                "name": "name",
+                "label": "NS Instance",
+                "help_text": "Human readable name of the NS instance.",
+                "field_class": "CharField",
+                "required": true,
+                "read_only": true,
+                "input_type": "text",
+                "filterable": true
+            },
+            {
+                "class_name": "LayoutField",
+                "element_id": "nsinstancewithvnf/description",
+                "name": "description",
+                "label": "Description",
+                "help_text": "Human readable description of the NS instance",
+                "field_class": "CharField",
+                "required": true,
+                "read_only": true,
+                "input_type": "text",
+                "filterable": true
+            },
+            {
+                "class_name": "LayoutRelatedField",
+                "element_id": "nsinstancewithvnf/nsdId",
+                "name": "nsdId",
+                "label": "NS Descriptor",
+                "help_text": "Identifier of the NSD on which the NS instance is based.",
+                "field_class": "UUIDField",
+                "required": true,
+                "read_only": true,
+                "input_type": "text",
+                "filterable": true,
+                "lookup": true,
+                "obj_repr": [
+                    "version"
+                ]
+            },
+            {
+                "class_name": "LayoutRow",
+                "element_id": "nsinstancewithvnf/row-administrative_state",
+                "name": "row-administrative_state",
+                "elements": [
+                    {
+                        "class_name": "LayoutChoiceField",
+                        "element_id": "nsinstancewithvnf/state",
+                        "name": "state",
+                        "label": "State",
+                        "help_text": "The state of the NS instance.",
+                        "field_class": "ChoiceField",
+                        "default": 6,
+                        "read_only": true,
+                        "input_type": "text",
+                        "filterable": true,
+                        "choices": [
+                            {
+                                "value": 1,
+                                "display_name": "NOT_INSTANTIATED"
+                            },
+                            {
+                                "value": 2,
+                                "display_name": "INSTANTIATED"
+                            },
+                            {
+                                "value": 3,
+                                "display_name": "TERMINATING"
+                            },
+                            {
+                                "value": 4,
+                                "display_name": "BROKEN"
+                            },
+                            {
+                                "value": 5,
+                                "display_name": "READY"
+                            },
+                            {
+                                "value": 6,
+                                "display_name": "BUILDING"
+                            },
+                            {
+                                "value": 7,
+                                "display_name": "DELETED"
+                            }
+                        ]
+                    },
+                    {
+                        "class_name": "LayoutChoiceField",
+                        "element_id": "nsinstancewithvnf/administrative_state",
+                        "name": "administrative_state",
+                        "label": "Administrative state",
+                        "help_text": "The administrative state of the NS instance. Locked - administratively prohibited from using, UnLocked - administratively permitted to using.",
+                        "field_class": "ChoiceField",
+                        "default": 1,
+                        "input_type": "text",
+                        "choices": [
+                            {
+                                "value": 1,
+                                "display_name": "LOCKED"
+                            },
+                            {
+                                "value": 2,
+                                "display_name": "UNLOCKED"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "class_name": "LayoutRow",
+                "element_id": "nsinstancewithvnf/row-last_operation_id",
+                "name": "row-last_operation_id",
+                "elements": [
+                    {
+                        "class_name": "LayoutCharField",
+                        "element_id": "nsinstancewithvnf/Last_LCM_operation",
+                        "name": "Last_LCM_operation",
+                        "label": "Last lcm operation",
+                        "field_class": "CharField",
+                        "read_only": true,
+                        "input_type": "text",
+                        "max_length": 0,
+                        "multiline": true
+                    },
+                    {
+                        "class_name": "LayoutCharField",
+                        "element_id": "nsinstancewithvnf/Last_LCM_operation_status",
+                        "name": "Last_LCM_operation_status",
+                        "label": "Last lcm operation status",
+                        "field_class": "CharField",
+                        "read_only": true,
+                        "input_type": "text",
+                        "max_length": 0,
+                        "multiline": true
+                    },
+                    {
+                        "class_name": "LayoutCharField",
+                        "element_id": "nsinstancewithvnf/last_operation_id",
+                        "name": "last_operation_id",
+                        "label": "Last operation id",
+                        "field_class": "CharField",
+                        "read_only": true,
+                        "input_type": "text",
+                        "max_length": 0,
+                        "multiline": true
+                    }
+                ]
+            },
+            {
+                "class_name": "ViewSetInlineLayout",
+                "element_id": "nsinstancewithvnf/additional_param_for_vnf",
+                "name": "additional_param_for_vnf",
+                "label": "Additional param for vnf",
+                "elements": [
+                    {
+                        "class_name": "LayoutRelatedField",
+                        "element_id": "nsinstancewithvnf/additional_param_for_vnf/vnfd",
+                        "name": "vnfd",
+                        "label": "VNF Descriptor",
+                        "field_class": "PrimaryKeyRelatedLookupField",
+                        "allow_null": true,
+                        "input_type": "text",
+                        "list_url": "/nms/api/v1/vnfDescriptor/",
+                        "view_name": "vnfdescriptor",
+                        "appl_name": "nms",
+                        "lookup": true
+                    },
+                    {
+                        "class_name": "LayoutRelatedField",
+                        "element_id": "nsinstancewithvnf/additional_param_for_vnf/param",
+                        "name": "param",
+                        "label": "Param",
+                        "field_class": "PrimaryKeyRelatedLookupField",
+                        "required": true,
+                        "input_type": "text",
+                        "list_url": "/nms/api/v1/param/",
+                        "view_name": "param",
+                        "appl_name": "nms",
+                        "lookup": true
+                    },
+                    {
+                        "class_name": "LayoutCharField",
+                        "element_id": "nsinstancewithvnf/additional_param_for_vnf/custom_value",
+                        "name": "custom_value",
+                        "label": "Custom value",
+                        "field_class": "WeakRelatedLookupField",
+                        "allow_null": true,
+                        "input_type": "text",
+                        "weak_ref": "custom_param.reference",
+                        "max_length": 2000,
+                        "multiline": true
+                    }
+                ],
+                "view_name": "nsadditionalparam",
+                "display_list": [
+                    "param",
+                    "vnfd",
+                    "custom_value"
+                ],
+                "natural_key": [
+                    "code"
+                ],
+                "primary_key": "id",
+                "keyset": [
+                    "code",
+                    "custom_value",
+                    "param"
+                ],
+                "field_class": "ListSerializer",
+                "read_only": true,
+                "allow_empty": true
+            },
+            {
+                "class_name": "LayoutSection",
+                "element_id": "nsinstancewithvnf/system-attributes",
+                "name": "system-attributes",
+                "label": "System attributes",
+                "elements": [
+                    {
+                        "class_name": "LayoutRow",
+                        "element_id": "nsinstancewithvnf/row-date_updated",
+                        "name": "row-date_updated",
+                        "elements": [
+                            {
+                                "class_name": "LayoutField",
+                                "element_id": "nsinstancewithvnf/date_created",
+                                "name": "date_created",
+                                "label": "Date created",
+                                "field_class": "DateTimeField",
+                                "read_only": true,
+                                "input_type": "text"
+                            },
+                            {
+                                "class_name": "LayoutField",
+                                "element_id": "nsinstancewithvnf/date_updated",
+                                "name": "date_updated",
+                                "label": "Date updated",
+                                "field_class": "DateTimeField",
+                                "read_only": true,
+                                "input_type": "text"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "view_name": "nsinstancewithvnf",
+        "display_list": [
+            "name",
+            "description",
+            "nsdId",
+            "state",
+            "administrative_state",
+            "Last_LCM_operation",
+            "Last_LCM_operation_status"
+        ],
+        "filterable_list": [
+            "description",
+            "name",
+            "nsdId",
+            "state"
+        ],
+        "natural_key": [
+            "id",
+            "name"
+        ],
+        "primary_key": "id",
+        "keyset": [
+            "id",
+            "name"
+        ],
+        "set_operations": true,
+        "display_list_modal": [
+            "name",
+            "description",
+            "nsdId",
+            "state"
+        ]
+    },
+    "transaction_required": false,
+    "permitted_actions": {
+        "patch": true,
+        "get": true,
+        "post": true,
+        "delete": [
+            "{ return (data[\"administrative_state\"]== \"1\") ?  null : { fields: [\"administrative_state\"], message: \"Administrative state is unlocked.\" }}"
+        ],
+        "put": true,
+        "-uploadTM": {
+            "detail": true,
+            "methods": [
+                "post"
+            ]
+        },
+        "apiSchema": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "batch": {
+            "detail": false,
+            "methods": [
+                "post"
+            ]
+        },
+        "buildDashboard": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "catalogCF": {
+            "detail": true,
+            "methods": [
+                "get"
+            ]
+        },
+        "count": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "customOperation": {
+            "detail": true,
+            "methods": [
+                "get",
+                "post"
+            ]
+        },
+        "exportData": {
+            "detail": false,
+            "methods": [
+                "get",
+                "post"
+            ]
+        },
+        "heartBeat": {
+            "detail": false,
+            "methods": [
+                "post",
+                "put"
+            ]
+        },
+        "importData": {
+            "detail": false,
+            "methods": [
+                "post"
+            ]
+        },
+        "lastTransaction": {
+            "detail": true,
+            "methods": [
+                "get"
+            ]
+        },
+        "manage": {
+            "detail": true,
+            "methods": [
+                "post",
+                "patch"
+            ]
+        },
+        "managedElement": {
+            "detail": false,
+            "methods": [
+                "patch",
+                "put",
+                "post"
+            ]
+        },
+        "managedFunction": {
+            "detail": true,
+            "methods": [
+                "get"
+            ]
+        },
+        "maxUpdated": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "referenceCF": {
+            "detail": true,
+            "methods": [
+                "get",
+                "options",
+                "post"
+            ]
+        },
+        "referenceCFExport": {
+            "detail": true,
+            "methods": [
+                "get",
+                "post"
+            ]
+        },
+        "referenceCFImport": {
+            "detail": true,
+            "methods": [
+                "get",
+                "post"
+            ]
+        },
+        "referenceItemCF": {
+            "detail": true,
+            "methods": [
+                "patch",
+                "delete"
+            ]
+        },
+        "sync": {
+            "detail": false,
+            "methods": [
+                "post",
+                "put"
+            ]
+        },
+        "syncLCM": {
+            "detail": true,
+            "methods": [
+                "post"
+            ]
+        },
+        "syncState": {
+            "detail": true,
+            "methods": [
+                "post"
+            ]
+        },
+        "uploadTM": {
+            "detail": true,
+            "methods": [
+                "post"
+            ]
+        }
+    },
+    "filterset_fields": [
+        {
+            "filter_name": "nsdId",
+            "lookup_expr": "exact",
+            "label": "NS Descriptor",
+            "class_name": "UUIDFilter",
+            "field_name": "nsdId"
+        },
+        {
+            "filter_name": "state",
+            "lookup_expr": "exact",
+            "label": "State",
+            "class_name": "ChoiceFilter",
+            "field_name": "state"
+        },
+        {
+            "filter_name": "name",
+            "lookup_expr": "exact",
+            "label": "NS Instance",
+            "class_name": "CharFilter",
+            "field_name": "name"
+        },
+        {
+            "filter_name": "description",
+            "lookup_expr": "exact",
+            "label": "Description",
+            "class_name": "CharFilter",
+            "field_name": "description"
+        }
+    ],
+    "search_fields": [
+        "nsdId",
+        "state",
+        "name",
+        "description"
+    ],
+    "model_name": "nms.nsinstancewithvnf",
+    "verbose_name": "Ns Instance With Vnf",
+    "verbose_name_plural": "Ns Instance With Vnfs",
+    "help": "NSInstanceWithVNF(last_transaction, date_created, date_updated, id, name, description, nsdId, state, administrative_state)",
+    "details_info": {
+        "appl_name": "nms",
+        "view_name": "vnfInstanceWithDU",
+        "primary_field": "ns_id",
+        "show_if": "{return data['has_vnf'];}"
+    },
+    "reload_settings": {
+        "reload_auto": true,
+        "default_timeout": 15,
+        "reload_details": true
+    }
+}

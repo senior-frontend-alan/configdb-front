@@ -1,0 +1,683 @@
+{
+    "count": 4,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": "bb5c95e3-baab-41e1-ab26-31706b4fb9ce",
+            "name": "nrf_demo",
+            "description": "default description",
+            "nsdId": "2ed75d6d-23c4-4c9c-bfba-6b5d17a5037e",
+            "vnf_ns": [
+                {
+                    "id": "cd7dea72-848d-40d9-8402-1aa9bea880d4",
+                    "member_vnf_index": "cnf2",
+                    "vnfInstanceName": "cnf_knf2",
+                    "vnfInstanceDescription": "",
+                    "vnfdId": "b287cb83-4a02-4436-90ec-470d2c17f1e8",
+                    "ns_id": {
+                        "id": "bb5c95e3-baab-41e1-ab26-31706b4fb9ce",
+                        "name": "nrf_demo"
+                    },
+                    "nsdId": "2ed75d6d-23c4-4c9c-bfba-6b5d17a5037e",
+                    "nsState": 2,
+                    "ip_address": "127.0.0.1",
+                    "vdui_vnf": [],
+                    "date_created": "2025-03-17T14:30:42.725449+03:00",
+                    "date_updated": "2025-04-03T15:24:34.933889+03:00"
+                }
+            ],
+            "state": 5,
+            "administrative_state": 2,
+            "additional_param_for_vnf": [],
+            "date_created": "2025-03-17T14:30:39.454382+03:00",
+            "date_updated": "2025-04-03T15:24:33.747898+03:00",
+            "has_vnf": true,
+            "Last_LCM_operation": "Instantiate",
+            "Last_LCM_operation_status": "COMPLETED",
+            "last_operation_id": "0d83bf7d-8c98-403e-9511-159b49d9aab3"
+        },
+        {
+            "id": "98fb84e3-6943-40e0-a89b-1a6a06d1270e",
+            "name": "demo-q1",
+            "description": "2025Q1 NMS Demo",
+            "nsdId": "db29a2be-359c-4323-ba4e-9d9749f1d7b6",
+            "vnf_ns": [
+                {
+                    "id": "93719fb7-ff49-4989-a64b-bf2b35039fa5",
+                    "member_vnf_index": "19",
+                    "vnfInstanceName": "pcrf_vnfd1",
+                    "vnfInstanceDescription": "",
+                    "vnfdId": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                    "ns_id": {
+                        "id": "98fb84e3-6943-40e0-a89b-1a6a06d1270e",
+                        "name": "demo-q1"
+                    },
+                    "nsdId": "db29a2be-359c-4323-ba4e-9d9749f1d7b6",
+                    "nsState": 2,
+                    "ip_address": "172.18.110.74",
+                    "vdui_vnf": [
+                        {
+                            "id": "198e3693-5f78-410e-a8d5-a0616cbe68c3",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 7,
+                                "name": "dra-app-VM"
+                            },
+                            "host_id": {
+                                "id": 19,
+                                "name": "demo-q1-19-dra-app-vm-0.demo-q1.public.root.ru"
+                            }
+                        },
+                        {
+                            "id": "1997dcba-f4b5-4c2c-a16c-0f2a1c7429af",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 8,
+                                "name": "mgmt-app-VM"
+                            },
+                            "host_id": {
+                                "id": 20,
+                                "name": "demo-q1-19-mgmt-app-vm-0.demo-q1.public.root.ru"
+                            }
+                        },
+                        {
+                            "id": "4d63d87f-e7d9-49fc-a519-85aa147cab32",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 9,
+                                "name": "pccm-ng-app-VM"
+                            },
+                            "host_id": {
+                                "id": 21,
+                                "name": "demo-q1-19-pccm-ng-app-vm-0.demo-q1.public.root.ru"
+                            }
+                        },
+                        {
+                            "id": "b34ee799-15fc-4066-98f8-f8cab0120dfc",
+                            "count_index": 1,
+                            "vdu_id": {
+                                "id": 9,
+                                "name": "pccm-ng-app-VM"
+                            },
+                            "host_id": {
+                                "id": 22,
+                                "name": "demo-q1-19-pccm-ng-app-vm-1.demo-q1.public.root.ru"
+                            }
+                        }
+                    ],
+                    "date_created": "2025-03-19T19:31:14.316594+03:00",
+                    "date_updated": "2025-04-03T15:24:34.942880+03:00"
+                }
+            ],
+            "state": 5,
+            "administrative_state": 2,
+            "additional_param_for_vnf": [
+                {
+                    "id": 98,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 2,
+                        "name": "ManagedElementId"
+                    },
+                    "custom_value": {
+                        "reference": "nms.managedElement",
+                        "refid": "10",
+                        "id": 10,
+                        "name": "demo-q1_PCRF"
+                    }
+                },
+                {
+                    "id": 99,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 16,
+                        "name": "NfInstanceId"
+                    },
+                    "custom_value": "63c2e093-5dee-417e-99eb-a94a8259c1b0"
+                },
+                {
+                    "id": 89,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 1,
+                        "name": "SubNetworkId"
+                    },
+                    "custom_value": "public"
+                },
+                {
+                    "id": 90,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 3,
+                        "name": "MnsAgentId"
+                    },
+                    "custom_value": "MA1"
+                },
+                {
+                    "id": 91,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 4,
+                        "name": "DNGlobalRoot"
+                    },
+                    "custom_value": "root.ru"
+                },
+                {
+                    "id": 92,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 5,
+                        "name": "NFType"
+                    },
+                    "custom_value": {
+                        "reference": "inventory.nfType",
+                        "refid": "22",
+                        "id": 22,
+                        "name": "PCRF"
+                    }
+                },
+                {
+                    "id": 93,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 6,
+                        "name": "apiPrefix"
+                    },
+                    "custom_value": "nexign"
+                },
+                {
+                    "id": 94,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 7,
+                        "name": "MnSName"
+                    },
+                    "custom_value": {
+                        "reference": "nms.managementService",
+                        "refid": "1",
+                        "id": 1,
+                        "name": "ProvMnS"
+                    }
+                },
+                {
+                    "id": 95,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 8,
+                        "name": "MnSVersion"
+                    },
+                    "custom_value": "v1"
+                },
+                {
+                    "id": 96,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 9,
+                        "name": "port"
+                    },
+                    "custom_value": "8088"
+                },
+                {
+                    "id": 97,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 15,
+                        "name": "UriScheme"
+                    },
+                    "custom_value": "HTTPS"
+                }
+            ],
+            "date_created": "2025-03-19T19:27:10.954693+03:00",
+            "date_updated": "2025-04-03T15:24:33.767394+03:00",
+            "has_vnf": true,
+            "Last_LCM_operation": "Instantiate",
+            "Last_LCM_operation_status": "COMPLETED",
+            "last_operation_id": "62737a3a-4d8f-44be-8bb0-bd4991ee6305"
+        },
+        {
+            "id": "9d556727-e979-4ce1-b18e-1a269678f9df",
+            "name": "test2",
+            "description": "test2",
+            "nsdId": "db29a2be-359c-4323-ba4e-9d9749f1d7b6",
+            "vnf_ns": [
+                {
+                    "id": "c5fc894e-f936-4fe5-aaba-8f5ca21dc6a7",
+                    "member_vnf_index": "19",
+                    "vnfInstanceName": "pcrf_vnfd1",
+                    "vnfInstanceDescription": "",
+                    "vnfdId": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                    "ns_id": {
+                        "id": "9d556727-e979-4ce1-b18e-1a269678f9df",
+                        "name": "test2"
+                    },
+                    "nsdId": "db29a2be-359c-4323-ba4e-9d9749f1d7b6",
+                    "nsState": 2,
+                    "ip_address": "172.18.110.8",
+                    "vdui_vnf": [
+                        {
+                            "id": "820c84a5-19a6-4777-bfd8-0946f374e016",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 7,
+                                "name": "dra-app-VM"
+                            },
+                            "host_id": {
+                                "id": 36,
+                                "name": "NOT CONFIGURED"
+                            }
+                        },
+                        {
+                            "id": "1c580543-70f2-4431-951e-6637e73c01ca",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 8,
+                                "name": "mgmt-app-VM"
+                            },
+                            "host_id": {
+                                "id": 37,
+                                "name": "NOT CONFIGURED"
+                            }
+                        },
+                        {
+                            "id": "5ec8005a-f0dd-4597-949e-5118f4ca03b6",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 9,
+                                "name": "pccm-ng-app-VM"
+                            },
+                            "host_id": {
+                                "id": 38,
+                                "name": "NOT CONFIGURED"
+                            }
+                        },
+                        {
+                            "id": "1c6f2dcf-75c1-4785-abf0-3ebf55bd2838",
+                            "count_index": 1,
+                            "vdu_id": {
+                                "id": 9,
+                                "name": "pccm-ng-app-VM"
+                            },
+                            "host_id": {
+                                "id": 39,
+                                "name": "NOT CONFIGURED"
+                            }
+                        }
+                    ],
+                    "date_created": "2025-04-01T12:38:29.532230+03:00",
+                    "date_updated": "2025-04-03T15:24:34.953155+03:00"
+                }
+            ],
+            "state": 5,
+            "administrative_state": 2,
+            "additional_param_for_vnf": [
+                {
+                    "id": 122,
+                    "vnfd": null,
+                    "param": {
+                        "id": 2,
+                        "name": "ManagedElementId"
+                    },
+                    "custom_value": {
+                        "reference": "nms.managedElement",
+                        "refid": "13",
+                        "id": 13,
+                        "name": null
+                    }
+                },
+                {
+                    "id": 126,
+                    "vnfd": null,
+                    "param": {
+                        "id": 16,
+                        "name": "NfInstanceId"
+                    },
+                    "custom_value": "876621bb-d3c5-4efc-abd6-1199d8e56b95"
+                },
+                {
+                    "id": 125,
+                    "vnfd": null,
+                    "param": {
+                        "id": 4,
+                        "name": "DNGlobalRoot"
+                    },
+                    "custom_value": "root.ru"
+                },
+                {
+                    "id": 123,
+                    "vnfd": null,
+                    "param": {
+                        "id": 5,
+                        "name": "NFType"
+                    },
+                    "custom_value": {
+                        "reference": "inventory.nfType",
+                        "refid": "22",
+                        "id": 22,
+                        "name": "PCRF"
+                    }
+                },
+                {
+                    "id": 127,
+                    "vnfd": null,
+                    "param": {
+                        "id": 6,
+                        "name": "apiPrefix"
+                    },
+                    "custom_value": "nexign"
+                },
+                {
+                    "id": 124,
+                    "vnfd": null,
+                    "param": {
+                        "id": 7,
+                        "name": "MnSName"
+                    },
+                    "custom_value": {
+                        "reference": "nms.managementService",
+                        "refid": "1",
+                        "id": 1,
+                        "name": "ProvMnS"
+                    }
+                },
+                {
+                    "id": 128,
+                    "vnfd": null,
+                    "param": {
+                        "id": 8,
+                        "name": "MnSVersion"
+                    },
+                    "custom_value": "v1"
+                },
+                {
+                    "id": 129,
+                    "vnfd": null,
+                    "param": {
+                        "id": 9,
+                        "name": "port"
+                    },
+                    "custom_value": "8088"
+                },
+                {
+                    "id": 130,
+                    "vnfd": null,
+                    "param": {
+                        "id": 15,
+                        "name": "UriScheme"
+                    },
+                    "custom_value": "HTTPS"
+                }
+            ],
+            "date_created": "2025-04-01T12:38:27.285607+03:00",
+            "date_updated": "2025-04-03T15:24:33.785567+03:00",
+            "has_vnf": true,
+            "Last_LCM_operation": "Instantiate",
+            "Last_LCM_operation_status": "COMPLETED",
+            "last_operation_id": "631b8f26-246b-4e97-8857-085b37795936"
+        },
+        {
+            "id": "99c3ed57-8417-45a2-b925-34fae046fbfd",
+            "name": "test-demo",
+            "description": "test-demo",
+            "nsdId": "db29a2be-359c-4323-ba4e-9d9749f1d7b6",
+            "vnf_ns": [
+                {
+                    "id": "3745cce8-55f9-485c-8d1a-338d04954604",
+                    "member_vnf_index": "19",
+                    "vnfInstanceName": "pcrf_vnfd1",
+                    "vnfInstanceDescription": "",
+                    "vnfdId": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                    "ns_id": {
+                        "id": "99c3ed57-8417-45a2-b925-34fae046fbfd",
+                        "name": "test-demo"
+                    },
+                    "nsdId": "db29a2be-359c-4323-ba4e-9d9749f1d7b6",
+                    "nsState": 2,
+                    "ip_address": "172.18.110.81",
+                    "vdui_vnf": [
+                        {
+                            "id": "b5713ed5-c04d-48f3-b008-4913d72703b1",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 7,
+                                "name": "dra-app-VM"
+                            },
+                            "host_id": {
+                                "id": 32,
+                                "name": "test-demo-19-dra-app-vm-0.test-demo.public.root.ru"
+                            }
+                        },
+                        {
+                            "id": "96dd14ff-0fe6-4227-b8b4-2edb22a74d9d",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 8,
+                                "name": "mgmt-app-VM"
+                            },
+                            "host_id": {
+                                "id": 33,
+                                "name": "test-demo-19-mgmt-app-vm-0.test-demo.public.root.ru"
+                            }
+                        },
+                        {
+                            "id": "b44412b8-58df-4ba5-816b-b813b285e916",
+                            "count_index": 0,
+                            "vdu_id": {
+                                "id": 9,
+                                "name": "pccm-ng-app-VM"
+                            },
+                            "host_id": {
+                                "id": 34,
+                                "name": "test-demo-19-pccm-ng-app-vm-0.test-demo.public.root.ru"
+                            }
+                        },
+                        {
+                            "id": "38878a6b-1b29-4204-b5db-1a77a560a502",
+                            "count_index": 1,
+                            "vdu_id": {
+                                "id": 9,
+                                "name": "pccm-ng-app-VM"
+                            },
+                            "host_id": {
+                                "id": 35,
+                                "name": "test-demo-19-pccm-ng-app-vm-1.test-demo.public.root.ru"
+                            }
+                        }
+                    ],
+                    "date_created": "2025-04-03T15:16:43.684185+03:00",
+                    "date_updated": "2025-04-03T15:24:34.967580+03:00"
+                }
+            ],
+            "state": 5,
+            "administrative_state": 2,
+            "additional_param_for_vnf": [
+                {
+                    "id": 120,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 2,
+                        "name": "ManagedElementId"
+                    },
+                    "custom_value": {
+                        "reference": "nms.managedElement",
+                        "refid": "12",
+                        "id": 12,
+                        "name": "test-demo_PCRF"
+                    }
+                },
+                {
+                    "id": 121,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 16,
+                        "name": "NfInstanceId"
+                    },
+                    "custom_value": "08ab42a6-3a8f-475c-baec-a851911fdba3"
+                },
+                {
+                    "id": 111,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 1,
+                        "name": "SubNetworkId"
+                    },
+                    "custom_value": "public"
+                },
+                {
+                    "id": 112,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 3,
+                        "name": "MnsAgentId"
+                    },
+                    "custom_value": "MA1"
+                },
+                {
+                    "id": 113,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 4,
+                        "name": "DNGlobalRoot"
+                    },
+                    "custom_value": "root.ru"
+                },
+                {
+                    "id": 114,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 5,
+                        "name": "NFType"
+                    },
+                    "custom_value": {
+                        "reference": "inventory.nfType",
+                        "refid": "22",
+                        "id": 22,
+                        "name": "PCRF"
+                    }
+                },
+                {
+                    "id": 115,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 6,
+                        "name": "apiPrefix"
+                    },
+                    "custom_value": "nexign"
+                },
+                {
+                    "id": 116,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 7,
+                        "name": "MnSName"
+                    },
+                    "custom_value": {
+                        "reference": "nms.managementService",
+                        "refid": "1",
+                        "id": 1,
+                        "name": "ProvMnS"
+                    }
+                },
+                {
+                    "id": 117,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 8,
+                        "name": "MnSVersion"
+                    },
+                    "custom_value": "v1"
+                },
+                {
+                    "id": 118,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 9,
+                        "name": "port"
+                    },
+                    "custom_value": "8088"
+                },
+                {
+                    "id": 119,
+                    "vnfd": {
+                        "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                        "name": "pcrf_vnfd1 1.8"
+                    },
+                    "param": {
+                        "id": 15,
+                        "name": "UriScheme"
+                    },
+                    "custom_value": "HTTPS"
+                }
+            ],
+            "date_created": "2025-04-03T15:11:39.787294+03:00",
+            "date_updated": "2025-04-03T15:24:33.802991+03:00",
+            "has_vnf": true,
+            "Last_LCM_operation": "Instantiate",
+            "Last_LCM_operation_status": "COMPLETED",
+            "last_operation_id": "be5c6c5f-2f94-4610-a686-eddba215fe6b"
+        }
+    ]
+}

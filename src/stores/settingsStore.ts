@@ -9,10 +9,17 @@ export const useSettingsStore = defineStore('settings', () => {
   
   // Настройки пользователя
   const useTabMode = ref(false); // Режим отображения каталога (табы или список)
+  const decimalPlaces = ref(2); // Количество знаков после запятой для десятичных чисел
   
   // Изменение режима отображения
   const setTabMode = (value: boolean) => {
     useTabMode.value = value;
+    // Здесь можно добавить сохранение в localStorage или на сервер
+  };
+  
+  // Изменение количества знаков после запятой
+  const setDecimalPlaces = (value: number) => {
+    decimalPlaces.value = value;
     // Здесь можно добавить сохранение в localStorage или на сервер
   };
   
@@ -21,6 +28,8 @@ export const useSettingsStore = defineStore('settings', () => {
     isLoading,
     error,
     useTabMode,
+    decimalPlaces,
     setTabMode,
+    setDecimalPlaces,
   };
 });

@@ -1,0 +1,304 @@
+{
+    "name": "Init Parameter List",
+    "description": "",
+    "renders": [
+        "application/json",
+        "text/html"
+    ],
+    "parses": [
+        "application/json",
+        "multipart/form-data"
+    ],
+    "actions": {
+        "POST": {
+            "id": {
+                "type": "integer",
+                "required": false,
+                "read_only": true,
+                "label": "ID"
+            },
+            "name": {
+                "type": "string",
+                "required": true,
+                "read_only": false,
+                "label": "Custom parameter",
+                "max_length": 160
+            },
+            "default_value": {
+                "type": "string",
+                "required": false,
+                "read_only": false,
+                "label": "Default value",
+                "max_length": 2000
+            },
+            "desc": {
+                "type": "string",
+                "required": false,
+                "read_only": false,
+                "label": "Description",
+                "max_length": 1024
+            },
+            "date_created": {
+                "type": "datetime",
+                "required": false,
+                "read_only": true,
+                "label": "Date created"
+            },
+            "date_updated": {
+                "type": "datetime",
+                "required": false,
+                "read_only": true,
+                "label": "Date updated"
+            },
+            "reference": {
+                "type": "string",
+                "required": false,
+                "read_only": false,
+                "label": "Reference",
+                "max_length": 80
+            },
+            "imtype": {
+                "type": "choice",
+                "required": true,
+                "read_only": false,
+                "label": "Param IM Type",
+                "help_text": "Informantion model Type.",
+                "choices": [
+                    {
+                        "value": 1,
+                        "display_name": "Configuration"
+                    },
+                    {
+                        "value": 2,
+                        "display_name": "MnSApi"
+                    },
+                    {
+                        "value": 3,
+                        "display_name": "Init"
+                    }
+                ]
+            }
+        }
+    },
+    "layout": {
+        "class_name": "ViewSetLayout",
+        "element_id": "initparameter",
+        "name": "initparameter",
+        "elements": [
+            {
+                "class_name": "LayoutField",
+                "element_id": "initparameter/id",
+                "name": "id",
+                "label": "ID",
+                "field_class": "IntegerField",
+                "read_only": true,
+                "input_type": "number"
+            },
+            {
+                "class_name": "LayoutCharField",
+                "element_id": "initparameter/name",
+                "name": "name",
+                "label": "Custom parameter",
+                "field_class": "CharField",
+                "required": true,
+                "input_type": "text",
+                "filterable": true,
+                "max_length": 160
+            },
+            {
+                "class_name": "LayoutCharField",
+                "element_id": "initparameter/reference",
+                "name": "reference",
+                "label": "Reference",
+                "field_class": "CharField",
+                "allow_null": true,
+                "input_type": "text",
+                "max_length": 80
+            },
+            {
+                "class_name": "LayoutCharField",
+                "element_id": "initparameter/default_value",
+                "name": "default_value",
+                "label": "Default value",
+                "field_class": "CharField",
+                "allow_null": true,
+                "input_type": "text",
+                "max_length": 2000,
+                "multiline": true
+            },
+            {
+                "class_name": "LayoutCharField",
+                "element_id": "initparameter/desc",
+                "name": "desc",
+                "label": "Description",
+                "field_class": "CharField",
+                "allow_null": true,
+                "input_type": "text",
+                "filterable": true,
+                "max_length": 1024,
+                "multiline": true
+            },
+            {
+                "class_name": "LayoutChoiceField",
+                "element_id": "initparameter/imtype",
+                "name": "imtype",
+                "label": "Param IM Type",
+                "help_text": "Informantion model Type.",
+                "field_class": "ChoiceField",
+                "required": true,
+                "input_type": "text",
+                "choices": [
+                    {
+                        "value": 1,
+                        "display_name": "Configuration"
+                    },
+                    {
+                        "value": 2,
+                        "display_name": "MnSApi"
+                    },
+                    {
+                        "value": 3,
+                        "display_name": "Init"
+                    }
+                ]
+            },
+            {
+                "class_name": "LayoutSection",
+                "element_id": "initparameter/system-attributes",
+                "name": "system-attributes",
+                "label": "System attributes",
+                "elements": [
+                    {
+                        "class_name": "LayoutRow",
+                        "element_id": "initparameter/row-date_updated",
+                        "name": "row-date_updated",
+                        "elements": [
+                            {
+                                "class_name": "LayoutField",
+                                "element_id": "initparameter/date_created",
+                                "name": "date_created",
+                                "label": "Date created",
+                                "field_class": "DateTimeField",
+                                "read_only": true,
+                                "input_type": "text"
+                            },
+                            {
+                                "class_name": "LayoutField",
+                                "element_id": "initparameter/date_updated",
+                                "name": "date_updated",
+                                "label": "Date updated",
+                                "field_class": "DateTimeField",
+                                "read_only": true,
+                                "input_type": "text"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "view_name": "initparameter",
+        "display_list": [
+            "name",
+            "reference",
+            "default_value",
+            "desc"
+        ],
+        "filterable_list": [
+            "desc",
+            "name"
+        ],
+        "natural_key": [
+            "imtype",
+            "name",
+            "reference"
+        ],
+        "primary_key": "id",
+        "keyset": [
+            "imtype",
+            "name",
+            "reference"
+        ],
+        "set_operations": true,
+        "display_list_modal": [
+            "name",
+            "default_value",
+            "desc"
+        ]
+    },
+    "transaction_required": false,
+    "permitted_actions": {
+        "patch": true,
+        "get": true,
+        "post": true,
+        "delete": true,
+        "put": true,
+        "apiSchema": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "batch": {
+            "detail": false,
+            "methods": [
+                "post"
+            ]
+        },
+        "count": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "exportData": {
+            "detail": false,
+            "methods": [
+                "get",
+                "post"
+            ]
+        },
+        "importData": {
+            "detail": false,
+            "methods": [
+                "post"
+            ]
+        },
+        "lastTransaction": {
+            "detail": true,
+            "methods": [
+                "get"
+            ]
+        },
+        "maxUpdated": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "copy": true
+    },
+    "filterset_fields": [
+        {
+            "filter_name": "name",
+            "lookup_expr": "exact",
+            "label": "Custom parameter",
+            "class_name": "CharFilter",
+            "field_name": "name"
+        },
+        {
+            "filter_name": "desc",
+            "lookup_expr": "exact",
+            "label": "Description",
+            "class_name": "CharFilter",
+            "field_name": "desc"
+        }
+    ],
+    "search_fields": [
+        "name",
+        "desc"
+    ],
+    "model_name": "nms.initparameter",
+    "verbose_name": "Init Parameter",
+    "verbose_name_plural": "Init Parameters",
+    "help": "InitParameter(id, last_transaction, date_created, date_updated, name, reference, desc, default_value, imtype, param_ptr)"
+}

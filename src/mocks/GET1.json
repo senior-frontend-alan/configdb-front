@@ -1,0 +1,362 @@
+{
+    "count": 6,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 7,
+            "vduId": "dra-app-VM",
+            "role": {
+                "id": 5,
+                "name": "dra"
+            },
+            "flavor": null,
+            "name": "dra-app-VM",
+            "description": "dra-app-VM",
+            "vnfdId": {
+                "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                "name": "pcrf_vnfd1 1.8"
+            },
+            "cloud_init_config": {
+                "id": 6,
+                "name": "vnfd_dra1:pcrf_vnfd1 1.8"
+            },
+            "sw_image_desc": {
+                "id": 3,
+                "name": "nms-demo-base-20240719-1805"
+            },
+            "monitoring_parameter": [
+                {
+                    "id": "dra_cpu_util",
+                    "name": "dra_cpu_util"
+                },
+                {
+                    "id": "dra_memory_util",
+                    "name": "dra_memory_util"
+                },
+                {
+                    "id": "dra_packets_received",
+                    "name": "dra_packets_received"
+                },
+                {
+                    "id": "dra_packets_sent",
+                    "name": "dra_packets_sent"
+                }
+            ],
+            "virtual_compute_desc": {
+                "id": 7,
+                "name": "dra-VM-compute: 2Gb 2CPU"
+            },
+            "virtual_storage_desc": [
+                {
+                    "id": 7,
+                    "name": "dra-VM-storage: 15Gb"
+                }
+            ],
+            "int_cpd": [
+                {
+                    "id": 7,
+                    "cpd_id": "draVM-eth0-int",
+                    "virtual_network_interface_requirement": [
+                        {
+                            "id": 7,
+                            "name": "dra-app-eth0",
+                            "description": null,
+                            "network_interface_requirement": {
+                                "type": "PARAVIRT"
+                            },
+                            "position": 1,
+                            "date_created": "2025-03-18T14:33:31.608087+03:00",
+                            "date_updated": "2025-03-19T12:28:16.731902+03:00"
+                        }
+                    ],
+                    "__str__": "dra-app-VM: draVM-eth0-int"
+                }
+            ],
+            "lcmp_vdu": []
+        },
+        {
+            "id": 8,
+            "vduId": "mgmt-app-VM",
+            "role": {
+                "id": 4,
+                "name": "mgmt"
+            },
+            "flavor": null,
+            "name": "mgmt-app-VM",
+            "description": "mgmt-app-VM",
+            "vnfdId": {
+                "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                "name": "pcrf_vnfd1 1.8"
+            },
+            "cloud_init_config": {
+                "id": 6,
+                "name": "vnfd_dra1:pcrf_vnfd1 1.8"
+            },
+            "sw_image_desc": {
+                "id": 3,
+                "name": "nms-demo-base-20240719-1805"
+            },
+            "monitoring_parameter": [],
+            "virtual_compute_desc": {
+                "id": 8,
+                "name": "mgmt-VM-compute: 2Gb 2CPU"
+            },
+            "virtual_storage_desc": [
+                {
+                    "id": 8,
+                    "name": "mgmt-VM-storage: 15Gb"
+                }
+            ],
+            "int_cpd": [
+                {
+                    "id": 8,
+                    "cpd_id": "mgmtVM-eth0-int",
+                    "virtual_network_interface_requirement": [
+                        {
+                            "id": 8,
+                            "name": "mgmt-app-eth0",
+                            "description": null,
+                            "network_interface_requirement": {
+                                "type": "PARAVIRT"
+                            },
+                            "position": 1,
+                            "date_created": "2025-03-18T14:33:31.628271+03:00",
+                            "date_updated": "2025-03-19T12:28:16.744869+03:00"
+                        }
+                    ],
+                    "__str__": "mgmt-app-VM: mgmtVM-eth0-int"
+                }
+            ],
+            "lcmp_vdu": []
+        },
+        {
+            "id": 3,
+            "vduId": "mgmt-app-VM",
+            "role": null,
+            "flavor": null,
+            "name": "mgmt-app-VM",
+            "description": "mgmt-app-VM",
+            "vnfdId": {
+                "id": "15f0775d-76e0-47d0-8334-8d99e01fa96e",
+                "name": "nrfnx_vnfd 1.0"
+            },
+            "cloud_init_config": {
+                "id": 3,
+                "name": "mgmt-cloud-init:nrfnx_vnfd 1.0"
+            },
+            "sw_image_desc": {
+                "id": 2,
+                "name": "centos-8-stream-x86_64-kvm"
+            },
+            "monitoring_parameter": [],
+            "virtual_compute_desc": {
+                "id": 3,
+                "name": "mgmt-VM-compute: 4Gb 2CPU"
+            },
+            "virtual_storage_desc": [
+                {
+                    "id": 3,
+                    "name": "mgmt-VM-storage: 60Gb"
+                }
+            ],
+            "int_cpd": [
+                {
+                    "id": 3,
+                    "cpd_id": "mgmtVM-eth0-int",
+                    "virtual_network_interface_requirement": [
+                        {
+                            "id": 3,
+                            "name": "mgmt-app-eth0",
+                            "description": null,
+                            "network_interface_requirement": {
+                                "type": "PARAVIRT"
+                            },
+                            "position": 1,
+                            "date_created": "2025-03-17T14:30:16.777085+03:00",
+                            "date_updated": "2025-03-18T15:01:22.709616+03:00"
+                        }
+                    ],
+                    "__str__": "mgmt-app-VM: mgmtVM-eth0-int"
+                }
+            ],
+            "lcmp_vdu": []
+        },
+        {
+            "id": 9,
+            "vduId": "pccm-ng-app-VM",
+            "role": {
+                "id": 6,
+                "name": "pccm"
+            },
+            "flavor": null,
+            "name": "pccm-ng-app-VM",
+            "description": "pccm-ng-app-VM",
+            "vnfdId": {
+                "id": "bf96c2a7-9687-495e-acd5-6d5b9cb7f79e",
+                "name": "pcrf_vnfd1 1.8"
+            },
+            "cloud_init_config": {
+                "id": 6,
+                "name": "vnfd_dra1:pcrf_vnfd1 1.8"
+            },
+            "sw_image_desc": {
+                "id": 3,
+                "name": "nms-demo-base-20240719-1805"
+            },
+            "monitoring_parameter": [],
+            "virtual_compute_desc": {
+                "id": 9,
+                "name": "pccm-ng-VM-compute: 2Gb 2CPU"
+            },
+            "virtual_storage_desc": [
+                {
+                    "id": 9,
+                    "name": "pccm-ng-VM-storage: 15Gb"
+                }
+            ],
+            "int_cpd": [
+                {
+                    "id": 9,
+                    "cpd_id": "pccm-ngVM-eth0-int",
+                    "virtual_network_interface_requirement": [
+                        {
+                            "id": 9,
+                            "name": "pccm-ng-app-eth0",
+                            "description": null,
+                            "network_interface_requirement": {
+                                "type": "PARAVIRT"
+                            },
+                            "position": 1,
+                            "date_created": "2025-03-18T14:33:31.643990+03:00",
+                            "date_updated": "2025-03-19T12:28:16.756455+03:00"
+                        }
+                    ],
+                    "__str__": "pccm-ng-app-VM: pccm-ngVM-eth0-int"
+                }
+            ],
+            "lcmp_vdu": []
+        },
+        {
+            "id": 1,
+            "vduId": "mgmt-app-VM",
+            "role": null,
+            "flavor": null,
+            "name": "mgmt-app-VM",
+            "description": "mgmt-app-VM",
+            "vnfdId": {
+                "id": "cafa0950-fa12-44a1-8207-74fd9ddf0f2d",
+                "name": "nrf_demo_vnfd 1.0"
+            },
+            "cloud_init_config": {
+                "id": 1,
+                "name": "mgmt-cloud-init:nrf_demo_vnfd 1.0"
+            },
+            "sw_image_desc": {
+                "id": 1,
+                "name": "ms-demo-base-20230928-1636"
+            },
+            "monitoring_parameter": [],
+            "virtual_compute_desc": {
+                "id": 2,
+                "name": "mgmt-VM-compute: 2Gb 2CPU"
+            },
+            "virtual_storage_desc": [
+                {
+                    "id": 2,
+                    "name": "mgmt-VM-storage: 15Gb"
+                }
+            ],
+            "int_cpd": [
+                {
+                    "id": 1,
+                    "cpd_id": "mgmtVM-eth0-int",
+                    "virtual_network_interface_requirement": [
+                        {
+                            "id": 1,
+                            "name": "mgmt-app-eth0",
+                            "description": null,
+                            "network_interface_requirement": {
+                                "type": "PARAVIRT"
+                            },
+                            "position": 1,
+                            "date_created": "2025-03-17T14:30:16.739221+03:00",
+                            "date_updated": "2025-04-03T15:09:52.724004+03:00"
+                        }
+                    ],
+                    "__str__": "mgmt-app-VM: mgmtVM-eth0-int"
+                }
+            ],
+            "lcmp_vdu": []
+        },
+        {
+            "id": 2,
+            "vduId": "nrf-app-VM",
+            "role": null,
+            "flavor": null,
+            "name": "nrf-app-VM",
+            "description": "nrf-app-VM",
+            "vnfdId": {
+                "id": "cafa0950-fa12-44a1-8207-74fd9ddf0f2d",
+                "name": "nrf_demo_vnfd 1.0"
+            },
+            "cloud_init_config": {
+                "id": 2,
+                "name": "nrf-cloud-init:nrf_demo_vnfd 1.0"
+            },
+            "sw_image_desc": {
+                "id": 1,
+                "name": "ms-demo-base-20230928-1636"
+            },
+            "monitoring_parameter": [
+                {
+                    "id": "nrf_cpu_util",
+                    "name": "nrf_cpu_util"
+                },
+                {
+                    "id": "nrf_memory_util",
+                    "name": "nrf_memory_util"
+                },
+                {
+                    "id": "nrf_packets_sent",
+                    "name": "nrf_packets_sent"
+                },
+                {
+                    "id": "nrf_packets_received",
+                    "name": "nrf_packets_received"
+                }
+            ],
+            "virtual_compute_desc": {
+                "id": 1,
+                "name": "nrf-VM-compute: 8Gb 4CPU"
+            },
+            "virtual_storage_desc": [
+                {
+                    "id": 1,
+                    "name": "nrf-VM-storage: 15Gb"
+                }
+            ],
+            "int_cpd": [
+                {
+                    "id": 2,
+                    "cpd_id": "nrfVM-eth0-int",
+                    "virtual_network_interface_requirement": [
+                        {
+                            "id": 2,
+                            "name": "nrf-app-eth0",
+                            "description": null,
+                            "network_interface_requirement": {
+                                "type": "PARAVIRT"
+                            },
+                            "position": 1,
+                            "date_created": "2025-03-17T14:30:16.752611+03:00",
+                            "date_updated": "2025-04-03T15:09:52.745467+03:00"
+                        }
+                    ],
+                    "__str__": "nrf-app-VM: nrfVM-eth0-int"
+                }
+            ],
+            "lcmp_vdu": []
+        }
+    ]
+}

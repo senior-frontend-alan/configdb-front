@@ -1,0 +1,638 @@
+{
+    "name": "Vdu List",
+    "description": "",
+    "renders": [
+        "application/json",
+        "text/html"
+    ],
+    "parses": [
+        "application/json",
+        "multipart/form-data"
+    ],
+    "actions": {
+        "POST": {
+            "id": {
+                "type": "integer",
+                "required": false,
+                "read_only": true,
+                "label": "VDU Id",
+                "help_text": "NMS Identifier of VDU."
+            },
+            "vduId": {
+                "type": "string",
+                "required": false,
+                "read_only": false,
+                "label": "VDU",
+                "help_text": "Identifier of the VDU(unique in VNFD).",
+                "max_length": 30
+            },
+            "role": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "DU Role",
+                "help_text": "Identifier of the DURole on which the component was deployed."
+            },
+            "flavor": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Flavor",
+                "help_text": "Identifier of the Flavor."
+            },
+            "name": {
+                "type": "string",
+                "required": true,
+                "read_only": false,
+                "label": "VDU Name",
+                "help_text": "Title of the VDU.",
+                "max_length": 30
+            },
+            "description": {
+                "type": "string",
+                "required": false,
+                "read_only": false,
+                "label": "VDU description",
+                "help_text": "Description of the VDU.",
+                "max_length": 255
+            },
+            "vnfdId": {
+                "type": "field",
+                "required": true,
+                "read_only": false,
+                "label": "VNF Descriptor",
+                "help_text": "Identifier of the VNFD on which the VNF instance is based."
+            },
+            "cloud_init_config": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Cloud Init Config",
+                "help_text": "Cloud init config script, in cloud init format."
+            },
+            "sw_image_desc": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Software Image Desc",
+                "help_text": "Describes the software image which is directly loaded on the virtualisation container realizing this Vdu."
+            },
+            "monitoring_parameter": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Monitoring Parameter",
+                "help_text": "Specifies the virtualised resource related performance metrics to be tracked by the VNFM"
+            },
+            "virtual_compute_desc": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Virtual Compute Desc"
+            },
+            "virtual_storage_desc": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Virtual Storage Desc"
+            },
+            "int_cpd": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Int cpd",
+                "child": {
+                    "type": "nested object",
+                    "required": false,
+                    "read_only": false,
+                    "children": {
+                        "id": {
+                            "type": "integer",
+                            "required": false,
+                            "read_only": true,
+                            "label": "ID"
+                        },
+                        "cpd_id": {
+                            "type": "string",
+                            "required": true,
+                            "read_only": false,
+                            "label": "CPD Id",
+                            "help_text": "Identifier of this Cpd information element.",
+                            "max_length": 30
+                        },
+                        "virtual_network_interface_requirement": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": false,
+                            "label": "Virtual network interface requirement",
+                            "child": {
+                                "type": "nested object",
+                                "required": false,
+                                "read_only": false,
+                                "children": {
+                                    "id": {
+                                        "type": "integer",
+                                        "required": false,
+                                        "read_only": true,
+                                        "label": "ID"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "required": true,
+                                        "read_only": false,
+                                        "label": "NI Requirements name",
+                                        "help_text": "Provides a human readable name for the requirement.",
+                                        "max_length": 60
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "required": false,
+                                        "read_only": false,
+                                        "label": "Description",
+                                        "help_text": "Provides a human readable description of the requirement.",
+                                        "max_length": 1024
+                                    },
+                                    "network_interface_requirement": {
+                                        "type": "string",
+                                        "required": true,
+                                        "read_only": false,
+                                        "label": "Network interface requirement",
+                                        "help_text": "The network interface requirements."
+                                    },
+                                    "position": {
+                                        "type": "integer",
+                                        "required": false,
+                                        "read_only": false,
+                                        "label": "Interface position in list",
+                                        "help_text": "Interface position in list.",
+                                        "min_value": -2147483648,
+                                        "max_value": 2147483647
+                                    },
+                                    "date_created": {
+                                        "type": "datetime",
+                                        "required": false,
+                                        "read_only": true,
+                                        "label": "Date created"
+                                    },
+                                    "date_updated": {
+                                        "type": "datetime",
+                                        "required": false,
+                                        "read_only": true,
+                                        "label": "Date updated"
+                                    },
+                                    "vdu_cpd": {
+                                        "type": "field",
+                                        "required": false,
+                                        "read_only": false,
+                                        "label": "VDU CPD",
+                                        "help_text": "Describes network connectivity between a VNFC instance (based on this Vdu) and an internal Virtual Link (VL)."
+                                    }
+                                }
+                            }
+                        },
+                        "__str__": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": true,
+                            "label": "  str  "
+                        },
+                        "vdu": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": false,
+                            "label": "VDU"
+                        }
+                    }
+                }
+            },
+            "lcmp_vdu": {
+                "type": "field",
+                "required": false,
+                "read_only": false,
+                "label": "Lcmp vdu",
+                "child": {
+                    "type": "nested object",
+                    "required": false,
+                    "read_only": false,
+                    "children": {
+                        "id": {
+                            "type": "integer",
+                            "required": false,
+                            "read_only": true,
+                            "label": "ID"
+                        },
+                        "vnfd_id": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": false,
+                            "label": "VNFDescriptor",
+                            "help_text": "Identifier of the VNFD."
+                        },
+                        "primitive": {
+                            "type": "string",
+                            "required": true,
+                            "read_only": false,
+                            "label": "Primitive",
+                            "help_text": "Title of the LCM Primitive.",
+                            "max_length": 30
+                        },
+                        "vdu_id": {
+                            "type": "field",
+                            "required": false,
+                            "read_only": false,
+                            "label": "VDU",
+                            "help_text": "Identifier of the VDU."
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "layout": {
+        "class_name": "ViewSetLayout",
+        "element_id": "vdu",
+        "name": "vdu",
+        "elements": [
+            {
+                "class_name": "LayoutRow",
+                "element_id": "vdu/row-name",
+                "name": "row-name",
+                "elements": [
+                    {
+                        "class_name": "LayoutField",
+                        "element_id": "vdu/vduId",
+                        "name": "vduId",
+                        "label": "VDU",
+                        "help_text": "Identifier of the VDU(unique in VNFD).",
+                        "field_class": "CharField",
+                        "default": 1000,
+                        "input_type": "text",
+                        "filterable": true,
+                        "js_validators": [
+                            "{ return (value?(value.match(/^[-\\.\\w]+$/)?null: \"Field value contents deprecated symbols.\"):null);}"
+                        ]
+                    },
+                    {
+                        "class_name": "LayoutCharField",
+                        "element_id": "vdu/name",
+                        "name": "name",
+                        "label": "VDU Name",
+                        "help_text": "Title of the VDU.",
+                        "field_class": "CharField",
+                        "required": true,
+                        "input_type": "text",
+                        "filterable": true,
+                        "max_length": 30
+                    }
+                ]
+            },
+            {
+                "class_name": "LayoutCharField",
+                "element_id": "vdu/description",
+                "name": "description",
+                "label": "VDU description",
+                "help_text": "Description of the VDU.",
+                "field_class": "CharField",
+                "allow_null": true,
+                "input_type": "text",
+                "max_length": 255,
+                "multiline": true
+            },
+            {
+                "class_name": "LayoutRelatedField",
+                "element_id": "vdu/vnfdId",
+                "name": "vnfdId",
+                "label": "VNF Descriptor",
+                "help_text": "Identifier of the VNFD on which the VNF instance is based.",
+                "field_class": "PrimaryKeyRelatedLookupField",
+                "required": true,
+                "allow_null": true,
+                "input_type": "text",
+                "filterable": true,
+                "list_url": "/nms/api/v1/vnfDescriptor/",
+                "view_name": "vnfdescriptor",
+                "appl_name": "nms",
+                "lookup": true
+            },
+            {
+                "class_name": "LayoutRelatedField",
+                "element_id": "vdu/monitoring_parameter",
+                "name": "monitoring_parameter",
+                "label": "Monitoring Parameter",
+                "help_text": "Specifies the virtualised resource related performance metrics to be tracked by the VNFM",
+                "field_class": "ManyRelatedField",
+                "input_type": "table",
+                "list_url": "/nms/api/v1/monitoringParameter/",
+                "view_name": "monitoringparameter",
+                "appl_name": "nms",
+                "lookup": true,
+                "multiple": true
+            },
+            {
+                "class_name": "LayoutRelatedField",
+                "element_id": "vdu/cloud_init_config",
+                "name": "cloud_init_config",
+                "label": "Cloud Init Config",
+                "help_text": "Cloud init config script, in cloud init format.",
+                "field_class": "PrimaryKeyRelatedLookupField",
+                "allow_null": true,
+                "input_type": "text",
+                "filterable": true,
+                "list_url": "/nms/api/v1/cloudInitConfig/",
+                "view_name": "cloudinitconfig",
+                "appl_name": "nms",
+                "lookup": true
+            },
+            {
+                "class_name": "LayoutRelatedField",
+                "element_id": "vdu/sw_image_desc",
+                "name": "sw_image_desc",
+                "label": "Software Image Desc",
+                "help_text": "Describes the software image which is directly loaded on the virtualisation container realizing this Vdu.",
+                "field_class": "PrimaryKeyRelatedLookupField",
+                "allow_null": true,
+                "input_type": "table",
+                "list_url": "/nms/api/v1/swImageDesc/",
+                "view_name": "swimagedesc",
+                "appl_name": "nms",
+                "lookup": true
+            },
+            {
+                "class_name": "LayoutRow",
+                "element_id": "vdu/row-virtual_storage_desc",
+                "name": "row-virtual_storage_desc",
+                "elements": [
+                    {
+                        "class_name": "LayoutRelatedField",
+                        "element_id": "vdu/virtual_compute_desc",
+                        "name": "virtual_compute_desc",
+                        "label": "Virtual Compute Desc",
+                        "field_class": "PrimaryKeyRelatedLookupField",
+                        "allow_null": true,
+                        "input_type": "text",
+                        "list_url": "/nms/api/v1/virtualComputeDesc/",
+                        "view_name": "virtualcomputedesc",
+                        "appl_name": "nms",
+                        "lookup": true
+                    },
+                    {
+                        "class_name": "LayoutRelatedField",
+                        "element_id": "vdu/virtual_storage_desc",
+                        "name": "virtual_storage_desc",
+                        "label": "Virtual Storage Desc",
+                        "field_class": "ManyRelatedField",
+                        "input_type": "text",
+                        "list_url": "/nms/api/v1/virtualStorageDesc/",
+                        "view_name": "virtualstoragedesc",
+                        "appl_name": "nms",
+                        "lookup": true,
+                        "multiple": true
+                    }
+                ]
+            },
+            {
+                "class_name": "ViewSetInlineLayout",
+                "element_id": "vdu/int_cpd",
+                "name": "int_cpd",
+                "label": "Int cpd",
+                "elements": [
+                    {
+                        "class_name": "LayoutCharField",
+                        "element_id": "vdu/int_cpd/cpd_id",
+                        "name": "cpd_id",
+                        "label": "CPD Id",
+                        "help_text": "Identifier of this Cpd information element.",
+                        "field_class": "CharField",
+                        "required": true,
+                        "input_type": "text",
+                        "max_length": 30
+                    },
+                    {
+                        "class_name": "ViewSetInlineLayout",
+                        "element_id": "vdu/int_cpd/virtual_network_interface_requirement",
+                        "name": "virtual_network_interface_requirement",
+                        "label": "Virtual network interface requirement",
+                        "elements": [
+                            {
+                                "class_name": "LayoutCharField",
+                                "element_id": "vdu/int_cpd/virtual_network_interface_requirement/name",
+                                "name": "name",
+                                "label": "NI Requirements name",
+                                "help_text": "Provides a human readable name for the requirement.",
+                                "field_class": "CharField",
+                                "required": true,
+                                "input_type": "text",
+                                "max_length": 60
+                            },
+                            {
+                                "class_name": "LayoutRichEditField",
+                                "element_id": "vdu/int_cpd/virtual_network_interface_requirement/network_interface_requirement",
+                                "name": "network_interface_requirement",
+                                "label": "Network interface requirement",
+                                "help_text": "The network interface requirements.",
+                                "field_class": "JSONObjectField",
+                                "required": true,
+                                "input_type": "object",
+                                "edit_mode": "text"
+                            },
+                            {
+                                "class_name": "LayoutIntegerField",
+                                "element_id": "vdu/int_cpd/virtual_network_interface_requirement/position",
+                                "name": "position",
+                                "label": "Interface position in list",
+                                "help_text": "Interface position in list.",
+                                "field_class": "IntegerField",
+                                "default": 1,
+                                "input_type": "number",
+                                "min_value": -2147483648,
+                                "max_value": 2147483647
+                            },
+                            {
+                                "class_name": "LayoutCharField",
+                                "element_id": "vdu/int_cpd/virtual_network_interface_requirement/description",
+                                "name": "description",
+                                "label": "Description",
+                                "help_text": "Provides a human readable description of the requirement.",
+                                "field_class": "CharField",
+                                "allow_null": true,
+                                "input_type": "text",
+                                "max_length": 1024,
+                                "multiline": true
+                            }
+                        ],
+                        "view_name": "virtualnetworkinterfacerequirement",
+                        "natural_key": [
+                            "name"
+                        ],
+                        "primary_key": "id",
+                        "keyset": [
+                            "name"
+                        ],
+                        "field_class": "ListSerializer",
+                        "allow_empty": true
+                    }
+                ],
+                "view_name": "vducpd",
+                "display_list": [
+                    "cpd_id"
+                ],
+                "natural_key": [
+                    "cpd_id",
+                    "vdu"
+                ],
+                "primary_key": "id",
+                "keyset": [
+                    "cpd_id",
+                    "vdu"
+                ],
+                "field_class": "ListSerializer",
+                "allow_empty": true
+            }
+        ],
+        "view_name": "vdu",
+        "display_list": [
+            "vduId",
+            "name",
+            "description",
+            "vnfdId",
+            "monitoring_parameter",
+            "cloud_init_config",
+            "sw_image_desc"
+        ],
+        "filterable_list": [
+            "cloud_init_config",
+            "name",
+            "vduId",
+            "vnfdId"
+        ],
+        "natural_key": [
+            "vduId",
+            "vnfdId"
+        ],
+        "primary_key": "id",
+        "keyset": [
+            "vduId",
+            "vnfdId"
+        ],
+        "set_operations": true,
+        "display_list_modal": [
+            "vduId",
+            "name"
+        ]
+    },
+    "transaction_required": false,
+    "permitted_actions": {
+        "patch": true,
+        "get": true,
+        "post": true,
+        "delete": true,
+        "put": true,
+        "apiSchema": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "batch": {
+            "detail": false,
+            "methods": [
+                "post"
+            ]
+        },
+        "count": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "exportData": {
+            "detail": false,
+            "methods": [
+                "get",
+                "post"
+            ]
+        },
+        "importData": {
+            "detail": false,
+            "methods": [
+                "post"
+            ]
+        },
+        "lastTransaction": {
+            "detail": true,
+            "methods": [
+                "get"
+            ]
+        },
+        "maxUpdated": {
+            "detail": false,
+            "methods": [
+                "get"
+            ]
+        },
+        "copy": true
+    },
+    "filterset_fields": [
+        {
+            "filter_name": "vnfdId__vnfd_id",
+            "lookup_expr": "exact",
+            "label": "VNF Descriptor VNF Descriptor Id",
+            "class_name": "CharFilter",
+            "field_name": "vnfdId"
+        },
+        {
+            "filter_name": "vnfdId__name",
+            "lookup_expr": "exact",
+            "label": "VNF Descriptor Name",
+            "class_name": "CharFilter",
+            "field_name": "vnfdId"
+        },
+        {
+            "filter_name": "vduId",
+            "lookup_expr": "exact",
+            "label": "VDU",
+            "class_name": "CharFilter",
+            "field_name": "vduId"
+        },
+        {
+            "filter_name": "name",
+            "lookup_expr": "exact",
+            "label": "VDU Name",
+            "class_name": "CharFilter",
+            "field_name": "name"
+        },
+        {
+            "filter_name": "vnfdId__id",
+            "lookup_expr": "exact",
+            "label": "VNF Descriptor VNF Descriptor UUID",
+            "class_name": "UUIDFilter",
+            "field_name": "vnfdId"
+        },
+        {
+            "filter_name": "vnfdId",
+            "lookup_expr": "exact",
+            "label": "VNF Descriptor",
+            "class_name": "ModelChoiceFilter",
+            "field_name": "vnfdId"
+        },
+        {
+            "filter_name": "cloud_init_config",
+            "lookup_expr": "exact",
+            "label": "Cloud Init Config",
+            "class_name": "ModelChoiceFilter",
+            "field_name": "cloud_init_config"
+        }
+    ],
+    "search_fields": [
+        "vnfdId__name",
+        "vnfdId__vnfd_id",
+        "vnfdId__id",
+        "vduId",
+        "name",
+        "cloud_init_config__id"
+    ],
+    "model_name": "nms.vdu",
+    "verbose_name": "Vdu",
+    "verbose_name_plural": "Vdu",
+    "help": "\n    "
+}

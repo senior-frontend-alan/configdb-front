@@ -1,52 +1,25 @@
 // Типы для структуры данных каталога
+import { OptionsResponse } from './optionsResponse.type';
+import { 
+  CatalogDetailsAPIResponseGET
+} from './catalogDetailsAPIResponseGET.type.ts';
 
-// Методы, доступные для элемента каталога
-export interface CatalogItemMethods {
-  batch: boolean;
-  copy: boolean;
-  count: boolean;
-  delete: boolean;
-  exportData: boolean;
-  get: boolean;
-  importData: boolean;
-  lastTransaction: boolean;
-  maxUpdated: boolean;
-  patch: boolean;
-  post: boolean;
-  put: boolean;
+// Экспортируем типы для обратной совместимости
+export * from './catalogDetailsAPIResponseGET.type.ts';
+
+// Реэкспортируем типы для обратной совместимости
+export * from './catalogsAPIResponseGET.type.ts';
+
+
+// Расширенный ответ с полями GET, OPTIONS, viewname и href
+export interface CatalogDetailResponse {
+  GET: CatalogDetailsAPIResponseGET; // Данные полученные из GET запроса
+  OPTIONS: OptionsResponse;     // Данные полученные из OPTIONS запроса
+  viewname: string;             // Имя представления
+  href: string;                 // URL, по которому были загружены данные
 }
 
-// Элемент каталога
-export interface CatalogItem {
-  name: string;
-  verbose_name: string;
-  description: string | null;
-  appl_name: string;
-  viewname: string;
-  href: string;
-  methods: CatalogItemMethods;
-  display: boolean;
-  export: boolean;
-  discriminators: any | null;
-  tags: string[] | null;
-  model_name: string;
-  model_info: {
-    date_updated?: string;
-    valid_date?: string;
-    content_type?: number;
-    [key: string]: any;
-  } | null;
-}
-
-// Группа каталога
-export interface CatalogGroup {
-  name: string;
-  verbose_name: string;
-  description: string | null;
-  display: boolean;
-  items: CatalogItem[];
-  tags: string[] | null;
-}
-
-// Результат запроса getCatalog
-export type CatalogResponse = CatalogGroup[];
+// Тип для хранения детальной информации каталога по viewname
+export type CatalogDetails = {
+  [viewname: string]: CatalogDetailResponse;
+};

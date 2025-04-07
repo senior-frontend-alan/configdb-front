@@ -1,38 +1,38 @@
-import { createStore } from 'vuex';
-import { createPinia } from 'pinia';
-import { createI18n } from 'vue-i18n';
-import { Cookies } from 'quasar';
-import { ComputedRef, watch, Ref, ref, computed, inject } from 'vue';
+// import { createStore } from 'vuex';
+// import { createPinia } from 'pinia';
+// import { createI18n } from 'vue-i18n';
+// import { Cookies } from 'quasar';
+// import { ComputedRef, watch, Ref, ref, computed, inject } from 'vue';
 
-import components from './components';
-import directives from './directives';
-import plugins from './plugins.js';
-import enMessages from './locales/en.js';
-import ruMessages from './locales/ru.js';
+// import components from './components';
+// import directives from './directives';
+// import plugins from './plugins.js';
+// import enMessages from './locales/en.js';
+// import ruMessages from './locales/ru.js';
 
-import { type Settings } from './stores/Settings';
-import { type CatalogOptions } from './stores/Catalog';
+// import { type Settings } from './stores/Settings';
+// import { type CatalogOptions } from './stores/Catalog';
 
-import storeModules from './store/index.js'
+// import storeModules from './store/index.js'
 
-import { truncate, mergeDeep, isObject } from './utils/utils.js';
+// import { truncate, mergeDeep, isObject } from './utils/utils.js';
 
-import __META__  from './package.json';
+// import __META__  from './package.json';
 
-import {
-  type AppSettings,
-  type SettingsDescriptorFunction,
-  useAppSettingsStore,
-} from './settings';
+// import {
+//   type AppSettings,
+//   type SettingsDescriptorFunction,
+//   useAppSettingsStore,
+// } from './settings';
 
-import {
-  type MainMenuDescriptorFunction,
-  type AppMenuDescriptorFunction,
-  type MenuItemPartial,
-  type MainMenu,
-  defaultMenuDescriptor,
-  DEFAULT_APPS_SECTION
-} from './menu.ts';
+// import {
+//   type MainMenuDescriptorFunction,
+//   type AppMenuDescriptorFunction,
+//   type MenuItemPartial,
+//   type MainMenu,
+//   defaultMenuDescriptor,
+//   DEFAULT_APPS_SECTION
+// } from './menu.ts';
 
 type CatalogIndex = {[catalogId: string]: ComputedRef<CatalogOptions> | CatalogOptions};
 

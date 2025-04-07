@@ -1,0 +1,467 @@
+{
+    "count": 46,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 22,
+            "name": "GIT_CONFIG_URL",
+            "default_value": null,
+            "desc": null,
+            "date_created": "2025-02-18T12:40:51.555084+03:00",
+            "date_updated": "2025-02-18T12:40:51.555163+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 23,
+            "name": "GIT_CFG_URL",
+            "default_value": null,
+            "desc": null,
+            "date_created": "2025-02-18T12:40:51.577310+03:00",
+            "date_updated": "2025-02-18T12:40:51.577360+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 24,
+            "name": "GIT_PSS_URL",
+            "default_value": null,
+            "desc": null,
+            "date_created": "2025-02-18T12:40:51.591110+03:00",
+            "date_updated": "2025-02-18T12:40:51.591190+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 25,
+            "name": "GIT_USR_URL",
+            "default_value": "GIT_USR_URL",
+            "desc": "GIT_USR_URL",
+            "date_created": "2025-02-18T12:40:51.608238+03:00",
+            "date_updated": "2025-02-18T12:40:51.608301+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 26,
+            "name": "git_cfg_url_setup",
+            "default_value": "https://oauth2:9jzRr7_V9y5LfE3Eo64i@gitlab.services.mts.ru/pcrf-nx/cfg_data_msk.git",
+            "desc": "GIT CFG URL",
+            "date_created": "2025-02-18T12:40:51.626739+03:00",
+            "date_updated": "2025-02-18T12:40:51.626791+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 27,
+            "name": "site",
+            "default_value": null,
+            "desc": null,
+            "date_created": "2025-02-18T12:40:51.642542+03:00",
+            "date_updated": "2025-02-18T12:40:51.642598+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 28,
+            "name": "branch",
+            "default_value": null,
+            "desc": "Филиал",
+            "date_created": "2025-02-18T12:40:51.659208+03:00",
+            "date_updated": "2025-02-18T12:40:51.659311+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 29,
+            "name": "mode",
+            "default_value": null,
+            "desc": "ims/data",
+            "date_created": "2025-02-18T12:40:51.676449+03:00",
+            "date_updated": "2025-02-18T12:40:51.676519+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 30,
+            "name": "mgmt_size",
+            "default_value": "25,75,125",
+            "desc": "Размер томов u01/u02/u03 (первое число размер тома OS далее прибавляется размер u01, u02, остаток u03)",
+            "date_created": "2025-02-18T12:40:51.695815+03:00",
+            "date_updated": "2025-02-18T12:40:51.695920+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 31,
+            "name": "dra_size",
+            "default_value": "25,45,195",
+            "desc": "Размер томов u01/u02/u03 (первое число размер тома OS далее прибавляется размер u01, u02, остаток u03)",
+            "date_created": "2025-02-18T12:40:51.713040+03:00",
+            "date_updated": "2025-02-18T12:40:51.713098+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 32,
+            "name": "tnt_size",
+            "default_value": "25,45,345",
+            "desc": "Размер томов u01/u02/u03 (первое число размер тома OS далее прибавляется размер u01, u02, остаток u03)",
+            "date_created": "2025-02-18T12:40:51.731998+03:00",
+            "date_updated": "2025-02-18T12:40:51.732054+03:00",
+            "reference": "",
+            "imtype": 3
+        },
+        {
+            "id": 33,
+            "name": "pccm_size",
+            "default_value": "25,45,65",
+            "desc": "Размер томов u01/u02/u03 (первое число размер тома OS далее прибавляется размер u01, u02, остаток u03)",
+            "date_created": "2025-02-18T12:40:51.749195+03:00",
+            "date_updated": "2025-02-18T12:40:51.749255+03:00",
+            "reference": "",
+            "imtype": 3
+        },
+        {
+            "id": 34,
+            "name": "ca_url_root",
+            "default_value": "http://pki.mts.ru/class2root.crt",
+            "desc": null,
+            "date_created": "2025-02-18T12:40:51.766693+03:00",
+            "date_updated": "2025-02-18T12:40:51.766751+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 35,
+            "name": "ca_url_int",
+            "default_value": "http://pki.mts.ru/WinCAG2.crt",
+            "desc": null,
+            "date_created": "2025-02-18T12:40:51.782738+03:00",
+            "date_updated": "2025-02-18T12:40:51.782797+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 36,
+            "name": "pccm_count",
+            "default_value": "4",
+            "desc": "Initial pccm VM count",
+            "date_created": "2025-02-18T12:40:51.799276+03:00",
+            "date_updated": "2025-02-18T12:40:51.799351+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 37,
+            "name": "elog_instance",
+            "default_value": null,
+            "desc": null,
+            "date_created": "2025-02-18T12:40:51.817076+03:00",
+            "date_updated": "2025-02-18T12:40:51.817159+03:00",
+            "reference": "nms.elogInstance",
+            "imtype": 3
+        },
+        {
+            "id": 38,
+            "name": "DOCKER_LOGIN_USER",
+            "default_value": "\"eng_rnd_user01\"",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.406251+03:00",
+            "date_updated": "2025-03-18T14:33:43.596562+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 39,
+            "name": "DOCKER_LOGIN_PASSWORD",
+            "default_value": null,
+            "desc": "Docker login password",
+            "date_created": "2025-03-18T14:28:01.414893+03:00",
+            "date_updated": "2025-03-18T14:33:43.603349+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 40,
+            "name": "CA_URL_INT",
+            "default_value": null,
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.420529+03:00",
+            "date_updated": "2025-03-18T14:33:43.610175+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 41,
+            "name": "app_base",
+            "default_value": "/opt/nrf",
+            "desc": "Base path to install application",
+            "date_created": "2025-03-18T14:28:01.425894+03:00",
+            "date_updated": "2025-03-18T14:33:43.617048+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 42,
+            "name": "git_app_config_url",
+            "default_value": "345",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.431245+03:00",
+            "date_updated": "2025-03-18T14:33:43.623990+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 43,
+            "name": "git_app_private_key",
+            "default_value": "234",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.447212+03:00",
+            "date_updated": "2025-03-18T14:33:43.630353+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 44,
+            "name": "git_infra_config_url",
+            "default_value": "ssh://",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.454060+03:00",
+            "date_updated": "2025-03-18T14:33:43.636849+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 45,
+            "name": "git_infra_private_key",
+            "default_value": "234",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.460626+03:00",
+            "date_updated": "2025-03-18T14:33:43.644158+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 46,
+            "name": "git_app_branch",
+            "default_value": "develop/1.0.0",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.466829+03:00",
+            "date_updated": "2025-03-18T14:33:43.650445+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 47,
+            "name": "git_infra_branch",
+            "default_value": "develop/1.0.0",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.472577+03:00",
+            "date_updated": "2025-03-18T14:33:43.656524+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 48,
+            "name": "app_install_script",
+            "default_value": "product-install.sh",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.478589+03:00",
+            "date_updated": "2025-03-18T14:33:43.662688+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 49,
+            "name": "product_name",
+            "default_value": "none",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.484219+03:00",
+            "date_updated": "2025-03-18T14:33:43.668838+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 50,
+            "name": "app_user",
+            "default_value": "nwm",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.489999+03:00",
+            "date_updated": "2025-03-18T14:33:43.674958+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 51,
+            "name": "app_group",
+            "default_value": "nwm",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.495630+03:00",
+            "date_updated": "2025-03-18T14:33:43.681015+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 52,
+            "name": "infra_install_script",
+            "default_value": "infrastructure_install.sh",
+            "desc": null,
+            "date_created": "2025-03-18T14:28:01.501447+03:00",
+            "date_updated": "2025-03-18T14:33:43.687059+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 53,
+            "name": "app_nms_settings_path",
+            "default_value": null,
+            "desc": "Additional product settings for NMS",
+            "date_created": "2025-03-18T14:28:01.507068+03:00",
+            "date_updated": "2025-03-18T14:33:43.693086+03:00",
+            "reference": "",
+            "imtype": 3
+        },
+        {
+            "id": 54,
+            "name": "common_product",
+            "default_value": "common",
+            "desc": "Name for common project directory",
+            "date_created": "2025-03-18T14:28:01.512675+03:00",
+            "date_updated": "2025-03-18T14:33:43.699174+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 55,
+            "name": "common_role",
+            "default_value": "common",
+            "desc": "Common role directory",
+            "date_created": "2025-03-18T14:28:01.518660+03:00",
+            "date_updated": "2025-03-18T14:33:43.705908+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 56,
+            "name": "filebeat_app_logfile_pattern",
+            "default_value": null,
+            "desc": "Pattern for log file name to be configured in filebeat",
+            "date_created": "2025-03-18T14:28:01.524495+03:00",
+            "date_updated": "2025-03-18T14:33:43.712265+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 57,
+            "name": "filebeat_app_prod_group",
+            "default_value": null,
+            "desc": "Product group to be configured in filebeat",
+            "date_created": "2025-03-18T14:28:01.530292+03:00",
+            "date_updated": "2025-03-18T14:33:43.718856+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 58,
+            "name": "filebeat_app_product",
+            "default_value": null,
+            "desc": "Filebeat product name",
+            "date_created": "2025-03-18T14:28:01.543979+03:00",
+            "date_updated": "2025-03-18T14:33:43.725391+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 59,
+            "name": "app_config_file",
+            "default_value": null,
+            "desc": "Config file for MnsAgent",
+            "date_created": "2025-03-18T14:28:01.550260+03:00",
+            "date_updated": "2025-03-18T14:33:43.731978+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 60,
+            "name": "zookeeper_connect_string",
+            "default_value": null,
+            "desc": "Zookeeper connect string zoohost1:zooport1,zoohost2:zooport2 . . .",
+            "date_created": "2025-03-18T14:28:01.556203+03:00",
+            "date_updated": "2025-03-18T14:33:43.748324+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 61,
+            "name": "certs_dir",
+            "default_value": null,
+            "desc": "Certificates directory relative to APP_BASE",
+            "date_created": "2025-03-18T14:28:01.562318+03:00",
+            "date_updated": "2025-03-18T14:33:43.756095+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 62,
+            "name": "ma_app_conf_template",
+            "default_value": null,
+            "desc": "MnS Agent template for application configuration file",
+            "date_created": "2025-03-18T14:28:01.568280+03:00",
+            "date_updated": "2025-03-18T14:33:43.763263+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 63,
+            "name": "ma_app_name",
+            "default_value": null,
+            "desc": "Application name for config templating in nf_config_properties section of nms_agent.yaml file",
+            "date_created": "2025-03-18T14:28:01.574240+03:00",
+            "date_updated": "2025-03-18T14:33:43.770474+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 64,
+            "name": "logstash_backend",
+            "default_value": null,
+            "desc": "ELOG logstash endpoints",
+            "date_created": "2025-03-18T14:28:01.580156+03:00",
+            "date_updated": "2025-03-18T14:33:43.777706+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 65,
+            "name": "filebeat_components",
+            "default_value": null,
+            "desc": "Filebeat parameters for components",
+            "date_created": "2025-03-18T14:28:01.585924+03:00",
+            "date_updated": "2025-03-18T14:33:43.786062+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 67,
+            "name": "vdu_count",
+            "default_value": null,
+            "desc": "Number of VNFs",
+            "date_created": "2025-03-18T14:28:01.597346+03:00",
+            "date_updated": "2025-03-18T14:33:43.805288+03:00",
+            "reference": null,
+            "imtype": 3
+        },
+        {
+            "id": 66,
+            "name": "components_ma_config",
+            "default_value": null,
+            "desc": "Components mnsagent specific settings",
+            "date_created": "2025-03-18T14:28:01.591723+03:00",
+            "date_updated": "2025-03-18T14:33:43.795089+03:00",
+            "reference": null,
+            "imtype": 3
+        }
+    ]
+}

@@ -4,7 +4,9 @@ import { ref, reactive } from 'vue';
 import api from '../api';
 import { useConfig } from '../config-loader';
 import type { ModuleConfig } from '../config-loader';
-import type { CatalogResponse } from './types/moduleStore.type';
+import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
+import type { CatalogDetailsAPIResponseGET } from './types/catalogDetailsAPIResponseGET.type';
+import type { CatalogDetailsAPIResponseOPTIONS } from './types/catalogDetailsAPIResponseOPTIONS.type';
 
 // Функция для получения стора модуля по ID
 export function useModuleStore(moduleId: string) {
@@ -41,7 +43,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
   return defineStore(`${moduleConfig.id}`, () => {
     // состояние
     const moduleName = ref<string>(moduleConfig.name);
-    const catalog = ref<CatalogResponse>([]);
+    const catalog = ref<CatalogsAPIResponseGET>([]);
     const currentItem = ref<any | null>(null);
     const loading = ref<boolean>(false);
     const error = ref<any | null>(null);
@@ -54,7 +56,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     const isRequestInProgress = ref<boolean>(false);
     
     // действия
-    const getCatalog = async (): Promise<CatalogResponse> => {
+    const getCatalog = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
       if (catalog.value && catalog.value.length > 0) {
         console.log(`Данные для модуля ${moduleConfig.id} уже загружены, используем кэшированные данные`);
@@ -84,7 +86,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         const url = routes['getCatalog'];
         
         console.log(`Отправка запроса на ${url}`);
-        const response = await api.get<CatalogResponse>(url);
+        const response = await api.get<CatalogsAPIResponseGET>(url);
         catalog.value = response.data;
         error.value = null;
         return response.data;
@@ -111,11 +113,22 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       
       try {
         console.log(`Загрузка данных по URL: ${url}`);
-        const response = await api.get(url);
         
-        // Создаем новый объект с добавлением поля viewname для удобства
+        // Выполняем GET запрос
+        const getResponse = await api.get<CatalogDetailsAPIResponseGET>(url);
+        
+        // Выполняем OPTIONS запрос на тот же URL
+        console.log(`Запрашиваем OPTIONS для URL: ${url}`);
+        const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
+        
+        // Создаем новый объект с добавлением поля viewname и сохранением данных в полях GET и OPTIONS
         const detailsData = {
-          ...response.data,
+          GET: {
+            ...getResponse.data
+          },
+          OPTIONS: {
+            ...optionsResponse.data
+          },
           viewname: viewname,
           href: url,
         };

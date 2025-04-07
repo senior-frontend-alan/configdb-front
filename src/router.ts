@@ -123,7 +123,6 @@ router.beforeResolve(async (to, _from, next) => {
           
           // Проверяем, есть ли данные в сторе для этого viewname
           if (!moduleStore.catalogDetails[viewname]) {
-            // Ищем элемент в каталоге с соответствующим viewname
             const catalogItem = moduleStore.catalog
               .flatMap((group: { items?: any[] }) => group.items || [])
               .find((item: { viewname: string; href?: string }) => item.viewname === viewname);
