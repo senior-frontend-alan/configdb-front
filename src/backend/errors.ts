@@ -1,10 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { _t } from '../ngcore';
-
-export interface ErrorObject {
-  non_field_errors?: string | string[],
-  [fieldname: string]: string | string[] | undefined | ErrorObject,
-}
+import { type ErrorObject } from './api';
 
 export class ErrorDetail {
   clientDate: Date;

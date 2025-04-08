@@ -1,4 +1,4 @@
-// import { slugify as slugify_ } from 'transliteration';
+import { slugify as slugify_ } from 'transliteration';
 
 export function logDebug(...vargs) {
     console.log("DEBUG:", ...vargs);
@@ -228,62 +228,6 @@ export function mergeDeep(...objects) {
   }, {});
 }
 
-
-export class DomHelper {
-
-    static getOffset(el) {
-        const rect = el.getBoundingClientRect();
-
-        return {
-            top: rect.top + (window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0),
-            left: rect.left + (window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft || 0),
-        };
-    }
-
-    static getOuterWidth(el, margin) {
-        if (el) {
-            let width = el.offsetWidth;
-
-            if (margin) {
-                const style = getComputedStyle(el);
-                width += parseFloat(style.marginLeft) + parseFloat(style.marginRight);
-            }
-
-            return width;
-        }
-        else {
-            return 0;
-        }
-    }
-
-    static addClass(element, className) {
-        if (element.classList)
-            element.classList.add(className);
-        else
-            element.className += ' ' + className;
-    }
-
-    static removeClass(element, className) {
-        if (element.classList)
-            element.classList.remove(className);
-        else
-            element.className = element.className.replace(new RegExp('(^|\\b)' + className.split(' ').join('|') + '(\\b|$)', 'gi'), ' ');
-    }
-
-    static index(element, selector = null) {
-        const children = (!selector)?element.parentNode.childNodes:this.find(element.parentNode, selector);
-        let num = 0;
-        for (let i = 0; i < children.length; i++) {
-            if (children[i] === element) return num;
-            if (children[i].nodeType === 1) num++;
-        }
-        return -1;
-    }
-
-    static find(element, selector) {
-        return element.querySelectorAll(selector);
-    }
-}
 export function bisectLeft(a, x, lo=0, hi=a.length) {
     while (lo < hi) {
         const m = (lo+hi) >> 1;
@@ -412,21 +356,21 @@ export function joinUrlPath(...args) {
     return comps.join('/');
 }
 
-// export function slugify(s) {
-//     // return slugify_(s, {
-//     //     allowedChars: 'A-Za-z0-9-.',
-//     //     separator: '',
-//     //     lowercase: false,
-//     // });
-//     let comps = s.toLowerCase().replace(/[^a-z0-9-.,_~\/\\ ]/g, '').split(/[-.,_~\/\\ ]+/);
-//     let tokens = 0;
-//     for (var i = 0; i < comps.length; i++) {
-//         if (comps[i]) {
-//         tokens++;
-//         if (tokens > 1) {
-//             comps[i] = comps[i][0].toUpperCase() + comps[i].substring(1);
-//         }
-//         }
-//     }
-//     return comps.join('');
-// }
+export function slugify(s) {
+    // return slugify_(s, {
+    //     allowedChars: 'A-Za-z0-9-.',
+    //     separator: '',
+    //     lowercase: false,
+    // });
+    let comps = s.toLowerCase().replace(/[^a-z0-9-.,_~\/\\ ]/g, '').split(/[-.,_~\/\\ ]+/);
+    let tokens = 0;
+    for (var i = 0; i < comps.length; i++) {
+        if (comps[i]) {
+        tokens++;
+        if (tokens > 1) {
+            comps[i] = comps[i][0].toUpperCase() + comps[i].substring(1);
+        }
+        }
+    }
+    return comps.join('');
+}

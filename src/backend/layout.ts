@@ -1,5 +1,15 @@
-import { type ExtentionComponentDesc, _t, useNGCore } from './ngcore';
-import { objectPathGet } from './utils';
+import { type ExtentionComponentDesc } from './ngcore';
+import { objectPathGet } from './utils.js';
+import {
+  type Resource,
+  type FieldValue,
+  type Pk,
+  type WeakReference,
+  isResource,
+  isWeakReference,
+} from './api';
+
+type JSInterface = any;
 
 export interface Action {
   detail: boolean,
@@ -23,9 +33,9 @@ export interface Widget {
 }
 
 export interface Choice {
-  value: (string|number),
+  value: string | number,
   display_name: string
-};
+}
 
 export enum LayoutClasses {
   LayoutSection = "LayoutSection",
@@ -66,13 +76,13 @@ function isLayoutElement(object: any): object is LayoutElement {
     && 'class_name' in object;
 }
 
-type RepresentationFunction = (data: any) => any;
-
 interface LayoutFieldBase extends LayoutElement {
   field_class: string,
+  label: string,
   minimize?: boolean,
   js_item_repr?: string,
-  _jsItemReprFn?: (RepresentationFunction | null),
+  multiple?: boolean,
+  list_view_items?: number,
 }
 
 function isLayoutFieldBase(object: any): object is LayoutFieldBase {
@@ -80,20 +90,10 @@ function isLayoutFieldBase(object: any): object is LayoutFieldBase {
 }
 
 
-export interface LayoutComputedField extends LayoutFieldBase {
-  list_view_items?: string,
-}
-
-export function isLayoutComputedField(object: any): object is LayoutComputedField {
-  return isLayoutFieldBase(object) && object.class_name === LayoutClasses.LayoutComputedField;
-}
-
-
 export interface LayoutField extends LayoutFieldBase {
-  label: string,
   required?: boolean,
   allow_null?: boolean,
-  default?: (string | number),
+  default?: (string | number | object | (string | number | object)[]),
   read_only?: boolean,
   input_type?: string,
   pattern?: string,
@@ -136,14 +136,11 @@ export interface LayoutRelatedField extends LayoutField {
   view_name: string,
   appl_name: string,
   lookup?: boolean,
-  multiple?: boolean,
   choices?: Choice[],
   related_fk?: FieldSubstitution,
   substitutions?: (string[] | FieldSubstitution),
-  list_view_items?: number,
   display_list?: string[],
   item_repr?: string,
-  js_item_repr?: string,
   obj_repr?: string[],
   auto_select_unique?: boolean,
 }
@@ -163,9 +160,7 @@ export function isLayoutRichEditField(object: any): object is LayoutRichEditFiel
 
 
 export interface LayoutChoiceField extends LayoutField {
-  choices?: Choice[],
-  multiple?: boolean,
-  chocesMap?: {[value: string | number]: Choice},
+  choices: Choice[],
 }
 
 export function isLayoutChoiceField(object: any): object is LayoutChoiceField {
@@ -202,7 +197,7 @@ export function isLayoutReverseField(object: any): object is LayoutReverseField 
 
 
 type LayoutGroupElement = (
-  LayoutComputedField | LayoutField | LayoutCharField | LayoutIntegerField | LayoutRichEditField |
+  LayoutField | LayoutCharField | LayoutIntegerField | LayoutRichEditField |
   LayoutChoiceField | LayoutReverseField | LayoutGroup
 );
 
@@ -332,37 +327,51 @@ export interface LayoutColumn {
   name: string,
   label: string,
   element: LayoutField,
-  minimize?: boolean,
   width?: number,
   fixedWidth?: boolean,
   isListView?: boolean,
   isHuge?: boolean,
+  field: FieldClass,
 }
 
-export function layoutColumns(root: ViewSetLayout, columns?: string[], minimizeLength: number = 30): LayoutColumn[] {
+export interface DisplayOptions {
+  locale?: string,
+  roundDecimals?: number,
+  minimizeLength?: number,
+}
 
-  function _pickColumns(root: ViewSetLayout, columns?: string[]): LayoutColumn[] {
-    const cols: LayoutColumn[] = [];
+const DefaultDisplayOptions: DisplayOptions = {
+  roundDecimals: 2,
+  minimizeLength: 30,
+}
+
+export function layoutColumns(root: ViewSetLayout, jsi: JSInterface, columns?: string[], options?: DisplayOptions): FieldClass[] {
+
+  const fields: Fields = {};
+  const _options = {
+    ...DefaultDisplayOptions,
+    ...options,
+  };
+
+  function _pickColumns(root: ViewSetLayout, columns?: string[]): FieldClass[] {
+    const cols: FieldClass[] = [];
     const pickedSet = new Set<string>();
-    const colsOrder = {};
+    const colsOrder: {[name: string]: number} = {};
 
     if (columns) {
       columns.reduce((obj, attr, i) => (obj[attr] = i, obj), colsOrder);
     }
 
     function _traverseLayout(item: LayoutGroupElement) {
-      if (isLayoutField(item)) {
+      if (isLayoutFieldBase(item)) {
         if (!pickedSet.has(item.name) && (!columns || item.name in colsOrder)) {
+          const fieldClass = isViewSetInlineLayout(item) ? InlineObjectField
+            : FieldClassRepresentation[item.field_class] ?? FieldClassRepresentation._default;
+          const field = new fieldClass(item, jsi, fields, _options);
+          fields[item.name] = field;
+
           pickedSet.add(item.name);
-          cols.push({
-            name: item.name,
-            label: item.label,
-            element: item,
-            minimize: !!item.minimize || (isLayoutCharField(item) && (item.max_length ?? 0) < minimizeLength),
-            isListView: (isLayoutRelatedField(item) && item.multiple || isViewSetInlineLayout(item) && item.max_cardinality !== 1)
-                      && !!item.list_view_items && (item.list_view_items > 0),
-            isHuge: (item.class_name === LayoutClasses.LayoutRichEditField),
-          });
+          cols.push(field);
         }
         else if (isViewSetInlineLayout(item) && item.max_cardinality === 1) {
           item.elements.forEach(_traverseLayout);
@@ -371,7 +380,7 @@ export function layoutColumns(root: ViewSetLayout, columns?: string[], minimizeL
       else if (isLayoutGroup(item)) {
         item.elements.forEach(_traverseLayout);
       }
-    };
+    }
 
     root.elements.forEach(_traverseLayout);
     if (columns) {
@@ -380,7 +389,7 @@ export function layoutColumns(root: ViewSetLayout, columns?: string[], minimizeL
     return cols;
   }
 
-  let cols: LayoutColumn[] = [];
+  let cols: FieldClass[] = [];
   // 1. At first try to pick specified "columns"
   if (columns && columns.length) {
     cols = _pickColumns(root, columns);
@@ -399,16 +408,15 @@ export function layoutColumns(root: ViewSetLayout, columns?: string[], minimizeL
   return cols;
 }
 
+export function layoutMap(elements: LayoutElement[], map_fn: (data: any, el: LayoutElement) => boolean, data: any) {
+  if (elements == null) return;
 
-export function layoutMap(elements, map_fn, data) {
-    if (elements) {
-        for (let i=0; i<elements.length; i++) {
-            const elem = elements[i];
-            if (map_fn(data, elem) && elem.elements) {
-                layoutMap(elem.elements, map_fn, data);
-            }
-        }
-    }
+  for (let i=0; i<elements.length; i++) {
+      const elem = elements[i];
+      if (map_fn(data, elem) && isLayoutGroup(elem)) {
+          layoutMap(elem.elements, map_fn, data);
+      }
+  }
 }
 
 export const LayoutInlineFormClasses = new Set([
@@ -429,234 +437,6 @@ export const LayoutSimpleFieldClasses = new Set([
 ]);
 
 
-function __layoutElementGetRepresentationFn(element: LayoutFieldBase): (RepresentationFunction | null | undefined) {
-  const js_item_repr = element.js_item_repr;
-  if (js_item_repr && element._jsItemReprFn === undefined) {
-    element._jsItemReprFn = null;
-    try {
-      const ngc = useNGCore();
-      element._jsItemReprFn = (data: any): any => (new Function("row", "jsi", js_item_repr)(data, ngc.jsi));
-    }
-    catch (e: any) {
-      throw Error(`__layoutElementGetRepresentationFn: element.js_item_repr="${js_item_repr}" function constructor error: ${e}`)
-    }
-  }
-
-  return element._jsItemReprFn;
-}
-
-function __layoutElementGetChoicesMap(element: LayoutChoiceField) {
-    if (element.chocesMap === undefined) {
-        element.chocesMap = {};
-        if (element.choices) {
-            element.choices.reduce((obj, x) => (obj[x.value] = x, obj), element.chocesMap);
-        }
-    }
-    return element.chocesMap;
-}
-
-const layout_field_class_repr_helpers = {
-    CharField: function(element: LayoutField, data: any) {
-      return data[element.name];
-    },
-
-    ComputedField: function(element: LayoutField, data: any) {
-      const reprFn = __layoutElementGetRepresentationFn(element);
-      if (!reprFn) return null;
-      return reprFn(data);
-    },
-
-    DecimalField: function(element: LayoutField, data: any) {
-      let value = data[element.name];
-      if (typeof value === "string") {
-        value = parseFloat(value);
-      }
-      if (value!=null) {
-        const ngc = useNGCore();
-        value = value.toFixed(ngc.appSettings.value.roundDecimals);
-      }
-      return value;
-    },
-
-    ChoiceField: function(element: LayoutField, data: any) {
-      let value = data[element.name];
-      const val_obj = __layoutElementGetChoicesMap(element)[value];
-      if (val_obj) {
-        value = val_obj.display_name;
-      }
-      return value;
-    },
-
-    DateTimeField: function(element: LayoutField, data: any) {
-      let value = data[element.name];
-      if (value != null) {
-        const date = new Date(value);
-        if (date) {
-          const ngc = useNGCore();
-          value = (element.widget?.display === 'date') ?
-            date.toLocaleDateString(ngc.locale.value) :
-            date.toLocaleString(ngc.locale.value);
-        }
-      }
-      return value;
-    },
-
-    DateField: function(element: LayoutField, data: any) {
-      let value = data[element.name];
-      if (value != null) {
-        const date = new Date(value);
-        if (date) {
-          const ngc = useNGCore();
-          value = date.toLocaleDateString(ngc.locale.value);
-        }
-      }
-      return value;
-    },
-
-    TimeField: function(element: LayoutField, data: any) {
-      let value = data[element.name];
-      if (value != null) {
-        const date = new Date(value);
-        if (date) {
-          const ngc = useNGCore();
-          value = date.toLocaleTimeString(ngc.locale.value);
-        }
-      }
-      return value;
-    },
-
-    PrimaryKeyRelatedLookupField: function(element: LayoutField, data: any) {
-        const value = data[element.name];
-        return (value instanceof Object) ? value.name : value;
-    },
-
-    ManyRelatedField: function(element: LayoutField, data: any) {
-      if (!isLayoutRelatedField(element)) {
-        // fallback
-        return layout_field_class_repr_helpers.CharField(element, data);
-      };
-
-      let value = data[element.name];
-      if (value == null) {
-        return value;
-      }
-
-      if (element.list_view_items) {
-        if (value.length > 0) {
-          const values: any[] = [];
-          const limit = (value.length <= element.list_view_items+1 ) ? value.length : element.list_view_items;
-
-          for (let i=0; i<limit; i++) {
-            let repr_value = value[i];
-            if (repr_value && repr_value instanceof Object && repr_value.name) {
-              repr_value = repr_value.name;
-            }
-            values.push(repr_value);
-          }
-
-          const items_left = value.length - limit;
-          if (items_left > 0) {
-            values.push(`${items_left} ${_t('labels.more')}`);
-          }
-          value = values;
-        }
-        else {
-          value = null;
-        }
-      }
-      else {
-        value = `${value.length} ${_t('labels.more')}`;
-      }
-
-      return value;
-    },
-
-    ListSerializer: function(element: LayoutField, data: any) {
-      if (!isViewSetInlineLayout(element)) {
-        // fallback
-        return layout_field_class_repr_helpers.CharField(element, data);
-      };
-
-      let value = data[element.name];
-      if (value == null) {
-        return value;
-      }
-
-      if (element.list_view_items) {
-        if (value.length > 0) {
-          const reprFn = __layoutElementGetRepresentationFn(element);
-          let i;
-          const newValue: any[] = [];
-          const limit = (value.length <= element.list_view_items+1 ) ? value.length : element.list_view_items;
-
-          for (i=0; i<limit; i++) {
-            const item = value[i];
-            let repr_value: any = null;
-            if (reprFn) {
-              repr_value = reprFn(item);
-            }
-            else if (element.item_repr) {
-              repr_value = objectPathGet(item, element.item_repr);
-              if (repr_value && repr_value instanceof Object && repr_value.name) {
-                repr_value = repr_value.name;
-              }
-            }
-            else if (element.natural_key) {
-              repr_value = [];
-              element.natural_key.forEach(x => {
-                let value = item[x];
-                if (value && value instanceof Object && value.name) {
-                  value = value.name;
-                }
-                if (value) {
-                  repr_value.push(value);
-                }
-              });
-
-              repr_value = repr_value.join(':');
-            }
-            newValue.push( repr_value || item.__str__ || item.name || item.code || item.id );
-          }
-          i = value.length - limit;
-          if (i > 0) {
-              newValue.push(`${i} ${_t('labels.more')}`);
-          }
-          value = newValue;
-        }
-        else {
-          value = null;
-        }
-      }
-      else {
-        value = `${value.length} ${_t('labels.more')}`;
-      }
-
-      return value;
-    },
-
-    WeakRelatedLookupField: function(element: LayoutField, data: any) {
-      let value = data[element.name];
-      if (value instanceof Object) {
-        if (value.error)
-          value = { error_message: value.error };
-        else if (value.name)
-          value = value.name;
-        else
-          value = value.refid;
-      }
-      return value;
-    },
-}
-
-export function layoutElementGetRepresentation(element: LayoutField | ViewSetInlineLayout, data: any): any {
-  let func = layout_field_class_repr_helpers[element.field_class];
-  if (!func) {
-    // return { error_message: `Unsupported class: ${element.field_class}` };
-    func = layout_field_class_repr_helpers.CharField;
-  }
-  return func(element, data);
-}
-
 export enum PythonDefault {
   Now = "<now>",
   Today = "<date.today>",
@@ -676,3 +456,417 @@ export function getPythonDefaultValue(value: string): string | number | null {
   }
   return value;
 }
+
+export interface Fields {
+  [name: string]: FieldClass
+}
+
+export interface StringReprError {
+  error: string,
+}
+
+export function isStringReprError(s: string | StringReprError): s is StringReprError {
+  return (s instanceof Object && 'error' in s);
+}
+
+export interface ListStringRepr {
+  values: (string | StringReprError)[];
+  total: number;
+}
+
+abstract class AbstractField<T> {
+  element: LayoutField;
+  jsi: JSInterface;
+  options: DisplayOptions;
+  fields: Fields;
+
+  compFn?: (value: Resource) => FieldValue;
+  reprFn?: (value: T | null) => string | StringReprError | null;
+  choicesMap?: {[value: string]: string};
+
+  constructor (element: LayoutField, jsi: JSInterface, fields: Fields,
+      options?: DisplayOptions)
+  {
+    this.element = element;
+    this.jsi = jsi;
+    this.fields = fields;
+    this.options = options ?? {};
+
+    if (element.class_name === LayoutClasses.LayoutComputedField) {
+      if (!element.js_item_repr) {
+        throw Error('Improperly configured, `js_item_repr` is requred for computed field');
+      }
+
+      try {
+        const innerFn = new Function("row", "jsi", "fields", element.js_item_repr);
+        this.compFn = (data: Resource): FieldValue => (innerFn(data, jsi, this.fields));
+      } catch (e: any) {
+        throw Error(`AbstractField: element.js_item_repr="${element.js_item_repr}" function constructor error: ${e}`)
+      }
+    }
+    else if (element.js_item_repr) {
+      try {
+        const innerFn = new Function("row", "jsi", "fields", element.js_item_repr);
+        this.reprFn = (data: T | null): string | null => (innerFn(data, jsi, this.fields));
+      } catch (e: any) {
+        throw Error(`AbstractField: element.js_item_repr="${element.js_item_repr}" function constructor error: ${e}`)
+      }
+    }
+
+    if ((isLayoutChoiceField(element) || isLayoutRelatedField(element)) && element.choices) {
+      this.choicesMap = {};
+      element.choices.reduce((obj, x) => (obj[x.value.toString()] = x.display_name, obj), this.choicesMap);
+    }
+  }
+
+  get multiple(): boolean {
+    return this.element.multiple ?? false;
+  }
+
+  get name(): string {
+    return this.element.name;
+  }
+
+  get label(): string {
+    return this.element.label;
+  }
+
+  get isClob(): boolean {
+    return false;
+  }
+
+  protected abstract _asValue(value: FieldValue): T | null;
+
+  protected abstract _asString(value: T | null): string | StringReprError | null;
+
+  isSingle(value: unknown): value is FieldValue {
+    const single = value !== undefined && !this.multiple;
+    if (single && value !== null && value instanceof Array) {
+      throw Error(`Field "${this.element.element_id}" error: got Array value for single-value field`);
+    }
+    return single;
+  }
+
+  isMultiple(value: unknown): value is FieldValue[] {
+    const multiple = value !== undefined && this.multiple;
+    if (multiple && value !== null && !(value instanceof Array)) {
+      throw Error(`Field "${this.element.element_id}" error: got non-Array value for multiple-value field`);
+    }
+    return multiple;
+  }
+
+  rawValue(data: Resource): unknown {
+    return this.compFn ? this.compFn(data) : data[this.element.name];
+  }
+
+  asValue(data: Resource): T | T[] | undefined | null {
+    const value = this.rawValue(data);
+
+    if (this.isSingle(value)) {
+      return this._asValue(value);
+    }
+    else if (this.isMultiple(value)) {
+      return value.map(x => this._asValue(x))
+        .filter((x): x is T => x != null);
+    }
+    else {
+      return undefined;
+    }
+  }
+
+  asString(data: Resource): string | StringReprError | ListStringRepr | null | undefined {
+    const value = this.rawValue(data);
+
+    if (this.isSingle(value)) {
+      const _value = this._asValue(value);
+      return this.reprFn ? this.reprFn(_value) : this._asString(_value)
+    }
+    else if (this.isMultiple(value)) {
+      if (value === null) return null;
+
+      if (this.element.list_view_items && this.element.list_view_items > 0
+          && value.length > this.element.list_view_items)
+      {
+        const _reprs: (string | StringReprError)[] = [];
+        for (const x of value) {
+          const _value = this._asValue(x);
+          const _repr = this.reprFn ? this.reprFn(_value) : this._asString(_value);
+          if (_repr != null && _reprs.push(_repr) == this.element.list_view_items) {
+            break;
+          }
+        }
+        return {
+          values: _reprs,
+          total: value.length
+        }
+      }
+      else {
+        return {
+          values: value.map(x => {
+            return this.reprFn ? this.reprFn(this._asValue(x)) : this._asString(this._asValue(x))
+          }).filter((x): x is string => x != null),
+          total: value.length
+        }
+      }
+    }
+    else {
+      return undefined;
+    }
+  }
+
+  getDefault(): FieldValue | undefined {
+    if (!isLayoutField(this.element)) return undefined;
+
+    const value = this.element.default;
+    if (value == null) return value;
+
+    if (typeof value === 'object') {
+      return JSON.parse(JSON.stringify(value));
+    }
+    else if (typeof value === 'string') {
+      getPythonDefaultValue(value);
+    }
+    else {
+      return value;
+    }
+  }
+}
+
+class IntegerField extends AbstractField<number> {
+
+  protected _asValue(value: FieldValue): number | null {
+    if (value == null) return null;
+    if (value instanceof Object) {
+      throw Error('Imporperly configured');
+    }
+    if (typeof value == 'boolean') return value ? 1 : 0;
+    const numValue = (typeof value !== "number") ? parseInt(value, 10) : value;
+    return Number.isInteger(numValue) ? numValue : Math.round(numValue);
+  }
+
+  protected _asString(value: number | null): string | null {
+    return value == null ? null : value.toFixed();
+  }
+
+}
+
+class DecimalField extends AbstractField<number> {
+
+  protected _asValue(value: FieldValue): number | null {
+    if (value == null) return null;
+    if (typeof value === 'object') {
+      throw Error('Imporperly configured');
+    }
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    return (typeof value !== "number") ? parseFloat(value) : value;
+  }
+
+  protected _asString(value: number | null): string | null {
+    return value == null ? null : value.toFixed(this.options.roundDecimals ?? 2);
+  }
+
+}
+
+class CharField extends AbstractField<string> {
+
+  get isClob(): boolean {
+    return isLayoutRichEditField(this.element);
+  }
+
+  protected _asValue(value: FieldValue): string | null {
+    return value == null ? null : value.toString();
+  }
+
+  protected _asString(value: string | null): string | null {
+    return value;
+  }
+
+}
+
+class ChoiceField extends AbstractField<string | number> {
+
+  protected _asValue(value: FieldValue): string | number | null {
+    if (value == null) return null;
+    if (value instanceof Object) {
+      throw Error('Imporperly configured');
+    }
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    return value;
+  }
+
+  protected _asString(value: string | number | null): string | null {
+    return value == null ? null : this.choicesMap?.[value.toString()] ?? `<value: ${value}>`;
+  }
+
+}
+
+class DateTimeField extends AbstractField<Date> {
+
+  protected _asValue(value: FieldValue): Date | null {
+    if (value == null) return null;
+    if (value instanceof Object || typeof value === 'boolean') {
+      throw Error('Imporperly configured');
+    }
+    return new Date(value);
+  }
+
+  protected _asString(value: Date | null): string | null {
+    return value == null ? null :
+      (this.element.widget?.display === 'date' ?
+        value.toLocaleDateString(this.options.locale) :
+        value.toLocaleString(this.options.locale));
+  }
+}
+
+class DateField extends DateTimeField {
+  protected _asString(value: Date | null): string | null {
+    return value == null ? null : value.toLocaleDateString(this.options.locale);
+  }
+}
+
+class TimeField extends AbstractField<Date> {
+
+  protected _asValue(value: FieldValue): Date | null {
+    if (value == null) return null;
+    if (value instanceof Object || typeof value === 'boolean') {
+      throw Error('Imporperly configured');
+    }
+    return new Date(typeof value === 'number' ? value : `1970-01-01T${value}Z`);
+  }
+
+  protected _asString(value: Date | null): string | null {
+    return value == null ? null : value.toLocaleTimeString(this.options.locale, { timeZone: "UTC" });
+  }
+}
+
+class RelatedField extends AbstractField<Resource | Pk> {
+
+
+  protected _asValue(value: FieldValue): Resource | Pk | null {
+    if (value == null) return null;
+    if (typeof value === 'boolean' ||
+      (value instanceof Object && !isResource(value)))
+    {
+      throw Error('Imporperly configured');
+    }
+    return value;
+  }
+
+  protected _asString(value: Resource | Pk | null): string | null {
+    if (value == null) return null;
+    if (value instanceof Object) {
+      return value.name ?? `<id: ${value.id}>`;
+    }
+    else if (this.choicesMap) {
+      return this.choicesMap[value.toString()] ?? `<id: ${value}>`;
+    }
+    else {
+      return `<id: ${value}>`;
+    }
+  }
+
+}
+
+class WeakRelatedLookupField extends AbstractField<WeakReference | string | number> {
+
+  protected _asValue(value: FieldValue): WeakReference | string | number | null {
+    if (value == null) return null;
+    if (typeof value === 'boolean' ||
+      (value instanceof Object && !isWeakReference(value)))
+    {
+      throw Error('Imporperly configured');
+    }
+    return value;
+  }
+
+  protected _asString(value: WeakReference | string | number | null): string | null {
+    if (value == null) return null;
+    if (isWeakReference(value)) {
+      return value.name ?? (value.error ? {error: value.error} : `<id: ${value.id}>`);
+    }
+    else {
+      return value.toString();
+    }
+  }
+
+}
+
+class InlineObjectField extends AbstractField<Resource> {
+
+  get multiple(): boolean {
+    // Backend Bug-fix. For `ViewSetInlineLayout` backend doesn't fill `multiply`.
+    return isViewSetInlineLayout(this.element) ? (this.element.max_cardinality ?? 2) > 1
+      : super.multiple;
+  }
+
+  protected _asValue(value: FieldValue): Resource | null {
+    if (value == null) return null;
+    if (!isResource(value)) {
+      throw Error('Imporperly configured');
+    }
+    return value;
+  }
+
+  protected _asString(value: Resource | null): string | null {
+    if (value == null) return null;
+
+    let repr: string | null = null;
+    if (isViewSetInlineLayout(this.element)) {
+      if (this.element.item_repr) {
+        const innerValue = objectPathGet(value, this.element.item_repr);
+        if (innerValue != null && !(innerValue instanceof Array)) {
+          if (innerValue instanceof Object) {
+            repr = innerValue.__str__ ?? innerValue.name ?? innerValue.code ?? innerValue.id ?? repr;
+          }
+          else {
+            repr = innerValue;
+          }
+        }
+      }
+
+      // fallback to natural_key
+      if (this.element.natural_key) {
+        repr = this.element.natural_key
+          .map(x => {
+            const keyValue = value[x];
+            if (!(keyValue instanceof Array) && keyValue instanceof Object) {
+              return keyValue.__str__ ?? keyValue.name ?? keyValue.code ?? keyValue.id;
+            }
+            return keyValue;
+          })
+          .filter(x => x != null)
+          .join(':');
+      }
+    }
+
+    // fallback to predefined representaion fields
+    if (repr == null) {
+      repr = value.__str__ ?? value.name ?? value.code ?? (value.id ? `<id: ${value.id}>` : repr);
+    }
+    return repr
+  }
+}
+
+type FieldClassTypes = typeof IntegerField | typeof DecimalField | typeof CharField | typeof ChoiceField |
+  typeof DateTimeField | typeof TimeField | typeof RelatedField | typeof WeakRelatedLookupField | typeof InlineObjectField;
+
+type FieldClass = IntegerField | DecimalField | CharField | ChoiceField |
+  DateTimeField | TimeField | RelatedField | WeakRelatedLookupField | InlineObjectField;
+
+export const FieldClassRepresentation: {[name: string]: FieldClassTypes}= {
+  IntegerField: IntegerField,
+  DecimalField: DecimalField,
+  CharField: CharField,
+  ChoiceField: ChoiceField,
+  DateTimeField: DateTimeField,
+  DateField: DateField,
+  TimeField: TimeField,
+  PrimaryKeyRelatedLookupField: RelatedField,
+  ManyRelatedField: RelatedField,
+  WeakRelatedLookupField: WeakRelatedLookupField,
+  ListSerializer: InlineObjectField,
+  Serializer: InlineObjectField,
+  ComputedField: CharField,
+  _default: CharField,
+}
+
