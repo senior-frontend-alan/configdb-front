@@ -7,28 +7,29 @@ import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseGET } from './types/catalogDetailsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseOPTIONS } from './types/catalogDetailsAPIResponseOPTIONS.type';
+import { formatByFieldName, formatByClassName, FIELD_TYPES } from '../utils/formatter';
 
 // Функция для получения стора модуля по ID
 export function useModuleStore(moduleId: string) {
   const { getModuleConfig } = useConfig();
   const moduleConfig = getModuleConfig(moduleId);
-  
+
   if (!moduleConfig) {
     console.error(`Модуль ${moduleId} не найден в конфигурации`);
     return null;
   }
-  
+
   // Получаем активный экземпляр Pinia
   const pinia = getActivePinia();
-  
+
   if (!pinia) {
     console.error('Не найден активный экземпляр Pinia');
     return null;
   }
-  
+
   // ID стора формируется как `${moduleConfig.id}Store`
   const storeId = `${moduleConfig.id}`;
-  
+
   try {
     // Используем стандартную функцию Pinia для получения стора по ID
     // @ts-ignore - игнорируем ошибку типизации, так как мы знаем, что стор существует
@@ -48,25 +49,27 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     const loading = ref<boolean>(false);
     const error = ref<any | null>(null);
     const diamApplicationList = ref<any[]>([]);
-    
+
     // Сохраненные данные по различным viewname - используем reactive вместо ref
     const catalogDetails = reactive<Record<string, any>>({});
-    
+
     // Флаг для отслеживания запросов в процессе
     const isRequestInProgress = ref<boolean>(false);
-    
+
     // действия
     const getCatalog = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
       if (catalog.value && catalog.value.length > 0) {
-        console.log(`Данные для модуля ${moduleConfig.id} уже загружены, используем кэшированные данные`);
+        console.log(
+          `Данные для модуля ${moduleConfig.id} уже загружены, используем кэшированные данные`,
+        );
         return catalog.value;
       }
-      
+
       // Если запрос уже выполняется, ожидаем его завершения
       if (isRequestInProgress.value) {
         console.log(`Запрос для модуля ${moduleConfig.id} уже выполняется, ожидаем...`);
-        await new Promise(resolve => {
+        await new Promise((resolve) => {
           const checkInterval = setInterval(() => {
             if (!isRequestInProgress.value) {
               clearInterval(checkInterval);
@@ -76,15 +79,15 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         });
         return catalog.value;
       }
-      
+
       // Устанавливаем флаги загрузки
       isRequestInProgress.value = true;
       loading.value = true;
-      
+
       try {
         const routes = moduleConfig.routes as unknown as Record<string, string>;
         const url = routes['getCatalog'];
-        
+
         console.log(`Отправка запроса на ${url}`);
         const response = await api.get<CatalogsAPIResponseGET>(url);
         catalog.value = response.data;
@@ -99,7 +102,97 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         isRequestInProgress.value = false;
       }
     };
-    
+
+    // Создаем карту метаданных полей из OPTIONS запроса,
+    // т.е. вместо
+    // "elements": [
+    //   {
+    //       "class_name": "LayoutField",
+    //       "name": "layout_field",
+    //       ...
+    //   }
+    // ]
+    //
+    // {
+    //   "layout_field": {
+    //     "class_name": "LayoutField",
+    //     "options": {
+    //       ...
+    //     }
+    //   }
+    // }
+    const createFieldsMetadata = (options: any) => {
+      const metadata: Record<string, { class_name: string; options?: any }> = {};
+
+      if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
+        return metadata;
+      }
+
+      options.layout.elements.forEach((element: any) => {
+        if (!element.name) return;
+
+        // Определяем тип поля на основе class_name или field_class
+        let fieldType = FIELD_TYPES.LAYOUT_CHAR_FIELD; // Тип по умолчанию
+        if (element.class_name && element.class_name !== '') {
+          fieldType = element.class_name;
+        } else if (element.field_class && element.field_class !== '') {
+          fieldType = element.field_class;
+        }
+
+        metadata[element.name] = {
+          class_name: fieldType,
+          options: element, // Сохраняем все опции поля для возможного использования
+        };
+      });
+
+      return metadata;
+    };
+
+    // Функция для форматирования данных с использованием метаданных полей
+    const formatData = (data: any, options: any) => {
+      // Создаем метаданные полей
+      const fieldsMetadata = createFieldsMetadata(options);
+
+      // Если нет данных или результатов, возвращаем исходные данные
+      if (!data || !data.results || !Array.isArray(data.results)) {
+        return data;
+      }
+
+      // Форматируем результаты
+      return {
+        ...data,
+        results: data.results.map((item: any) => {
+          // Создаем копию элемента для форматирования
+          const formattedItem = { ...item };
+
+          // Форматируем каждое поле используя метаданные
+          Object.keys(formattedItem).forEach((fieldName) => {
+            try {
+              // Задаем фиксированный класс для обработки полей date_created и date_updated
+              if (fieldName === 'date_created' || fieldName === 'date_updated') {
+                return formatByClassName(
+                  FIELD_TYPES.LAYOUT_CHAR_FIELD,
+                  formattedItem[fieldName],
+                  options,
+                );
+              }
+
+              // Иначе используем тип из метаданных
+              const fieldType =
+                fieldsMetadata[fieldName]?.options?.field_class ||
+                fieldsMetadata[fieldName]?.class_name ||
+                FIELD_TYPES.LAYOUT_CHAR_FIELD;
+              formattedItem[fieldName] = formatByClassName(fieldType, formattedItem[fieldName]);
+            } catch (e) {
+              console.warn(`Ошибка форматирования поля ${fieldName}:`, e);
+            }
+          });
+
+          return formattedItem;
+        }),
+      };
+    };
+
     // Загрузка данных по URL и сохранение их в соответствующее поле catalogDetails
     const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
       // Проверяем, есть ли уже загруженные данные для этого viewname
@@ -107,37 +200,46 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         console.log(`Используем кэшированные данные для ${viewname}`);
         return catalogDetails[viewname];
       }
-      
+
       loading.value = true;
       error.value = null;
-      
+
       try {
-        console.log(`Загрузка данных по URL: ${url}`);
-        
-        // Выполняем GET запрос
-        const getResponse = await api.get<CatalogDetailsAPIResponseGET>(url);
-        
-        // Выполняем OPTIONS запрос на тот же URL
-        console.log(`Запрашиваем OPTIONS для URL: ${url}`);
-        const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
-        
-        // Создаем новый объект с добавлением поля viewname и сохранением данных в полях GET и OPTIONS
+        let getResponseData;
+        let optionsResponseData;
+
+        // !УДАЛИТЬ моковый блок if (только для теста!)
+        if (url === 'http://localhost:5173/api/v1/draConfig/diamVendor/') {
+          console.log('Загрузка моковых данных для diamVendor');
+
+          // Импортируем моковые данные
+          const { OPTIONS4 } = await import('../mocks/OPTIONS4.js');
+          const { GET4 } = await import('../mocks/GET4.js');
+
+          getResponseData = GET4;
+          optionsResponseData = OPTIONS4;
+        } else {
+          const getResponse = await api.get<CatalogDetailsAPIResponseGET>(url);
+          const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
+
+          getResponseData = getResponse.data;
+          optionsResponseData = optionsResponse.data;
+        }
+
+        // Создаем новый объект с данными (общая логика для моковых и реальных данных)
         const detailsData = {
-          GET: {
-            ...getResponse.data
-          },
-          OPTIONS: {
-            ...optionsResponse.data
-          },
+          GET: getResponseData,
+          GET_FORMATTED: formatData(getResponseData, optionsResponseData),
+          OPTIONS: optionsResponseData,
           viewname: viewname,
           href: url,
         };
-        
-        // Напрямую обновляем реактивный объект (reactive вместо ref)
+
+        // Напрямую обновляем реактивный объект
         catalogDetails[viewname] = detailsData;
-        
+
         console.log(`Данные для ${viewname} успешно загружены в стор:`, catalogDetails[viewname]);
-        
+
         error.value = null;
         return detailsData;
       } catch (err) {
@@ -148,7 +250,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         loading.value = false;
       }
     };
-    
+
     return {
       // состояние
       catalog,
@@ -159,10 +261,10 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       isRequestInProgress,
       diamApplicationList,
       catalogDetails,
-      
+
       // действия
       getCatalog,
-      loadCatalogDetails
+      loadCatalogDetails,
     };
   });
 }

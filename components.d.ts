@@ -28,6 +28,7 @@ declare module 'vue' {
     InputSwitch: typeof import('primevue/inputswitch')['default']
     InputText: typeof import('primevue/inputtext')['default']
     ListViewP1: typeof import('./src/components/ListViewP1.vue')['default']
+    ObjectFieldPopover: typeof import('./src/components/ObjectFieldPopover.vue')['default']
     PanelMenu: typeof import('primevue/panelmenu')['default']
     ProductOverviewWidget: typeof import('./src/components/dashboard/ProductOverviewWidget.vue')['default']
     ProgressBar: typeof import('primevue/progressbar')['default']

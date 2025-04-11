@@ -91,7 +91,7 @@ export const fieldFormatters = {
     }
     if (value!=null) {
       const settingsStore = useSettingsStore();
-      value = value.toFixed(settingsStore.decimalPlaces);
+      value = value.toFixed(settingsStore.roundDecimals);
     }
     return value;
   },

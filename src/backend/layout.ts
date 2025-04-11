@@ -37,24 +37,25 @@ export interface Choice {
   display_name: string
 }
 
+// соотношение нашего UI с тем что приходит из class_name
 export enum LayoutClasses {
   LayoutSection = "LayoutSection",
   LayoutRow = "LayoutRow",
   LayoutTabControl = "LayoutTabControl",
   LayoutTabPanel = "LayoutTabPanel",
-  LayoutComputedField = "LayoutComputedField",
-  LayoutField = "LayoutField",
-  LayoutCharField = "LayoutCharField",
-  LayoutIntegerField = "LayoutIntegerField",
-  LayoutRichEditField = "LayoutRichEditField",
-  LayoutRelatedField = "LayoutRelatedField",
-  LayoutChoiceField = "LayoutChoiceField",
+  LayoutComputedField = "LayoutComputedField", // отобразить в таблице
+  LayoutField = "LayoutField", // по-хорошему с бэка приходить не должны (оставлена для обратной совместимости)
+  LayoutCharField = "LayoutCharField", // отобразить в таблице
+  LayoutIntegerField = "LayoutIntegerField", // отобразить в таблице
+  LayoutRichEditField = "LayoutRichEditField", // отобразить в таблице (CLOB отобразить первые несколько символов, отобразить и порезать, любые текстовые данные YAML, JSON, кусок кода, все что угодно) может посмотреть на ф js item repr
+  LayoutRelatedField = "LayoutRelatedField", // отобразить в таблице (вывести связанный объект)
+  LayoutChoiceField = "LayoutChoiceField", // отобразить в таблице СЕЛЕКТ
   LayoutReverseReferenceField = "LayoutReverseReferenceField",
-  ViewSetInlineLayout = "ViewSetInlineLayout",
-  ViewSetInlineDynamicLayout = "ViewSetInlineDynamicLayout",
+  ViewSetInlineLayout = "ViewSetInlineLayout", // отобразить в таблике ОБЪЕКТ заданной структуры с четким строковым представлением
+  ViewSetInlineDynamicLayout = "ViewSetInlineDynamicLayout", 
   ViewSetInlineDynamicModelLayout = "ViewSetInlineDynamicModelLayout",
-  ViewSetLayout = "ViewSetLayout",
-  LayoutChartField = "LayoutChartField",
+  ViewSetLayout = "ViewSetLayout", // описание OPTION запроса (берется дефолтный список полей, их порядко, возможность сортировок на бэкенде)
+  LayoutChartField = "LayoutChartField", // ! нужно будет отделить лэйаут для дашбордов от лэйаута форм ввода
 }
 
 interface LayoutElement {
@@ -167,9 +168,9 @@ export function isLayoutChoiceField(object: any): object is LayoutChoiceField {
   return isLayoutFieldBase(object) && object.class_name === LayoutClasses.LayoutChoiceField;
 }
 
-
+// не обычное скалярное поле а за ним скрывается объект (заранее структура неизвестна)
 export interface ViewSetInlineDynamicLayout extends LayoutField {
-  layout_uri: string,
+  layout_uri: string, // по этому полю идет запрос на получение структуры объекта
   layout_fk?: FieldSubstitution,
 }
 
@@ -345,9 +346,10 @@ const DefaultDisplayOptions: DisplayOptions = {
   minimizeLength: 30,
 }
 
+// надо реализовать такую-же функцию которая будет строить список колонок на основании layout.display_list или переданного массива названий columns
 export function layoutColumns(root: ViewSetLayout, jsi: JSInterface, columns?: string[], options?: DisplayOptions): FieldClass[] {
 
-  const fields: Fields = {};
+  const fields: Fields = {}; // список колонок которые мы вернем
   const _options = {
     ...DefaultDisplayOptions,
     ...options,
@@ -418,13 +420,13 @@ export function layoutMap(elements: LayoutElement[], map_fn: (data: any, el: Lay
       }
   }
 }
-
+// используются уже в рендере форм (скалярные поля)
 export const LayoutInlineFormClasses = new Set([
   LayoutClasses.ViewSetInlineLayout,
   LayoutClasses.ViewSetInlineDynamicLayout,
   LayoutClasses.ViewSetInlineDynamicModelLayout
 ]);
-
+// используются уже в рендере форм (объектные поля)
 export const LayoutSimpleFieldClasses = new Set([
   LayoutClasses.LayoutField,
   LayoutClasses.LayoutCharField,
@@ -849,7 +851,8 @@ class InlineObjectField extends AbstractField<Resource> {
 
 type FieldClassTypes = typeof IntegerField | typeof DecimalField | typeof CharField | typeof ChoiceField |
   typeof DateTimeField | typeof TimeField | typeof RelatedField | typeof WeakRelatedLookupField | typeof InlineObjectField;
-
+// введен доп класс, который был порожден дженериком (возможно как-то по-другому решить)
+// нужна только для одного единственного кейса с Computedfield2 (подумать в будущем о другой реализации)
 type FieldClass = IntegerField | DecimalField | CharField | ChoiceField |
   DateTimeField | TimeField | RelatedField | WeakRelatedLookupField | InlineObjectField;
 

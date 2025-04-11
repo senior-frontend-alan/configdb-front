@@ -52,7 +52,7 @@ api.interceptors.request.use(
     isLoading.value = true;
     
     // Добавляем искусственную задержку в 2 секунды
-    await delay(2000);
+    // await delay(2000);
     
     return config;
   },
