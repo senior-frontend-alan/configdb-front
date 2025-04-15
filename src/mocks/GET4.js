@@ -1,13 +1,13 @@
 // Пример GET-ответа с разными типами полей
 export const GET4 = (() => {
     // Определяем значения для разных типов данных
-    const row1 = 1.234;
-    const row2 = '1.234';
-    const row3 = '2025-03-17T14:30:39.454382+03:00';
+    const Integer = 1.234;
+    const String = '1.234';
+    const DateString = '2025-03-17T14:30:39.454382+03:00';
 
     // (данные для поля LayoutRichEditField)
     // Вариант 1: Простой JSON объект
-    const row4_0 = {
+    const JSON = {
         "id": "550e8400-e29b-41d4-a716-446655440001",
         "version": "1.0.0",
         "content": {
@@ -32,11 +32,11 @@ export const GET4 = (() => {
         }
     };
     // Вариант 2: Форматированный текст
-    const row4_1 = "<h1>Заголовок документа</h1><p>Это <strong>форматированный</strong> текст с <em>разными</em> стилями.</p><ul><li>Пункт 1</li><li>Пункт 2</li></ul>";
+    const HTMLString = "<h1>Заголовок документа</h1><p>Это <strong>форматированный</strong> текст с <em>разными</em> стилями.</p><ul><li>Пункт 1</li><li>Пункт 2</li></ul>";
     // Вариант 3: YAML
-    const row4_2 = "title: Заголовок документа\nversion: 1.0.0\nsections:\n  - name: Раздел 1\n    content: Содержимое раздела 1\n  - name: Раздел 2\n    content: Содержимое раздела 2";
+    const YAMLString = "title: Заголовок документа\nversion: 1.0.0\nsections:\n  - name: Раздел 1\n    content: Содержимое раздела 1\n  - name: Раздел 2\n    content: Содержимое раздела 2";
     // Вариант 4: Код
-    const row4_3 = "function calculateTotal(items) {\n  return items.reduce((sum, item) => sum + item.price, 0);\n}";
+    const CodeString = "function calculateTotal(items) {\n  return items.reduce((sum, item) => sum + item.price, 0);\n}";
 
     return {
         // Общее количество результатов
@@ -47,98 +47,98 @@ export const GET4 = (() => {
         "previous": null,
         "results": [
             {
-                "layout_field": row1,
-                "layout_integer_field": row1,
-                "integer_field": row1,
-                "decimal_field": row1,
-                "layout_char_field": row1,
-                "char_field": row1,
-                "date_time_field": row1,
-                "date_field": row1,
-                "time_field": row1,
-                "layout_rich_edit_field": row1,
+                "layout_field": Integer,
+                "layout_integer_field": Integer,
+                "integer_field": Integer,
+                "decimal_field": Integer,
+                "layout_char_field": Integer,
+                "char_field": Integer,
+                "date_time_field": Integer,
+                "date_field": Integer,
+                "time_field": Integer,
+                "layout_rich_edit_field": Integer,
+                // Доп поля
+                "id": 0,
+                "date_created": "2025-03-17T14:30:39.454382+03:00",
+                "date_updated": "2025-04-03T15:24:33.747898+03:00",
+            },
+            {
+                "layout_field": String,
+                "layout_integer_field": String,
+                "integer_field": String,
+                "decimal_field": String,
+                "layout_char_field": String,
+                "char_field": String,
+                "date_time_field": String,
+                "date_field": String,
+                "time_field": String,
+                "layout_rich_edit_field": String,
                 // Доп поля
                 "id": 1,
                 "date_created": "2025-03-17T14:30:39.454382+03:00",
                 "date_updated": "2025-04-03T15:24:33.747898+03:00",
             },
             {
-                "layout_field": row2,
-                "layout_integer_field": row2,
-                "integer_field": row2,
-                "decimal_field": row2,
-                "layout_char_field": row2,
-                "char_field": row2,
-                "date_time_field": row2,
-                "date_field": row2,
-                "time_field": row2,
-                "layout_rich_edit_field": row2,
+                "layout_field": DateString,
+                "layout_integer_field": DateString,
+                "integer_field": DateString,
+                "decimal_field": DateString,
+                "layout_char_field": DateString,
+                "char_field": DateString,
+                "date_time_field": DateString,
+                "date_field": DateString,
+                "time_field": DateString,
+                "layout_rich_edit_field": DateString,
                 // Доп поля
                 "id": 2,
                 "date_created": "2025-03-17T14:30:39.454382+03:00",
                 "date_updated": "2025-04-03T15:24:33.747898+03:00",
             },
             {
-                "layout_field": row3,
-                "layout_integer_field": row3,
-                "integer_field": row3,
-                "decimal_field": row3,
-                "layout_char_field": row3,
-                "char_field": row3,
-                "date_time_field": row3,
-                "date_field": row3,
-                "time_field": row3,
-                "layout_rich_edit_field": row3,
+                "layout_field": JSON,
+                "layout_integer_field": JSON,
+                "integer_field": JSON,
+                "decimal_field": JSON,
+                "layout_char_field": JSON,
+                "char_field": JSON,
+                "date_time_field": JSON,
+                "date_field": JSON,
+                "time_field": JSON,
+                "layout_rich_edit_field": JSON,
                 // Доп поля
                 "id": 3,
                 "date_created": "2025-03-17T14:30:39.454382+03:00",
                 "date_updated": "2025-04-03T15:24:33.747898+03:00",
             },
             {
-                "layout_field": row4_0,
-                "layout_integer_field": row4_0,
-                "integer_field": row4_0,
-                "decimal_field": row4_0,
-                "layout_char_field": row4_0,
-                "char_field": row4_0,
-                "date_time_field": row4_0,
-                "date_field": row4_0,
-                "time_field": row4_0,
-                "layout_rich_edit_field": row4_0,
+                "layout_field": HTMLString,
+                "layout_integer_field": HTMLString,
+                "integer_field": HTMLString,
+                "decimal_field": HTMLString,
+                "layout_char_field": HTMLString,
+                "char_field": HTMLString,
+                "date_time_field": HTMLString,
+                "date_field": HTMLString,
+                "time_field": HTMLString,
+                "layout_rich_edit_field": HTMLString,
                 // Доп поля
                 "id": 4,
                 "date_created": "2025-03-17T14:30:39.454382+03:00",
                 "date_updated": "2025-04-03T15:24:33.747898+03:00",
             },
             {
-                "layout_field": row4_1,
-                "layout_integer_field": row4_1,
-                "integer_field": row4_1,
-                "decimal_field": row4_1,
-                "layout_char_field": row4_1,
-                "char_field": row4_1,
-                "date_time_field": row4_1,
-                "date_field": row4_1,
-                "time_field": row4_1,
-                "layout_rich_edit_field": row4_1,
+                "layout_field": YAMLString,
+                "layout_integer_field": YAMLString,
+                "integer_field": YAMLString,
+                "decimal_field": YAMLString,
+                "layout_char_field": YAMLString,
+                "char_field": YAMLString,
+                "date_time_field": YAMLString,
+                "date_field": YAMLString,
+                "time_field": YAMLString,
+                "layout_rich_edit_field": YAMLString,
                 // Доп поля
-                "id": 4,
-                "date_created": "2025-03-17T14:30:39.454382+03:00",
-                "date_updated": "2025-04-03T15:24:33.747898+03:00",
-            },
-            {
-                "layout_field": row4_2,
-                "layout_integer_field": row4_2,
-                "integer_field": row4_2,
-                "decimal_field": row4_2,
-                "layout_char_field": row4_2,
-                "char_field": row4_2,
-                "date_time_field": row4_2,
-                "date_field": row4_2,
-                "time_field": row4_2,
-                "layout_rich_edit_field": row4_2,
-                // Доп поля
-                "id": 4,
+                "id": 5,
                 "date_created": "2025-03-17T14:30:39.454382+03:00",
                 "date_updated": "2025-04-03T15:24:33.747898+03:00",
             },

@@ -33,6 +33,7 @@ declare module 'vue' {
     ProductOverviewWidget: typeof import('./src/components/dashboard/ProductOverviewWidget.vue')['default']
     ProgressBar: typeof import('primevue/progressbar')['default']
     RecentActivityWidget: typeof import('./src/components/dashboard/RecentActivityWidget.vue')['default']
+    RichEditPopover: typeof import('./src/components/RichEditPopover.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SalesTrendWidget: typeof import('./src/components/dashboard/SalesTrendWidget.vue')['default']
@@ -47,5 +48,6 @@ declare module 'vue' {
   export interface ComponentCustomProperties {
     Ripple: typeof import('primevue/ripple')['default']
     StyleClass: typeof import('primevue/styleclass')['default']
+    Tooltip: typeof import('primevue/tooltip')['default']
   }
 }

@@ -46,12 +46,172 @@ export interface FormattingOptions {
 
 export type FieldValue = string | number | boolean | Date | object | Array<any> | null | undefined;
 
+// Определяем типы для разных полей
+type IntegerFieldValue = number | string | boolean;
+type DecimalFieldValue = number | string;
+type CharFieldValue = any; // Может быть любым типом, т.к. всегда преобразуется в строку
+type DateValue = Date | string; // Общий тип для всех полей с датами
+type RelatedFieldValue = number | string | { id: number | string } | null;
+type ComputedFieldValue = any;
+
+// Определяет тип содержимого (JSON, YAML, HTML, CSS, SQL)
+export type ContentTypeResult = {
+  label: string;
+  value: FieldValue;
+  formattedValue: string; // Отформатированное значение для отображения
+};
+
+/**
+ * Определяет тип содержимого (JSON, YAML, HTML, CSS, SQL)
+ * @param value Значение для определения типа
+ * @returns Объект с меткой типа содержимого, исходным значением и отформатированным значением
+ */
+export function detectContentType(value: FieldValue): ContentTypeResult {
+  // Для массивов показываем количество элементов
+  if (Array.isArray(value)) {
+    return {
+      label: `Array(${value.length})`,
+      value,
+      formattedValue: JSON.stringify(value, null, 2)
+    };
+  }
+
+  // Для объектов проверяем, можно ли их сериализовать в JSON
+  if (typeof value === 'object' && value !== null) {
+    try {
+      const formatted = JSON.stringify(value, null, 2);
+      return {
+        label: 'JSON',
+        value,
+        formattedValue: formatted
+      };
+    } catch (e) {
+      // Если не удалось сериализовать, это не JSON
+      return {
+        label: 'Object',
+        value,
+        formattedValue: String(value)
+      };
+    }
+  }
+
+  // Для других типов данных
+  if (typeof value !== 'string') {
+    return {
+      label: typeof value,
+      value,
+      formattedValue: String(value)
+    };
+  }
+
+  // Проверяем на JSON строки
+  if (
+    (value.startsWith('{') && value.endsWith('}')) ||
+    (value.startsWith('[') && value.endsWith(']'))
+  ) {
+    try {
+      JSON.parse(value);
+      return {
+        label: 'JSON',
+        value,
+        formattedValue: JSON.stringify(JSON.parse(value), null, 2)
+      };
+    } catch (e) {
+      // Если не удалось распарсить, это не JSON
+    }
+  }
+
+  // Проверяем на HTML
+  if (
+    value.includes('<html') ||
+    value.includes('<!DOCTYPE html') ||
+    (value.includes('<') && value.includes('</') && value.includes('>'))
+  ) {
+    return {
+      label: 'HTML',
+      value,
+      formattedValue: value
+    };
+  }
+
+  // Проверяем на YAML
+  if (
+    value.includes(':') &&
+    value.includes('\n') &&
+    !value.includes('{') &&
+    !value.includes('[') &&
+    (value.includes('  ') || value.includes('- '))
+  ) {
+    return {
+      label: 'YAML',
+      value,
+      formattedValue: value
+    };
+  }
+
+  // Проверяем на CSS
+  if (value.includes('{') && value.includes('}') && value.includes(':') && value.includes(';')) {
+    return {
+      label: 'CSS',
+      value,
+      formattedValue: value
+    };
+  }
+
+  // Проверяем на SQL
+  if (
+    (value.toUpperCase().includes('SELECT') && value.toUpperCase().includes('FROM')) ||
+    value.toUpperCase().includes('INSERT INTO') ||
+    (value.toUpperCase().includes('UPDATE') && value.toUpperCase().includes('SET'))
+  ) {
+    return {
+      label: 'SQL',
+      value,
+      formattedValue: value
+    };
+  }
+
+  return {
+    label: 'String',
+    value,
+    formattedValue: value
+  };
+}
+
+// Type guards для проверки типов
+function isIntegerFieldValue(value: FieldValue): value is IntegerFieldValue {
+  return !(value instanceof Object) || Array.isArray(value);
+}
+
+function isDecimalFieldValue(value: FieldValue): value is DecimalFieldValue {
+  return !(value instanceof Object) || Array.isArray(value);
+}
+
+function isDateFieldValue(value: FieldValue): value is DateValue {
+  if (value instanceof Date) return true;
+  if (typeof value !== 'string') return false;
+
+  try {
+    const date = new Date(value);
+    return !isNaN(date.getTime());
+  } catch {
+    return false;
+  }
+}
+
+function isRelatedFieldValue(value: FieldValue): value is RelatedFieldValue {
+  if (value === null) return true;
+  if (typeof value === 'number' || typeof value === 'string') return true;
+  if (typeof value === 'object' && 'id' in value) return true;
+  return false;
+}
+
 // Форматирует значение по типу поля (class_name или field_class), в будущем будет использоваться только class_name
 export function formatByClassName(
   className: string,
   value: FieldValue,
   options: FormattingOptions = {},
-): string {
+): string | ContentTypeResult {
   // Если значение null или undefined, возвращаем пустую строку или указанное значение для null
   if (value === null || value === undefined || value === '') {
     return options.nullValue || '';
@@ -71,7 +231,7 @@ export function formatByClassName(
       return formatCharValue(value, options);
 
     case FIELD_TYPES.LAYOUT_RICH_EDIT_FIELD:
-      return formatRichEditValue(value, options);
+      return formatRichEditValue(value);
 
     case FIELD_TYPES.LAYOUT_RELATED_FIELD:
       return formatRelatedValue(value, options);
@@ -130,8 +290,9 @@ export function formatByClassName(
 }
 
 function formatIntegerValue(value: FieldValue): string {
-  if (value instanceof Object && !Array.isArray(value)) {
-    throw Error('Imporperly configured');
+  if (!isIntegerFieldValue(value)) {
+    console.error('Неправильный тип данных для formatIntegerValue:', value);
+    return 'Неверный тип данных';
   }
 
   if (typeof value === 'boolean') {
@@ -144,8 +305,9 @@ function formatIntegerValue(value: FieldValue): string {
 }
 
 export function formatDecimalValue(value: FieldValue, options: FormattingOptions = {}): string {
-  if (value instanceof Object && !Array.isArray(value)) {
-    throw Error('Imporperly configured');
+  if (!isDecimalFieldValue(value)) {
+    console.error('Неправильный тип данных для formatDecimalValue:', value);
+    return 'Неверный тип данных';
   }
 
   // Преобразование в число
@@ -157,6 +319,7 @@ export function formatDecimalValue(value: FieldValue, options: FormattingOptions
 }
 
 export function formatCharValue(value: FieldValue, options: FormattingOptions = {}): string {
+  // Для CharField принимаем любой тип и преобразуем в строку
   // Обработка специальных случаев (массивы, объекты)
   if (Array.isArray(value)) {
     return value.map((v) => String(v)).join(', ');
@@ -170,85 +333,26 @@ export function formatCharValue(value: FieldValue, options: FormattingOptions = 
     return strValue.substring(0, options.maximumLength) + '...';
   }
 
-  // Возвращаем строковое представление (аналогично CharField._asString)
+  // Возвращаем строку (аналогично CharField._asString)
   return strValue;
-}
-
-// форматирует только дату (без времени) "10.04.2025"
-export function formatDateValue(value: FieldValue, options: FormattingOptions = {}): string {
-  let dateValue: Date;
-  try {
-    dateValue = value instanceof Date ? value : new Date(String(value));
-  } catch (e) {
-    throw Error('Imporperly configured');
-  }
-
-  // Проверяем валидность даты
-  if (isNaN(dateValue.getTime())) {
-    throw Error('Imporperly configured');
-  }
-
-  const locale = options.locale || 'ru-RU';
-
-  return dateValue.toLocaleDateString(locale);
-}
-
-// форматирует только время (без даты) "15:19:37"
-export function formatTimeValue(value: FieldValue, options: FormattingOptions = {}): string {
-  let dateValue: Date;
-  try {
-    dateValue = value instanceof Date ? value : new Date(String(value));
-  } catch (e) {
-    throw Error('Imporperly configured');
-  }
-
-  // Проверяем валидность даты
-  if (isNaN(dateValue.getTime())) {
-    throw Error('Imporperly configured');
-  }
-
-  const locale = options.locale || 'ru-RU';
-
-  return dateValue.toLocaleTimeString(locale, { timeZone: 'UTC' });
-}
-
-// форматирует дату и время "10.04.2025, 15:19:37"
-export function formatDateTimeValue(value: FieldValue, options: FormattingOptions = {}): string {
-  let dateValue: Date;
-  try {
-    dateValue = value instanceof Date ? value : new Date(String(value));
-  } catch (e) {
-    throw Error('Imporperly configured');
-  }
-
-  // Проверяем валидность даты
-  if (isNaN(dateValue.getTime())) {
-    throw Error('Imporperly configured');
-  }
-
-  const locale = options.locale || 'ru-RU';
-
-  return dateValue.toLocaleString(locale);
 }
 
 /**
  * Форматирует значение с расширенным редактированием (CLOB, YAML, JSON, код)
  * Использует тип LayoutRichEditField из catalogDetailsAPIResponseOPTIONS.type.ts
  */
-export function formatRichEditValue(value: FieldValue, options: FormattingOptions = {}): string {
-  // Для rich edit полей обычно показываем только начало текста
-  const maxLength = options.richEditMaxLength || 50;
-  const strValue = String(value);
-
-  if (strValue.length > maxLength) {
-    return strValue.substring(0, maxLength) + '...';
-  }
-
-  return strValue;
+export function formatRichEditValue(value: FieldValue): ContentTypeResult {
+  // Определяем тип содержимого и возвращаем результат
+  return detectContentType(value);
 }
 
 // Отображает связанный объект из другой таблицы/модели.
 export function formatRelatedValue(value: FieldValue, options: FormattingOptions = {}): string {
+  if (!isRelatedFieldValue(value)) {
+    console.error('Неправильный тип данных для formatRelatedValue:', value);
+    return 'Неверный тип данных';
+  }
+
   // Обработка объектов
   if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
     // Обработка объектов с полем value и наличием choices
@@ -336,6 +440,42 @@ export function formatComputedValue(value: FieldValue, options: FormattingOption
 
   // Если нет js_item_repr, просто преобразуем значение в строку
   return value !== null && value !== undefined ? String(value) : '';
+}
+
+// форматирует только дату (без времени) "10.04.2025"
+export function formatDateValue(value: FieldValue, options: FormattingOptions = {}): string {
+  if (!isDateFieldValue(value)) {
+    console.error('Неправильный тип данных для formatDateValue:', value);
+    return 'Неверный тип данных';
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(String(value));
+  const locale = options.locale || 'ru-RU';
+  return dateValue.toLocaleDateString(locale);
+}
+
+// форматирует только время (без даты) "15:19:37"
+export function formatTimeValue(value: FieldValue, options: FormattingOptions = {}): string {
+  if (!isDateFieldValue(value)) {
+    console.error('Неправильный тип данных для formatTimeValue:', value);
+    return 'Неверный тип данных';
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(String(value));
+  const locale = options.locale || 'ru-RU';
+  return dateValue.toLocaleTimeString(locale, { timeZone: 'UTC' });
+}
+
+// форматирует дату и время "10.04.2025, 15:19:37"
+export function formatDateTimeValue(value: FieldValue, options: FormattingOptions = {}): string {
+  if (!isDateFieldValue(value)) {
+    console.error('Неправильный тип данных для formatDateTimeValue:', value);
+    return 'Неверный тип данных';
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(String(value));
+  const locale = options.locale || 'ru-RU';
+  return dateValue.toLocaleString(locale);
 }
 
 // НЕ удалять пока

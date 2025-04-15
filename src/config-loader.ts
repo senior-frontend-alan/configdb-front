@@ -5,10 +5,6 @@ import configData from '../app.config.json';
 // Типы для конфигурации
 export interface ModuleRoutes {
   getCatalog: string;
-  get: string;
-  create: string;
-  update: string;
-  delete: string;
 }
 
 export interface ModuleConfig {
@@ -19,15 +15,10 @@ export interface ModuleConfig {
 }
 
 export interface AppRoutes {
-  apiRoot: string;
-  apiHelpRoot: string;
-  apiPrefix: string;
   apiSession: string;
-  apiTransaction: string;
-  apiBuildInfo: string;
   apiApplication: string;
-  apiVersion: string;
   apiLoginSSO: string;
+  apiPrefix: string;
 }
 
 export interface I18nConfig {
@@ -38,10 +29,8 @@ export interface I18nConfig {
 export interface AppConfig {
   name: string;
   routes: AppRoutes;
-  apiTimeoutMs: number;
   apiRetryTimeoutMs: number;
   apiCacheMaxAge: number;
-  apiCallHistoryLimit: number;
   siteTitle: string;
   siteCopyright: string;
   theme: string;
@@ -61,27 +50,15 @@ export function useConfig() {
   return {
     // Возвращаем только для чтения версию конфигурации
     config: readonly(config),
-    
+
     // Получение конфигурации модуля по ID
     getModuleConfig: (moduleId: string) => {
-      return config.value.modules.find(module => module.id === moduleId);
-    },
-    
-    // Получение базового URL API
-    getApiBaseUrl: () => {
-      const { routes } = config.value.appConfig;
-      return routes.apiRoot;
-    },
-    
-    // Получение полного URL для API-эндпоинта
-    getApiUrl: (endpoint: string) => {
-      const { routes } = config.value.appConfig;
-      return `${routes.apiRoot}${routes.apiPrefix}${endpoint}`;
-    },
-    
-    // Получение таймаута API
-    getApiTimeout: () => {
-      return config.value.appConfig.apiTimeoutMs;
+      const module = config.value.modules.find(m => m.id === moduleId);
+      if (!module) {
+        console.error(`Модуль с ID ${moduleId} не найден в конфигурации`);
+        return null;
+      }
+      return module;
     }
   };
 }

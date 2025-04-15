@@ -11,59 +11,59 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'Home',
-    component: () => import('./pages/HomePage.vue')
+    component: () => import('./pages/HomePage.vue'),
   },
   {
     path: '/login',
     name: 'Login',
-    component: () => import('./pages/LoginPage.vue')
+    component: () => import('./pages/LoginPage.vue'),
   },
   {
     path: '/settings',
     name: 'Settings',
-    component: () => import('./pages/SettingsPage.vue')
+    component: () => import('./pages/SettingsPage.vue'),
   },
   {
     path: '/widgets',
     name: 'ExampleWidgets',
-    component: () => import('./pages/ExampleWidgetPage.vue')
-  }
+    component: () => import('./pages/ExampleWidgetPage.vue'),
+  },
 ];
 
 // Динамическое добавление маршрутов для модулей
 try {
-  config.value.modules.forEach(module => {
+  config.value.modules.forEach((module) => {
     console.log(`Добавление маршрутов для модуля: ${module.id}`);
-    
+
     // Функция для безопасного импорта компонентов если компонент не найден
     const safeImport = (path: string) => {
-      return () => import(path).catch((error: Error) => {
-        console.error(`Ошибка загрузки компонента: ${path}`, error);
-        return import('./App.vue'); // Запасной вариант
-      });
+      return () =>
+        import(path).catch((error: Error) => {
+          console.error(`Ошибка загрузки компонента: ${path}`, error);
+          return import('./App.vue'); // Запасной вариант
+        });
     };
-    
+
     // Страница 1 - Отображение списка справочников
     routes.push({
       path: `/${module.id}`,
       name: `${module.id}Catalog`,
       component: () => import('./pages/Page1CatalogList.vue'),
       meta: {
-        moduleId: module.id // Всегда знаем какой модуль открыт на странице чтобы найти его стор
-      }
+        moduleId: module.id, // Всегда знаем какой модуль открыт на странице чтобы найти его стор
+      },
     });
-    
+
     // Страница 2 - Отображение деталей элемента каталога
     routes.push({
       path: `/${module.id}/:viewname`,
       name: `${module.id}CatalogDetails`,
       component: () => import('./pages/Page2CatalogDetails.vue'),
       meta: {
-        moduleId: module.id // Передаем ID модуля для доступа к стору
+        moduleId: module.id, // Передаем ID модуля для доступа к стору
       },
-      props: true // Передаем параметры маршрута как props компонента
+      props: true, // Передаем параметры маршрута как props компонента
     });
-    
   });
 } catch (error) {
   console.error('Ошибка при создании динамических маршрутов:', error);
@@ -71,7 +71,7 @@ try {
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 });
 
 // Маршруты, которые доступны без авторизации
@@ -81,7 +81,7 @@ const publicRoutes = ['/login'];
 router.beforeEach((to, _, next) => {
   const authStore = useAuthStore();
   const isAuthenticated = authStore.isAuthenticated;
-  
+
   // Если пользователь не авторизован и пытается попасть на защищенный маршрут
   if (!isAuthenticated && !publicRoutes.includes(to.path)) {
     console.log('Пользователь не авторизован, перенаправление на страницу входа');
@@ -101,58 +101,92 @@ router.beforeEach((to, _, next) => {
   }
 });
 
-// Загрузка данных перед разрешением перехода
-router.beforeResolve(async (to, _from, next) => {
+// Экспортируем функции для работы с данными каталога
+export const checkCachedCatalogData = (moduleId: string, viewname: string): boolean => {
+  const moduleStore = useModuleStore(moduleId);
+  if (!moduleStore) {
+    console.error(`Не удалось получить стор для модуля ${moduleId}`);
+    return false;
+  }
+
+  const cachedData = moduleStore.catalogDetails[viewname];
+  if (cachedData && cachedData.GET && cachedData.GET.results) {
+    console.log(`Роутер: используем кэшированные данные для ${viewname}`);
+    return true;
+  }
+  return false;
+};
+
+export const loadCatalogData = async (moduleId: string, viewname: string, href: string): Promise<void> => {
+  const moduleStore = useModuleStore(moduleId);
+  if (!moduleStore) {
+    throw new Error(`Не удалось получить стор для модуля ${moduleId}`);
+  }
+
+  console.log(`Роутер: загрузка данных для ${viewname}`);
+  await moduleStore.loadCatalogDetails(viewname, href);
+};
+
+export const findAndLoadCatalogData = async (
+  moduleId: string,
+  viewname: string,
+  next: ((error?: any) => void),
+  forceReload: boolean = false,
+): Promise<boolean> => {
+  const moduleStore = useModuleStore(moduleId);
+  if (!moduleStore) {
+    const error = new Error(`Не удалось получить стор для модуля ${moduleId}`);
+    console.error(error);
+    next(error);
+    return false;
+  }
+
   try {
-    // Проверяем наличие moduleId в метаданных маршрута
-    if (to.meta.moduleId) {
-      const moduleId = to.meta.moduleId as string;
-      
-      // Проверяем существование стора с соответствующим ID
-      const moduleStore = useModuleStore(moduleId);
-      
-      if (moduleStore) {
-        // Если стор существует, загружаем данные каталога
-        console.log(`Загрузка данных каталога для модуля ${moduleId}`);
-        await moduleStore.getCatalog();
-        
-        // Проверяем, если это маршрут деталей каталога (/:viewname)
-        if (to.params.viewname) {
-          const viewname = to.params.viewname as string;
-          console.log(`Обнаружен параметр viewname: ${viewname}`);
-          
-          // Проверяем, есть ли данные в сторе для этого viewname
-          if (!moduleStore.catalogDetails[viewname]) {
-            const catalogItem = moduleStore.catalog
-              .flatMap((group: { items?: any[] }) => group.items || [])
-              .find((item: { viewname: string; href?: string }) => item.viewname === viewname);
-            
-            if (catalogItem && catalogItem.href) {
-              console.log(`Загрузка данных для ${viewname} по ссылке: ${catalogItem.href}`);
-              try {
-                // Загружаем данные по URL и сохраняем их в стор
-                await moduleStore.loadCatalogDetails(viewname, catalogItem.href);
-                console.log(`Данные успешно загружены для ${viewname}`);
-              } catch (loadError) {
-                console.error(`Ошибка при загрузке данных для ${viewname}:`, loadError);
-              }
-            } else {
-              console.warn(`Не найден элемент каталога для viewname: ${viewname}`);
-            }
-          } else {
-            console.log(`Данные для ${viewname} уже загружены в стор`);
-          }
-        }
-      } else {
-        console.error(`Не удалось получить стор для модуля ${moduleId}`);
-      }
+    // Проверяем кэш, если не требуется принудительное обновление
+    if (!forceReload && checkCachedCatalogData(moduleId, viewname)) {
+      return true;
     }
-    
-    // В любом случае разрешаем переход
-    next();
+
+    // Ищем URL в каталоге, функция автоматически загрузит список каталогов (шаг 1), если они не загружены для поиска URL (шаг 2)
+    const href = await moduleStore.findCatalogItemUrl(viewname);
+
+    if (!href) {
+      const error = new Error(`URL для каталога ${viewname} не найден`);
+      console.error(error);
+      next(error);
+      return false;
+    }
+
+    // Загружаем данные каталога
+    await loadCatalogData(moduleId, viewname, href);
+    return true;
   } catch (error) {
-    console.error(`Ошибка при загрузке данных:`, error);
-    // В случае ошибки всё равно разрешаем переход, ошибка будет обработана на странице
+    console.error('Ошибка загрузки данных:', error);
+    next(error);
+    return false;
+  }
+};
+
+// Точка входа для загрузки данных любого маршрута
+// Добавляем хук для предварительной загрузки данных
+router.beforeResolve(async (to, from, next) => {
+  // Проверяем, нужно ли загружать данные для этого маршрута
+  if (to.meta.moduleId && to.params.viewname) {
+    const moduleId = to.meta.moduleId as string;
+    const viewname = to.params.viewname as string;
+
+    // Проверяем, есть ли уже данные в кэше
+    if (checkCachedCatalogData(moduleId, viewname)) {
+      next();
+      return;
+    }
+
+    // Ищем URL и загружаем данные
+    const dataLoaded = await findAndLoadCatalogData(moduleId, viewname, next);
+    if (dataLoaded) {
+      next();
+    }
+  } else {
     next();
   }
 });

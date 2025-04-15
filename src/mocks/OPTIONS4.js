@@ -162,17 +162,6 @@ export const OPTIONS4 = {
                 // }
             },
             {
-                "class_name": "LayoutComputedField",
-                "element_id": "options4/layout_computed_field",
-                "name": "layout_computed_field",
-                "label": "LayoutComputedField",
-                "help_text": "LayoutComputedField help_text",
-                "field_class": "ComputedField",
-                "minimize": false,
-                "js_item_repr": "return obj.name + ' (' + obj.id + ')'",
-                "list_view_items": "3"
-            },
-            {
                 "class_name": "LayoutCharField",
                 "element_id": "options4/layout_char_field",
                 "name": "layout_char_field",
@@ -197,26 +186,44 @@ export const OPTIONS4 = {
                 "label": "LayoutRichEditField",
                 "help_text": "LayoutRichEditField help_text",
                 "field_class": "UUIDField",
-                "required": true,
-                "allow_null": false,
-                "default": null,
+                // "required": true,
+                // "allow_null": false,
+                // "default": null,
+                // "read_only": true,
+                // "input_type": "text",
+                // "filterable": true,
+                // "sortable": true,
+                // "lookup": true,
+                // "obj_repr": [ // ! Как должно использоваться?
+                //     "id",
+                //     "version" 
+                // ],
+                // "edit_mode": "plain",
+                // "multiline": true,
+                // "max_length": 10000,
+                // "widget": {
+                //     "syntax_highlight": "json",
+                //     "toolbar": true,
+                //     "height": "300px"
+                // }
+            },
+            {
+                "class_name": "LayoutComputedField",
+                "element_id": "options4/layout_computed_field",
+                "name": "layout_computed_field",
+                "label": "LayoutComputedField",
+                "help_text": "LayoutComputedField help_text",
+                "field_class": "ComputedField",
+                "minimize": false,
+                "js_item_repr": "return obj.name + ' (' + obj.id + ')'",
+                "list_view_items": "3",
+                "required": false,
+                "allow_null": true,
                 "read_only": true,
-                "input_type": "text",
                 "filterable": true,
                 "sortable": true,
-                "lookup": true,
-                "obj_repr": [
-                    "id",
-                    "version"
-                ],
-                "edit_mode": "plain",
-                "multiline": true,
-                "max_length": 10000,
-                "widget": {
-                    "syntax_highlight": "json",
-                    "toolbar": true,
-                    "height": "300px"
-                }
+                "multiple": false,
+                "default": null
             },
             {
                 "class_name": "LayoutRelatedField",
@@ -338,6 +345,7 @@ export const OPTIONS4 = {
             },
         ],
         "display_list": [
+            "layout_rich_edit_field",
             "layout_field",
             "layout_integer_field",
             "integer_field",
@@ -347,7 +355,6 @@ export const OPTIONS4 = {
             "date_time_field",
             "date_field",
             "time_field",
-            "layout_rich_edit_field",
             // "layout_computed_field",
             // "layout_rich_edit_field",
             // "layout_related_field",

@@ -3,7 +3,12 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import api from '../api';
 import { useConfig } from '../config-loader';
-import { loadSessionFromStorage, saveSessionToStorage, getCsrfToken, clearSessionData } from '../utils/localstorage';
+import {
+  loadSessionFromStorage,
+  saveSessionToStorage,
+  getCsrfToken,
+  clearSessionData,
+} from '../utils/localstorage';
 import type { AuthSessionData, Session, ApiErrorState, AuthState } from './types/authStoreTypes';
 
 // Начальное состояние хранилища
@@ -14,8 +19,8 @@ const initialState: AuthState = {
     type: '',
     message: '',
     status: 0,
-    data: null
-  }
+    data: null,
+  },
 };
 
 export const useAuthStore = defineStore('auth', () => {
@@ -24,11 +29,15 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref<ApiErrorState>(initialState.error);
 
   const isAuthenticated = computed(() => !!session.value?.id);
-  
+
   // Отслеживание изменений сессии для сохранения в localStorage
-  watch(session, (newSession) => {
-    saveSessionToStorage(newSession);
-  }, { deep: true });
+  watch(
+    session,
+    (newSession) => {
+      saveSessionToStorage(newSession);
+    },
+    { deep: true },
+  );
 
   /**
    * Функция для сохранения ошибки в хранилище
@@ -41,7 +50,7 @@ export const useAuthStore = defineStore('auth', () => {
         type: 'ApiError',
         message: err.message,
         status: err.status || 0,
-        data: err.data || null
+        data: err.data || null,
       };
     } else {
       // Обычная ошибка
@@ -50,27 +59,27 @@ export const useAuthStore = defineStore('auth', () => {
         type: 'Error',
         message: err instanceof Error ? err.message : String(err),
         status: 0,
-        data: null
+        data: null,
       };
     }
   }
-  
+
   /**
    * Авторизация пользователя
    */
   async function login(authData: AuthSessionData): Promise<boolean> {
     loading.value = true;
     error.value = JSON.parse(JSON.stringify(initialState.error));
-    
+
     try {
       // Отправляем запрос на аутентификацию в Django
       const response = await api.post('/api/v1/session/', authData, {
         headers: {
-          'X-CSRFToken': getCsrfToken()
+          'X-CSRFToken': getCsrfToken(),
         },
-        withCredentials: true // Важно для работы с сессиями Django
+        withCredentials: true, // Важно для работы с сессиями Django
       });
-      
+
       session.value = response.data;
       return true;
     } catch (err) {
@@ -81,83 +90,83 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false;
     }
   }
-  
+
   /**
    * Выход из системы
    */
   async function logout(): Promise<boolean> {
     loading.value = true;
     error.value = JSON.parse(JSON.stringify(initialState.error));
-    
+
     try {
       // Получаем CSRF токен для запроса
       const csrfToken = getCsrfToken();
-      
+
       // Получаем URL для выхода из конфигурации
       const { config } = useConfig();
       const sessionUrl = config.value.appConfig.routes.apiSession;
       console.log('Отправляем запрос на выход по адресу:', sessionUrl);
-      
+
       // Отправляем запрос на выход в Django
       await api.delete(sessionUrl, {
         headers: {
-          'X-CSRFToken': csrfToken
+          'X-CSRFToken': csrfToken,
         },
-        withCredentials: true
+        withCredentials: true,
       });
-      
+
       // Удаляем данные сессии из localStorage
       clearSessionData();
-      
+
       // Очищаем сессию в хранилище
       session.value = null;
-      
+
       // Дополнительный запрос на получение нового CSRF токена
       // Это поможет сбросить сессию на сервере
       try {
         await api.get('/api/v1/csrf/', {
-          withCredentials: true
+          withCredentials: true,
         });
       } catch (csrfErr) {
         console.log('Не удалось получить новый CSRF токен, но это не критично:', csrfErr);
       }
-      
+
       return true;
     } catch (err) {
       console.error('Ошибка при выходе из системы:', err);
       saveError(err);
-      
+
       // Даже в случае ошибки удаляем данные сессии из localStorage
       clearSessionData();
       session.value = null;
-      
+
       // Пробуем получить новый CSRF токен даже в случае ошибки
       try {
         await api.get('/api/v1/csrf/', {
-          withCredentials: true
+          withCredentials: true,
         });
       } catch (csrfErr) {
         console.log('Не удалось получить новый CSRF токен после ошибки:', csrfErr);
       }
-      
+
       return false;
     } finally {
       loading.value = false;
     }
   }
-  
+
   /**
    * Проверка текущей сессии
    */
   async function checkSession(): Promise<boolean> {
     loading.value = true;
     error.value = JSON.parse(JSON.stringify(initialState.error));
-    
+
     try {
       const response = await api.get('/api/v1/session/', {
-        withCredentials: true
+        withCredentials: true,
       });
-      
+
       if (response.data && response.data.id) {
         session.value = response.data;
         return true;
@@ -173,7 +182,7 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false;
     }
   }
-  
+
   /**
    * Очистка ошибки
    */
@@ -204,16 +213,16 @@ export const useAuthStore = defineStore('auth', () => {
     session,
     loading,
     error,
-    
+
     // Геттеры
     isAuthenticated,
-    
+
     // Методы
     login,
     logout,
     checkSession,
     clearError,
     saveError,
-    resetState
+    resetState,
   };
 });

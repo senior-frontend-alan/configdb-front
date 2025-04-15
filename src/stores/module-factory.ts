@@ -7,7 +7,7 @@ import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseGET } from './types/catalogDetailsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseOPTIONS } from './types/catalogDetailsAPIResponseOPTIONS.type';
-import { formatByFieldName, formatByClassName, FIELD_TYPES } from '../utils/formatter';
+import { formatByClassName, FIELD_TYPES } from '../utils/formatter';
 
 // Функция для получения стора модуля по ID
 export function useModuleStore(moduleId: string) {
@@ -122,11 +122,17 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     //   }
     // }
     const createFieldsMetadata = (options: any) => {
-      const metadata: Record<string, { class_name: string; options?: any }> = {};
+      const metadata = { ...options };
 
+      // Если нет layout или elements, возвращаем исходные опции
       if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
         return metadata;
       }
+
+      metadata.layout = { ...options.layout };
+
+      // Создаем карту полей внутри layout
+      metadata.layout.elementsMap = {};
 
       options.layout.elements.forEach((element: any) => {
         if (!element.name) return;
@@ -139,9 +145,9 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
           fieldType = element.field_class;
         }
 
-        metadata[element.name] = {
-          class_name: fieldType,
-          options: element, // Сохраняем все опции поля для возможного использования
+        metadata.layout.elementsMap[element.name] = {
+          ...element, // Сохраняем все опции поля для возможного использования
+          class_name: fieldType, // Перезаписываем class_name
         };
       });
 
@@ -179,8 +185,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
               // Иначе используем тип из метаданных
               const fieldType =
-                fieldsMetadata[fieldName]?.options?.field_class ||
-                fieldsMetadata[fieldName]?.class_name ||
+                fieldsMetadata?.layout?.elementsMap?.[fieldName]?.class_name ||
                 FIELD_TYPES.LAYOUT_CHAR_FIELD;
               formattedItem[fieldName] = formatByClassName(fieldType, formattedItem[fieldName]);
             } catch (e) {
@@ -193,14 +198,33 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       };
     };
 
-    // Загрузка данных по URL и сохранение их в соответствующее поле catalogDetails
-    const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
-      // Проверяем, есть ли уже загруженные данные для этого viewname
-      if (catalogDetails[viewname] && !loading.value) {
-        console.log(`Используем кэшированные данные для ${viewname}`);
-        return catalogDetails[viewname];
+    // Функция для поиска URL каталога по viewname (т.е. загружаем данные из шага 1 чтобы найти URL для шага 2)
+    // Например нам дали url и мы должны сразу загрузить данные конкретного каталога (таблицы)
+    const findCatalogItemUrl = async (viewname: string): Promise<string | null> => {
+      // Если каталог еще не загружен, загружаем его
+      if (!catalog.value || catalog.value.length === 0) {
+        console.log(`Каталог для модуля ${moduleConfig.id} не загружен, загружаем...`);
+        await getCatalog();
       }
 
+      // Ищем элемент каталога с нужным viewname
+      if (catalog.value && catalog.value.length > 0) {
+        const catalogItem = catalog.value
+          .flatMap((group: { items?: any[] }) => group.items || [])
+          .find((item: { viewname: string; href?: string }) => item.viewname === viewname);
+
+        if (catalogItem?.href) {
+          console.log(`Найден URL в каталоге для ${viewname}: ${catalogItem.href}`);
+          return catalogItem.href;
+        }
+      }
+
+      console.log(`URL для ${viewname} не найден в каталоге`);
+      return null;
+    };
+
+    // Загрузка данных по URL и сохранение их в соответствующее поле catalogDetails
+    const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
       loading.value = true;
       error.value = null;
 
@@ -231,6 +255,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
           GET: getResponseData,
           GET_FORMATTED: formatData(getResponseData, optionsResponseData),
           OPTIONS: optionsResponseData,
+          OPTIONS_MAP: createFieldsMetadata(optionsResponseData),
           viewname: viewname,
           href: url,
         };
@@ -264,6 +289,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
       // действия
       getCatalog,
+      findCatalogItemUrl,
       loadCatalogDetails,
     };
   });
