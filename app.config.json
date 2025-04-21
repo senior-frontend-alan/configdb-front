@@ -30,17 +30,27 @@
   },
   "modules": [
     {
-      "id": "applicationReferences",
-      "name": "Application References",
+      "id": "catalog",
+      "name": "Catalog",
       "routes": {
-        "getCatalog": "/api/v1/draConfig/-catalog/"
+        "getCatalog": "/catalog/api/v1/-catalog/",
+        "getJSIFunctions": "/js/modules/catalog.js"
       }
     },
     {
-      "id": "applicationReferences1",
-      "name": "Application References 1",
+      "id": "inventory",
+      "name": "Inventory",
       "routes": {
-        "getCatalog": "/api/v1/draConfig/-catalog/"
+        "getCatalog": "/inventory/api/v1/-catalog/",
+        "getJSIFunctions": "/js/modules/applicationReferences.js"
+      }
+    },
+    {
+      "id": "ocsmanage",
+      "name": "OCS Manage",
+      "routes": {
+        "getCatalog": "/ocsmanage/api/v1/-catalog/",
+        "getJSIFunctions": "/js/modules/applicationReferences.js"
       }
     }
   ]

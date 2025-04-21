@@ -2,12 +2,51 @@
 import { defineStore, getActivePinia } from 'pinia';
 import { ref, reactive } from 'vue';
 import api from '../api';
+import { FIELD_TYPES } from '../utils/formatter';
 import { useConfig } from '../config-loader';
 import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseGET } from './types/catalogDetailsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseOPTIONS } from './types/catalogDetailsAPIResponseOPTIONS.type';
-import { formatByClassName, FIELD_TYPES } from '../utils/formatter';
+
+// Типы для JS-функций модулей
+export interface ModuleJSFunctions {
+  [functionName: string]: Function;
+}
+
+// Базовые JS-функции, доступные для всех модулей
+const baseJSFunctions: ModuleJSFunctions = {
+  // Вспомогательная функция для проверки строкового типа
+  isString: function (value: any): boolean {
+    return typeof value === 'string' || value instanceof String;
+  },
+
+  // Форматирует значение с единицами измерения
+  amountWithUnits: function (
+    r: any,
+    amount_field: string,
+    units_field: string,
+    displaySettings: any = {},
+  ) {
+    let amount = r[amount_field];
+
+    if (typeof amount === 'string') {
+      amount = parseFloat(amount);
+    }
+
+    if (amount != null) {
+      amount = amount.toFixed(displaySettings?.roundDecimals ?? 2);
+    }
+
+    amount = amount ?? '-';
+
+    const units = r[units_field];
+    if (units?.name) {
+      return `${amount} ${units.name}`;
+    }
+    return `${amount}`;
+  },
+};
 
 // Функция для получения стора модуля по ID
 export function useModuleStore(moduleId: string) {
@@ -45,7 +84,17 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     // состояние
     const moduleName = ref<string>(moduleConfig.name);
     const catalog = ref<CatalogsAPIResponseGET>([]);
-    const currentItem = ref<any | null>(null);
+
+    // JS функции которые специфичны для конкретного модуля
+    // Используем обычный объект вместо reactive, так как функции статические
+    const JSIFunctions: ModuleJSFunctions = {
+      ...baseJSFunctions,
+
+      // Специфичные для модуля функции
+      // Можно добавить специфичные для модуля функции здесь
+      // или загрузить их динамически из конфигурации
+    };
+
     const loading = ref<boolean>(false);
     const error = ref<any | null>(null);
     const diamApplicationList = ref<any[]>([]);
@@ -53,10 +102,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     // Сохраненные данные по различным viewname - используем reactive вместо ref
     const catalogDetails = reactive<Record<string, any>>({});
 
-    // Флаг для отслеживания запросов в процессе
-    const isRequestInProgress = ref<boolean>(false);
-
-    // действия
+    // действия получаем список каталогов (ШАГ 1)
     const getCatalog = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
       if (catalog.value && catalog.value.length > 0) {
@@ -66,22 +112,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         return catalog.value;
       }
 
-      // Если запрос уже выполняется, ожидаем его завершения
-      if (isRequestInProgress.value) {
-        console.log(`Запрос для модуля ${moduleConfig.id} уже выполняется, ожидаем...`);
-        await new Promise((resolve) => {
-          const checkInterval = setInterval(() => {
-            if (!isRequestInProgress.value) {
-              clearInterval(checkInterval);
-              resolve(true);
-            }
-          }, 100);
-        });
-        return catalog.value;
-      }
-
       // Устанавливаем флаги загрузки
-      isRequestInProgress.value = true;
       loading.value = true;
 
       try {
@@ -99,40 +130,16 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         return [];
       } finally {
         loading.value = false;
-        isRequestInProgress.value = false;
       }
     };
 
-    // Создаем карту метаданных полей из OPTIONS запроса,
-    // т.е. вместо
-    // "elements": [
-    //   {
-    //       "class_name": "LayoutField",
-    //       "name": "layout_field",
-    //       ...
-    //   }
-    // ]
-    //
-    // {
-    //   "layout_field": {
-    //     "class_name": "LayoutField",
-    //     "options": {
-    //       ...
-    //     }
-    //   }
-    // }
-    const createFieldsMetadata = (options: any) => {
-      const metadata = { ...options };
-
-      // Если нет layout или elements, возвращаем исходные опции
+    // Функция для получения карты элементов из OPTIONS
+    const getElementsMap = (options: any): Record<string, any> => {
       if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
-        return metadata;
+        return {};
       }
 
-      metadata.layout = { ...options.layout };
-
-      // Создаем карту полей внутри layout
-      metadata.layout.elementsMap = {};
+      const elementsMap: Record<string, any> = {};
 
       options.layout.elements.forEach((element: any) => {
         if (!element.name) return;
@@ -145,57 +152,45 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
           fieldType = element.field_class;
         }
 
-        metadata.layout.elementsMap[element.name] = {
+        elementsMap[element.name] = {
           ...element, // Сохраняем все опции поля для возможного использования
           class_name: fieldType, // Перезаписываем class_name
         };
       });
 
-      return metadata;
+      return elementsMap;
     };
 
-    // Функция для форматирования данных с использованием метаданных полей
-    const formatData = (data: any, options: any) => {
-      // Создаем метаданные полей
-      const fieldsMetadata = createFieldsMetadata(options);
-
-      // Если нет данных или результатов, возвращаем исходные данные
-      if (!data || !data.results || !Array.isArray(data.results)) {
-        return data;
+    // Функция для получения списка уникальных полей из элементов макета
+    const getUniqueFields = (options: any): string[] => {
+      if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
+        return [];
       }
 
-      // Форматируем результаты
-      return {
-        ...data,
-        results: data.results.map((item: any) => {
-          // Создаем копию элемента для форматирования
-          const formattedItem = { ...item };
+      const uniqueFields = new Set<string>();
 
-          // Форматируем каждое поле используя метаданные
-          Object.keys(formattedItem).forEach((fieldName) => {
-            try {
-              // Задаем фиксированный класс для обработки полей date_created и date_updated
-              if (fieldName === 'date_created' || fieldName === 'date_updated') {
-                return formatByClassName(
-                  FIELD_TYPES.LAYOUT_CHAR_FIELD,
-                  formattedItem[fieldName],
-                  options,
-                );
-              }
+      // Рекурсивная функция для обхода элементов
+      const processElements = (elements: any[]) => {
+        elements.forEach((element) => {
+          // Проверяем, есть ли у элемента вложенные элементы
+          const hasNestedElements =
+            element.elements && Array.isArray(element.elements) && element.elements.length > 0;
 
-              // Иначе используем тип из метаданных
-              const fieldType =
-                fieldsMetadata?.layout?.elementsMap?.[fieldName]?.class_name ||
-                FIELD_TYPES.LAYOUT_CHAR_FIELD;
-              formattedItem[fieldName] = formatByClassName(fieldType, formattedItem[fieldName]);
-            } catch (e) {
-              console.warn(`Ошибка форматирования поля ${fieldName}:`, e);
-            }
-          });
+          // Добавляем поле, если у него есть имя и нет вложенных элементов
+          if (element.name && typeof element.name === 'string' && !hasNestedElements) {
+            uniqueFields.add(element.name);
+          }
 
-          return formattedItem;
-        }),
+          // Обрабатываем вложенные элементы, если это не ViewSetInlineLayout
+          if (hasNestedElements && element.class_name !== 'ViewSetInlineLayout') {
+            processElements(element.elements);
+          }
+        });
       };
+
+      processElements(options.layout.elements);
+
+      return Array.from(uniqueFields);
     };
 
     // Функция для поиска URL каталога по viewname (т.е. загружаем данные из шага 1 чтобы найти URL для шага 2)
@@ -250,12 +245,54 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
           optionsResponseData = optionsResponse.data;
         }
 
+        // Добавляем наши вычисляемые поля в OPTIONS для удобства
+        if (optionsResponseData?.layout) {
+          optionsResponseData.layout.elementsMap = getElementsMap(optionsResponseData);
+          optionsResponseData.layout.uniqueFields = getUniqueFields(optionsResponseData);
+
+          // Проверяем поля из display_list на существование в uniqueFields
+          const display_list = optionsResponseData.layout.display_list || [];
+
+          // Фильтруем display_list, оставляя только поля, которые есть в uniqueFields
+          const displayList = Array.isArray(display_list)
+            ? display_list.filter((field: string) => optionsResponseData.layout.uniqueFields.includes(field))
+            : [];
+
+          // Создаем оптимизированную структуру для управления колонками
+          const columnsState: {
+            metadata: Record<string, { header: string }>;
+            visible: Set<string>;
+            order: string[];
+          } = {
+            metadata: {},
+            visible: new Set<string>(),
+            order: []
+          };
+          
+          // Заполняем метаданные колонок
+          optionsResponseData.layout.uniqueFields.forEach((field: string) => {
+            const fieldInfo = optionsResponseData.layout.elementsMap?.[field];
+            columnsState.metadata[field] = {
+              header: fieldInfo?.label || field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')
+            };
+            
+            // Добавляем поле в порядок колонок
+            columnsState.order.push(field);
+            
+            // Если поле должно быть видимым, добавляем его в Set
+            if (displayList.includes(field)) {
+              columnsState.visible.add(field);
+            }
+          });
+          
+          // Сохраняем структуру в OPTIONS
+          optionsResponseData.layout.columnsState = columnsState;
+        }
+
         // Создаем новый объект с данными (общая логика для моковых и реальных данных)
         const detailsData = {
           GET: getResponseData,
-          GET_FORMATTED: formatData(getResponseData, optionsResponseData),
           OPTIONS: optionsResponseData,
-          OPTIONS_MAP: createFieldsMetadata(optionsResponseData),
           viewname: viewname,
           href: url,
         };
@@ -276,21 +313,99 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
 
+    // Метод для получения JS-функций модуля
+    const getJSIFunctions = async (): Promise<ModuleJSFunctions> => {
+      loading.value = true;
+
+      try {
+        // Формируем URL для запроса JS-функций
+        const routes = moduleConfig.routes as unknown as Record<string, string>;
+        const jsUrl = routes['getJSIFunctions'];
+
+        console.log(`Загрузка JS-функций из: ${jsUrl}`);
+
+        // Загружаем JS-код как текст через API-клиент
+        const response = await api.get(jsUrl, {
+          responseType: 'text',
+          headers: { 'Content-Type': 'text/plain' },
+        });
+
+        const jsCode = response.data;
+
+        // Выполняем код и получаем функции напрямую
+        try {
+          // Создаем функцию, которая выполнит код модуля и вернет объект с функциями
+          const moduleFunction = new Function(`
+            // Создаем переменную module для экспорта функций
+            const module = { exports: {} };
+            
+            // Выполняем код модуля в изолированном контексте
+            ${jsCode}
+            
+            // Возвращаем экспортированные функции
+            return module.exports;
+          `);
+
+          // Выполняем функцию и получаем объект с функциями
+          const moduleFunctions = moduleFunction();
+
+          // Копируем функции в объект
+          Object.assign(JSIFunctions, moduleFunctions);
+
+          // Выводим информацию о загруженных функциях
+          const loadedFunctions = Object.keys(JSIFunctions).filter(
+            (key) => !Object.keys(baseJSFunctions).includes(key),
+          );
+          console.log(
+            `JS-функции для модуля ${moduleConfig.id} успешно загружены: ${loadedFunctions.join(
+              ', ',
+            )}`,
+          );
+        } catch (evalError) {
+          console.error(`Ошибка выполнения кода JS-функций:`, evalError);
+        }
+
+        return JSIFunctions;
+      } catch (err) {
+        console.error(`Ошибка при получении JS-функций для модуля ${moduleConfig.id}:`, err);
+        return JSIFunctions;
+      } finally {
+        loading.value = false;
+      }
+    };
+
+    // загрузка JS-функций начнётся автоматически при создании стора
+    const initialize = async (): Promise<void> => {
+      try {
+        // Проверяем, есть ли маршрут для загрузки JS-функций
+        const routes = moduleConfig.routes as unknown as Record<string, string>;
+        if (routes['getJSIFunctions']) {
+          await getJSIFunctions();
+        }
+      } catch (error: any) {
+        console.error(`Ошибка при инициализации стора модуля ${moduleConfig.id}:`, error);
+      }
+    };
+
+    // Запускаем инициализацию стора (нужна только для загрузки JS функций)
+    initialize();
+
     return {
       // состояние
       catalog,
-      currentItem,
+      JSIFunctions,
       loading,
       error,
       moduleName,
-      isRequestInProgress,
       diamApplicationList,
       catalogDetails,
 
       // действия
       getCatalog,
+      getJSIFunctions,
       findCatalogItemUrl,
       loadCatalogDetails,
+      initialize,
     };
   });
 }

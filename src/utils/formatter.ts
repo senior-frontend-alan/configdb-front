@@ -2,6 +2,11 @@
  * Форматтер полей для отображения данных в интерфейсе
  */
 
+import { useModuleStore } from '../stores/module-factory';
+
+// Константа для сообщения об ошибке
+export const INVALID_DATA_TYPE = 'Неверный тип данных';
+
 // Константы для типов полей = class_name или field_class
 export const FIELD_TYPES = {
   // Типы полей на основе class_name
@@ -32,26 +37,27 @@ export const FIELD_TYPES = {
   COMPUTED_FIELD: 'ComputedField',
 } as const;
 
-export interface FormattingOptions {
-  nullValue?: string;
+// Типы данных для форматирования
+export type FieldValue = any;
+export type FormattingOptions = {
+  moduleId?: string;
+  jsItemRepr?: string;
   emptyArrayValue?: string;
+  nullValue?: string;
   locale?: string;
   roundDecimals?: number;
   maximumLength?: number;
   richEditMaxLength?: number;
   maxInlineItems?: number;
+  multiple?: boolean;
   choices?: Array<{ value: string | number; display_name: string }>;
-  jsItemRepr?: string; // Строка с JavaScript кодом для вычисляемых полей
-}
-
-export type FieldValue = string | number | boolean | Date | object | Array<any> | null | undefined;
+};
 
 // Определяем типы для разных полей
 type IntegerFieldValue = number | string | boolean;
 type DecimalFieldValue = number | string;
 type CharFieldValue = any; // Может быть любым типом, т.к. всегда преобразуется в строку
 type DateValue = Date | string; // Общий тип для всех полей с датами
-type RelatedFieldValue = number | string | { id: number | string } | null;
 type ComputedFieldValue = any;
 
 // Определяет тип содержимого (JSON, YAML, HTML, CSS, SQL)
@@ -72,7 +78,7 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
     return {
       label: `Array(${value.length})`,
       value,
-      formattedValue: JSON.stringify(value, null, 2)
+      formattedValue: JSON.stringify(value, null, 2),
     };
   }
 
@@ -83,14 +89,14 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
       return {
         label: 'JSON',
         value,
-        formattedValue: formatted
+        formattedValue: formatted,
       };
     } catch (e) {
       // Если не удалось сериализовать, это не JSON
       return {
         label: 'Object',
         value,
-        formattedValue: String(value)
+        formattedValue: String(value),
       };
     }
   }
@@ -100,7 +106,7 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
     return {
       label: typeof value,
       value,
-      formattedValue: String(value)
+      formattedValue: String(value),
     };
   }
 
@@ -114,7 +120,7 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
       return {
         label: 'JSON',
         value,
-        formattedValue: JSON.stringify(JSON.parse(value), null, 2)
+        formattedValue: JSON.stringify(JSON.parse(value), null, 2),
       };
     } catch (e) {
       // Если не удалось распарсить, это не JSON
@@ -130,7 +136,7 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
     return {
       label: 'HTML',
       value,
-      formattedValue: value
+      formattedValue: value,
     };
   }
 
@@ -145,7 +151,7 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
     return {
       label: 'YAML',
       value,
-      formattedValue: value
+      formattedValue: value,
     };
   }
 
@@ -154,7 +160,7 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
     return {
       label: 'CSS',
       value,
-      formattedValue: value
+      formattedValue: value,
     };
   }
 
@@ -167,14 +173,14 @@ export function detectContentType(value: FieldValue): ContentTypeResult {
     return {
       label: 'SQL',
       value,
-      formattedValue: value
+      formattedValue: value,
     };
   }
 
   return {
     label: 'String',
     value,
-    formattedValue: value
+    formattedValue: value,
   };
 }
 
@@ -197,13 +203,6 @@ function isDateFieldValue(value: FieldValue): value is DateValue {
   } catch {
     return false;
   }
-}
-
-function isRelatedFieldValue(value: FieldValue): value is RelatedFieldValue {
-  if (value === null) return true;
-  if (typeof value === 'number' || typeof value === 'string') return true;
-  if (typeof value === 'object' && 'id' in value) return true;
-  return false;
 }
 
 // Форматирует значение по типу поля (class_name или field_class), в будущем будет использоваться только class_name
@@ -292,7 +291,7 @@ export function formatByClassName(
 function formatIntegerValue(value: FieldValue): string {
   if (!isIntegerFieldValue(value)) {
     console.error('Неправильный тип данных для formatIntegerValue:', value);
-    return 'Неверный тип данных';
+    return INVALID_DATA_TYPE;
   }
 
   if (typeof value === 'boolean') {
@@ -307,7 +306,7 @@ function formatIntegerValue(value: FieldValue): string {
 export function formatDecimalValue(value: FieldValue, options: FormattingOptions = {}): string {
   if (!isDecimalFieldValue(value)) {
     console.error('Неправильный тип данных для formatDecimalValue:', value);
-    return 'Неверный тип данных';
+    return INVALID_DATA_TYPE;
   }
 
   // Преобразование в число
@@ -348,46 +347,36 @@ export function formatRichEditValue(value: FieldValue): ContentTypeResult {
 
 // Отображает связанный объект из другой таблицы/модели.
 export function formatRelatedValue(value: FieldValue, options: FormattingOptions = {}): string {
-  if (!isRelatedFieldValue(value)) {
-    console.error('Неправильный тип данных для formatRelatedValue:', value);
-    return 'Неверный тип данных';
+  // Обработка массивов только если multiple = true
+  if (Array.isArray(value)) {
+    const isMultiple = options.multiple === true;
+
+    if (isMultiple) {
+      return value.length === 0
+        ? options.emptyArrayValue || '[]'
+        : value.map(formatSingleRelatedValue).join(', ');
+    } else {
+      // Если multiple = false, но пришел массив
+      return INVALID_DATA_TYPE;
+    }
   }
 
-  // Обработка объектов
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    // Обработка объектов с полем value и наличием choices
-    if ('value' in value && value.value !== undefined && options.choices?.length) {
-      const valueStr = String(value.value);
-      const choice = options.choices.find((c) => String(c.value) === valueStr);
-      if (choice) return String(choice.display_name);
-    }
+  return formatSingleRelatedValue(value);
+}
 
-    // Приоритет полей для отображения
-    if (
-      'display_name' in value &&
-      value.display_name !== undefined &&
-      value.display_name !== null
-    ) {
-      return String(value.display_name);
-    }
-
+function formatSingleRelatedValue(value: FieldValue): string {
+  if (typeof value === 'object' && !Array.isArray(value)) {
     if ('name' in value && value.name !== undefined && value.name !== null) {
       return String(value.name);
     }
 
+    // Если есть только id, форматируем как <id: значение>
     if ('id' in value && value.id !== undefined && value.id !== null) {
       return `<id: ${value.id}>`;
     }
   }
 
-  // Обработка массивов
-  if (Array.isArray(value)) {
-    return value.length === 0
-      ? options.emptyArrayValue || '[]'
-      : value.map((item) => formatRelatedValue(item, options)).join(', ');
-  }
-
-  // Примитивные значения (ID)
+  // Примитивные значения (число или строка) форматируем как <id: значение>
   return `<id: ${value}>`;
 }
 
@@ -421,32 +410,51 @@ export function formatChoiceValue(
 }
 
 export function formatComputedValue(value: FieldValue, options: FormattingOptions = {}): string {
-  // Для вычисляемых полей используем js_item_repr, если оно есть
-  if (options.jsItemRepr) {
-    try {
-      // Создаем функцию из строки js_item_repr
-      const innerFn = new Function('value', 'options', options.jsItemRepr);
+  try {
+    // Проверяем, есть ли jsItemRepr в опциях
+    if (options.jsItemRepr) {
+      // Если указан moduleId, пытаемся получить JS-функции модуля
+      if (options.moduleId && typeof options.moduleId === 'string') {
+        // Получаем стор модуля напрямую
+        const moduleStore = useModuleStore(options.moduleId);
 
-      // Вызываем функцию с переданными параметрами
-      const result = innerFn(value, options);
+        // Получаем доступ к JS-функциям модуля
+        const jsi = moduleStore.getJSIFunctions();
 
-      // Возвращаем результат как строку
-      return result !== null && result !== undefined ? String(result) : '';
-    } catch (e: any) {
-      console.error(`formatComputedValue: jsItemRepr="${options.jsItemRepr}" error: ${e}`);
-      return `<Ошибка вычисления: ${e.message}>`;
+        try {
+          // Выполняем JS-код с доступом к функциям модуля через jsi
+          const fn = new Function('value', 'jsi', 'obj', options.jsItemRepr);
+          const result = fn(value, jsi, value);
+          return result !== null && result !== undefined ? String(result) : '';
+        } catch (innerError: any) {
+          console.error(`Ошибка выполнения jsItemRepr:`, innerError);
+          return `<Ошибка: ${innerError.message}>`;
+        }
+      } else {
+        // Если moduleId не указан, выполняем jsItemRepr без доступа к функциям модуля
+        try {
+          const innerFn = new Function('value', 'obj', options.jsItemRepr);
+          const result = innerFn(value, value);
+          return result !== null && result !== undefined ? String(result) : '';
+        } catch (innerError: any) {
+          console.error(`Ошибка выполнения jsItemRepr без модуля:`, innerError);
+          return `<Ошибка: ${innerError.message}>`;
+        }
+      }
     }
-  }
 
-  // Если нет js_item_repr, просто преобразуем значение в строку
-  return value !== null && value !== undefined ? String(value) : '';
+    // Если нет ни moduleId, ни jsItemRepr, просто преобразуем значение в строку
+    return value !== null && value !== undefined ? String(value) : '';
+  } catch (e: any) {
+    console.error(`Ошибка в formatComputedValue:`, e);
+    return `<Ошибка: ${e.message}>`;
+  }
 }
 
-// форматирует только дату (без времени) "10.04.2025"
 export function formatDateValue(value: FieldValue, options: FormattingOptions = {}): string {
   if (!isDateFieldValue(value)) {
     console.error('Неправильный тип данных для formatDateValue:', value);
-    return 'Неверный тип данных';
+    return INVALID_DATA_TYPE;
   }
 
   const dateValue = value instanceof Date ? value : new Date(String(value));
@@ -454,11 +462,10 @@ export function formatDateValue(value: FieldValue, options: FormattingOptions = 
   return dateValue.toLocaleDateString(locale);
 }
 
-// форматирует только время (без даты) "15:19:37"
 export function formatTimeValue(value: FieldValue, options: FormattingOptions = {}): string {
   if (!isDateFieldValue(value)) {
     console.error('Неправильный тип данных для formatTimeValue:', value);
-    return 'Неверный тип данных';
+    return INVALID_DATA_TYPE;
   }
 
   const dateValue = value instanceof Date ? value : new Date(String(value));
@@ -466,11 +473,10 @@ export function formatTimeValue(value: FieldValue, options: FormattingOptions = 
   return dateValue.toLocaleTimeString(locale, { timeZone: 'UTC' });
 }
 
-// форматирует дату и время "10.04.2025, 15:19:37"
 export function formatDateTimeValue(value: FieldValue, options: FormattingOptions = {}): string {
   if (!isDateFieldValue(value)) {
     console.error('Неправильный тип данных для formatDateTimeValue:', value);
-    return 'Неверный тип данных';
+    return INVALID_DATA_TYPE;
   }
 
   const dateValue = value instanceof Date ? value : new Date(String(value));

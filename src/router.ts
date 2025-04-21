@@ -64,6 +64,17 @@ try {
       },
       props: true, // Передаем параметры маршрута как props компонента
     });
+
+    // Страница 3 - Редактирование записи
+    routes.push({
+      path: `/${module.id}/:viewname/:id`,
+      name: `${module.id}EditRecord`,
+      component: () => import('./pages/Page3EditRecord.vue'),
+      meta: {
+        moduleId: module.id, // Передаем ID модуля для доступа к стору
+      },
+      props: true, // Передаем параметры маршрута как props компонента
+    });
   });
 } catch (error) {
   console.error('Ошибка при создании динамических маршрутов:', error);
@@ -117,7 +128,11 @@ export const checkCachedCatalogData = (moduleId: string, viewname: string): bool
   return false;
 };
 
-export const loadCatalogData = async (moduleId: string, viewname: string, href: string): Promise<void> => {
+export const loadCatalogData = async (
+  moduleId: string,
+  viewname: string,
+  href: string,
+): Promise<void> => {
   const moduleStore = useModuleStore(moduleId);
   if (!moduleStore) {
     throw new Error(`Не удалось получить стор для модуля ${moduleId}`);
@@ -130,7 +145,7 @@ export const loadCatalogData = async (moduleId: string, viewname: string, href: 
 export const findAndLoadCatalogData = async (
   moduleId: string,
   viewname: string,
-  next: ((error?: any) => void),
+  next: (error?: any) => void,
   forceReload: boolean = false,
 ): Promise<boolean> => {
   const moduleStore = useModuleStore(moduleId);
