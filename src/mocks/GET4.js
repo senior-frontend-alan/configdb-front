@@ -47,6 +47,7 @@ export const GET4 = (() => {
     const Choice = 1 // или строка "2" приводить все к строке
     const MultipleChoice = [1, 2] // дни недели например (заранее из OPTIONS знаем)
     // у Choice могут быть доп св-ва, widget? написать Жене Дорониной узнать information warning critical error
+    // className ViewSetInlineLayout
 
     return {
         // Общее количество результатов

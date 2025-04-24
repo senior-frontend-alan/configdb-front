@@ -183,7 +183,7 @@ const loadFormFields = async () => {
         }
         
         if (fields.length > 0) {
-          const elementsMap = storeDetails.layout.elementsMap || {};
+          const elementsMap = storeDetails.layout.elementsMap || new Map();
           
           console.log('Доступные поля:', fields);
           
@@ -191,7 +191,7 @@ const loadFormFields = async () => {
           formFields.value = fields
             .filter((field: string) => field !== 'id') // Исключаем поле id
             .map((field: string) => {
-              const elementInfo = elementsMap[field] || {};
+              const elementInfo = elementsMap.get(field) || {};
               
               // Определяем тип поля
               let fieldType: FormField['type'] = 'text';

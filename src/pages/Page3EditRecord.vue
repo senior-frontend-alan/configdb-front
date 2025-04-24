@@ -1,98 +1,45 @@
 <template>
   <div class="edit-record-page">
-    <Card>
-      <template #title>
-        <div class="header-container">
-          <h4>{{ pageTitle }}</h4>
-          <div class="actions-container">
-            <Button
-              icon="pi pi-arrow-left"
-              class="p-button-rounded p-button-text"
-              aria-label="Вернуться к списку"
-              v-tooltip="'Вернуться к списку'"
-              @click="goBack"
-            />
-          </div>
-        </div>
-      </template>
-      <template #content>
-        <div v-if="loading" class="loading-container">
-          <ProgressSpinner />
-          <p>Загрузка данных...</p>
-        </div>
+    <div class="header-container">
+      <h4>{{ pageTitle }}</h4>
+      <div class="actions-container">
+        <Button
+          icon="pi pi-arrow-left"
+          class="p-button-rounded p-button-text"
+          aria-label="Вернуться к списку"
+          v-tooltip="'Вернуться к списку'"
+          @click="goBack"
+        />
+      </div>
+    </div>
+    <div v-if="loading" class="loading-container">
+      <ProgressSpinner />
+      <p>Загрузка данных...</p>
+    </div>
 
-        <div v-else-if="error" class="error-container">
-          <Message severity="error">{{ error }}</Message>
-        </div>
+    <div v-else-if="error" class="error-container">
+      <Message severity="error">{{ error }}</Message>
+    </div>
 
-        <div v-else class="edit-form-container">
-          <div v-if="saving" class="saving-overlay">
-            <ProgressSpinner />
-            <p>Сохранение данных...</p>
-          </div>
+    <div v-else class="edit-form-container">
+      <div v-if="saving" class="saving-overlay">
+        <ProgressSpinner />
+        <p>Сохранение данных...</p>
+      </div>
 
-          <div class="form-grid">
-            <div v-for="field in formFields" :key="field.field" class="form-field">
-              <label :for="field.field" class="form-label">{{ field.header }}</label>
+      <!-- Используем DynamicFormLayout для рекурсивного отображения элементов формы -->
+      <DynamicFormLayout
+        v-if="layoutElements.length > 0 || formFields.length > 0"
+        :elements="layoutElements.length > 0 ? layoutElements : formFields"
+        :model-value="formData"
+        @update:model-value="(newValue) => (formData = newValue)"
+      />
 
-              <!-- Текстовое поле -->
-              <InputText
-                v-if="field.type === 'text'"
-                :id="field.field"
-                v-model="formData[field.field]"
-                class="w-full"
-                :disabled="field.field === 'id'"
-              />
-
-              <!-- Числовое поле -->
-              <InputNumber
-                v-else-if="field.type === 'number'"
-                :id="field.field"
-                v-model="formData[field.field]"
-                class="w-full"
-              />
-
-              <!-- Поле даты -->
-              <Calendar
-                v-else-if="field.type === 'date'"
-                :id="field.field"
-                v-model="formData[field.field]"
-                dateFormat="dd.mm.yy"
-                class="w-full"
-              />
-
-              <!-- Выпадающий список -->
-              <Dropdown
-                v-else-if="field.type === 'select'"
-                :id="field.field"
-                v-model="formData[field.field]"
-                :options="field.options"
-                optionLabel="label"
-                optionValue="value"
-                class="w-full"
-              />
-
-              <!-- Текстовая область -->
-              <Textarea
-                v-else-if="field.type === 'textarea'"
-                :id="field.field"
-                v-model="formData[field.field]"
-                rows="3"
-                class="w-full"
-              />
-
-              <!-- Для всех остальных типов - текстовое поле -->
-              <InputText v-else :id="field.field" v-model="formData[field.field]" class="w-full" />
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
-            <Button label="Сохранить" icon="pi pi-check" @click="saveData" :loading="saving" />
-          </div>
-        </div>
-      </template>
-    </Card>
+      <div class="form-actions">
+        <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
+        <Button label="Сохранить" icon="pi pi-check" @click="saveData" :loading="saving" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -105,11 +52,25 @@
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import Button from 'primevue/button';
-  import InputText from 'primevue/inputtext';
-  import InputNumber from 'primevue/inputnumber';
-  import Calendar from 'primevue/calendar';
-  import Dropdown from 'primevue/dropdown';
-  import Textarea from 'primevue/textarea';
+  import DynamicFormField from '../components/DynamicFormField.vue';
+  import DynamicFormLayout from '../components/DynamicFormLayout.vue';
+
+  // Определяем типы для формы
+  interface FormField {
+    name: string;
+    label: string;
+    type: string;
+    class_name?: string;
+    field_class?: string;
+    readonly?: boolean;
+    required?: boolean;
+    placeholder?: string;
+    choices?: Array<{ value: string | number; display_name: string }>;
+    min?: number;
+    max?: number;
+    related_model?: string;
+    related_url?: string;
+  }
 
   // Определяем props компонента
   const props = defineProps<{
@@ -117,14 +78,6 @@
     viewname?: string;
     id?: string;
   }>();
-
-  interface FormField {
-    field: string;
-    header: string;
-    type: 'text' | 'number' | 'date' | 'select' | 'textarea';
-    options?: { label: string; value: any }[];
-    required?: boolean;
-  }
 
   // Получаем параметры маршрута
   const route = useRoute();
@@ -137,31 +90,48 @@
   const loading = ref(true);
   const saving = ref(false);
   const error = ref<string | null>(null);
-  const formFields = ref<FormField[]>([]);
-  const formData = reactive<Record<string, any>>({});
 
   // Заголовок страницы
   const pageTitle = computed(() => {
     return `Редактирование записи: ${viewname.value} (ID: ${recordId.value})`;
   });
 
-  // Получаем стор модуля
-  const moduleStore = computed(() => {
+  // Получаем стор модуля и проверяем его наличие
+  const getModuleStore = () => {
     console.log('Получение стора для модуля:', moduleId.value);
+
+    if (!moduleId.value) {
+      throw new Error('moduleId не определен');
+    }
+
     try {
-      if (!moduleId.value) {
-        console.error('moduleId не определен');
-        return null;
+      const store = useModuleStore(moduleId.value);
+
+      if (!store) {
+        throw new Error(`Модуль с ID ${moduleId.value} не найден`);
       }
 
-      const store = useModuleStore(moduleId.value);
-      console.log('Получен стор:', store);
       return store;
     } catch (error) {
       console.error('Ошибка при получении стора модуля:', error);
-      return null;
+      throw new Error(
+        `Ошибка при получении стора модуля: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
-  });
+  };
+
+  const formFields = ref<FormField[]>([]);
+  const formData = ref<Record<string, any>>({});
+  const layoutElements = ref<any[]>([]);
+
+  // Функция для возврата к списку
+  const goBack = () => {
+    const currentPath = route.path;
+    const basePath = currentPath.split('/').slice(0, -1).join('/');
+    router.push(basePath);
+  };
 
   // Загрузка данных записи
   const loadRecordData = async () => {
@@ -171,144 +141,70 @@
     try {
       console.log('Загрузка данных записи:', moduleId.value, viewname.value, recordId.value);
 
-      // Проверяем, загружены ли данные каталога
-      if (!moduleStore.value) {
-        throw new Error(`Модуль с ID ${moduleId.value} не найден`);
+      // Проверяем, загружены ли данные модуля
+      const moduleStore = getModuleStore();
+
+      // Получаем метаданные из OPTIONS
+      const storeOptions = moduleStore.catalogDetails?.[viewname.value]?.OPTIONS;
+
+      if (!storeOptions || !storeOptions.layout) {
+        throw new Error(`Метаданные для представления ${viewname.value} не найдены`);
       }
 
-      // Проверяем, загружены ли данные каталога
-      if (!moduleStore.value.catalogDetails?.OPTIONS) {
-        console.log('Данные каталога не загружены, пытаемся загрузить...');
-
-        // Создаем демо-поля для формы
-        formFields.value = [
-          { field: 'id', header: 'ID', type: 'text', required: true },
-          { field: 'name', header: 'Название', type: 'text', required: true },
-          { field: 'description', header: 'Описание', type: 'textarea' },
-          {
-            field: 'category',
-            header: 'Категория',
-            type: 'select',
-            options: [
-              { label: 'Категория 1', value: 'cat1' },
-              { label: 'Категория 2', value: 'cat2' },
-              { label: 'Категория 3', value: 'cat3' },
-            ],
-          },
-          { field: 'date', header: 'Дата', type: 'date' },
-          { field: 'count', header: 'Количество', type: 'number' },
-        ];
-
-        // Заполняем данные формы демо-данными
-        formData.id = recordId.value;
-        formData.name = 'Тестовая запись';
-        formData.description = 'Описание тестовой записи';
-        formData.category = 'cat1';
-        formData.date = new Date();
-        formData.count = 1;
-
-        return;
-      }
-
-      // В реальном приложении здесь должен быть запрос к API для получения данных конкретной записи
-      // Например: const response = await api.get(`/api/v1/${viewname.value}/${recordId.value}/`);
-
-      // Для демонстрации используем данные из таблицы
-      const recordData = moduleStore.value.catalogDetails?.GET?.find(
+      // Получаем данные записи из GET
+      const recordData = moduleStore.catalogDetails?.[viewname.value]?.GET?.results?.find(
         (item: any) => item.id == recordId.value,
       );
 
       console.log('Найденная запись:', recordData);
 
-      if (!recordData) {
-        console.warn(`Запись с ID ${recordId.value} не найдена, создаем демо-данные`);
+      // Создаем поля формы на основе элементов из OPTIONS
+      if (storeOptions.layout.elements && Array.isArray(storeOptions.layout.elements)) {
+        layoutElements.value = storeOptions.layout.elements;
+        formFields.value = layoutElements.value.map((element: any) => {
+          // Создаем объект поля формы
+          const field: FormField = {
+            name: element.name,
+            label: element.label || element.name,
+            type: element.type || 'text',
+            class_name: element.class_name,
+            field_class: element.field_class,
+            readonly: element.readonly || element.name === 'id',
+            required: element.required || false,
+            placeholder: element.placeholder || '',
+          };
 
-        // Создаем демо-данные, если запись не найдена
-        formFields.value = [
-          { field: 'id', header: 'ID', type: 'text', required: true },
-          { field: 'name', header: 'Название', type: 'text', required: true },
-          { field: 'description', header: 'Описание', type: 'textarea' },
-        ];
+          // Если это поле с выбором, добавляем опции
+          if (element.choices && Array.isArray(element.choices)) {
+            field.choices = element.choices.map((choice: any) => ({
+              value: choice.value,
+              display_name: choice.display_name || choice.value,
+            }));
+          }
 
-        formData.id = recordId.value;
-        formData.name = 'Запись не найдена';
-        formData.description = 'Данные записи не найдены в хранилище';
+          return field;
+        });
 
-        return;
-      }
+        console.log('Созданные поля формы:', formFields.value);
 
-      // Получаем метаданные полей из OPTIONS
-      const storeDetails = moduleStore.value.catalogDetails?.OPTIONS;
+        // Заполняем данные формы
+        if (recordData) {
+          // Если запись найдена, заполняем данными из записи
+          formData.value = { ...recordData };
+        } else {
+          // Если запись не найдена, создаем пустой объект с полями из формы
+          formFields.value.forEach((field) => {
+            formData.value[field.name] = null;
+          });
 
-      // Используем доступные поля из данных
-      let fields: string[] = [];
-
-      if (storeDetails.layout.uniqueFields && Array.isArray(storeDetails.layout.uniqueFields)) {
-        fields = storeDetails.layout.uniqueFields;
-      } else if (storeDetails.layout.columnsState?.order) {
-        fields = storeDetails.layout.columnsState.order;
-      } else if (storeDetails.layout.display_list) {
-        fields = Array.isArray(storeDetails.layout.display_list)
-          ? storeDetails.layout.display_list
-          : [storeDetails.layout.display_list];
-      }
-
-      const elementsMap = storeDetails.layout.elementsMap || {};
-
-      console.log('Доступные поля:', fields);
-
-      // Создаем поля формы на основе полей
-      formFields.value = fields.map((field: string) => {
-        const elementInfo = elementsMap[field] || {};
-
-        // Определяем тип поля
-        let fieldType: FormField['type'] = 'text';
-
-        if (elementInfo.type === 'number' || elementInfo.type === 'integer') {
-          fieldType = 'number';
-        } else if (elementInfo.type === 'date' || elementInfo.type === 'datetime') {
-          fieldType = 'date';
-        } else if (
-          elementInfo.type === 'select' ||
-          (elementInfo.choices && elementInfo.choices.length > 0)
-        ) {
-          fieldType = 'select';
-        } else if (
-          elementInfo.type === 'textarea' ||
-          field.includes('description') ||
-          field.includes('comment')
-        ) {
-          fieldType = 'textarea';
+          // ID записи всегда устанавливаем из URL
+          formData.value.id = recordId.value;
         }
 
-        // Создаем объект поля формы
-        const formField: FormField = {
-          field,
-          header:
-            elementInfo?.label || field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' '),
-          type: fieldType,
-          required: !!elementInfo.required,
-        };
-
-        // Если это поле с выбором, добавляем опции
-        if (fieldType === 'select' && elementInfo.choices) {
-          formField.options = elementInfo.choices.map((choice: any) => ({
-            label: choice.label || choice.value,
-            value: choice.value,
-          }));
-        }
-
-        return formField;
-      });
-
-      console.log('Созданные поля формы:', formFields.value);
-
-      // Заполняем данные формы
-      for (const field of formFields.value) {
-        formData[field.field] = recordData[field.field] || null;
+        console.log('Данные формы:', formData.value);
+      } else {
+        throw new Error('Не удалось получить элементы формы из метаданных');
       }
-
-      console.log('Данные формы:', formData);
     } catch (e) {
       console.error('Ошибка загрузки данных записи:', e);
       error.value = e instanceof Error ? e.message : 'Ошибка загрузки данных записи';
@@ -325,17 +221,17 @@
     try {
       // Проверка обязательных полей
       const missingRequiredFields = formFields.value
-        .filter((field) => field.required && !formData[field.field])
-        .map((field) => field.header);
+        .filter((field) => field.required && !formData.value[field.name])
+        .map((field) => field.label);
 
       if (missingRequiredFields.length > 0) {
         throw new Error(`Заполните обязательные поля: ${missingRequiredFields.join(', ')}`);
       }
 
       // В реальном приложении здесь должен быть запрос к API для сохранения данных
-      // Например: await api.put(`/api/v1/${viewname.value}/${recordId.value}/`, formData);
+      // Например: await api.put(`/api/v1/${viewname.value}/${recordId.value}/`, formData.value);
 
-      console.log('Сохранение данных:', formData);
+      console.log('Сохранение данных:', formData.value);
 
       // Имитация задержки сохранения
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -350,14 +246,6 @@
     }
   };
 
-  const goBack = () => {
-    const currentPath = route.path;
-    const basePath = currentPath.split('/').slice(0, -1).join('/');
-
-    router.push(basePath);
-  };
-
-  // Загрузка данных при монтировании компонента
   onMounted(async () => {
     console.log('Page3EditRecord mounted, params:', {
       moduleId: moduleId.value,
@@ -415,21 +303,10 @@
     z-index: 10;
   }
 
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
   .form-field {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-  }
-
-  .form-label {
-    font-weight: 500;
   }
 
   .form-actions {

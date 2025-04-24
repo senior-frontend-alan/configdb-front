@@ -18,8 +18,14 @@ export const FIELD_TYPES = {
   LAYOUT_RELATED_FIELD: 'LayoutRelatedField',
   LAYOUT_CHOICE_FIELD: 'LayoutChoiceField',
   // LAYOUT_REVERSE_REFERENCE_FIELD: 'LayoutReverseReferenceField',
-  // VIEW_SET_INLINE_LAYOUT: 'ViewSetInlineLayout',
-  // VIEW_SET_INLINE_DYNAMIC_LAYOUT: 'ViewSetInlineDynamicLayout',
+
+  // ! не проваливаемся внутрь на этапе показа колонок таблицы
+  // VIEW_SET_INLINE_LAYOUT: 'ViewSetInlineLayout', // подчиненная вложенная таблица/объект
+  // VIEW_SET_INLINE_DYNAMIC_LAYOUT: 'ViewSetInlineDynamicLayout', // подчиненная вложенная таблица/объект
+  // VIEW_SET_INLINE_DYNAMIC_MODEL_LAYOUT: 'ViewSetInlineDynamicModelLayout', // подчиненная вложенная таблица/объект
+  // или field_class: "ListSerializer"
+
+  // на этапе добавления записи скрываются read_only поля
 
   // Типы полей на основе field_class (для обратной совместимости)
   INTEGER_FIELD: 'IntegerField',
@@ -34,6 +40,9 @@ export const FIELD_TYPES = {
   // WEAK_RELATED_FIELD: 'WeakRelatedLookupField',
   // LIST_SERIALIZER: 'ListSerializer',
   // SERIALIZER: 'Serializer',
+
+  // Чекбокс: v-else-if="item.el.input_type=='checkbox' || item.el.field_class=='BooleanField' || item.el.field_class=='NullBooleanField'"
+  // Файл: v-else-if="item.el.input_type=='file'"
   COMPUTED_FIELD: 'ComputedField',
 } as const;
 

@@ -133,64 +133,78 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
 
-    // Функция для получения карты элементов из OPTIONS
-    const getElementsMap = (options: any): Record<string, any> => {
+    // Формируем список столбцов для отображения в таблице (ШАГ 2) из элементов OPTIONS
+    // Map структура нам поможет быстро сопоставлять с GET запросом
+    const getTableColumns = (options: any): Map<string, any> => {
       if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
-        return {};
+        return new Map();
       }
 
-      const elementsMap: Record<string, any> = {};
+      const displayList = Array.isArray(options.layout.display_list)
+        ? options.layout.display_list
+        : [];
 
-      options.layout.elements.forEach((element: any) => {
-        if (!element.name) return;
+      // Создаем плоскую Map для всех элементов
+      const elementsMap = new Map<string, any>();
 
-        // Определяем тип поля на основе class_name или field_class
-        let fieldType = FIELD_TYPES.LAYOUT_CHAR_FIELD; // Тип по умолчанию
-        if (element.class_name && element.class_name !== '') {
-          fieldType = element.class_name;
-        } else if (element.field_class && element.field_class !== '') {
-          fieldType = element.field_class;
-        }
+      // Рекурсивная функция для обработки элементов
+      const processElements = (elements: any[]): void => {
+        elements.forEach((element: any) => {
+          if (!element.name) return;
 
-        elementsMap[element.name] = {
-          ...element, // Сохраняем все опции поля для возможного использования
-          class_name: fieldType, // Перезаписываем class_name
-        };
-      });
+          // Для элементов с такими классами не обрабатываем вложенные элементы
+          const isSpecialType =
+            element.class_name === 'ViewSetInlineLayout' ||
+            element.class_name === 'ViewSetInlineDynamicLayout' ||
+            element.class_name === 'ViewSetInlineDynamicModelLayout' ||
+            element.field_class === 'ListSerializer';
 
-      return elementsMap;
-    };
+          // Определяем видимость элемента
+          const isVisible = displayList.length === 0 || displayList.includes(element.name);
 
-    // Функция для получения списка уникальных полей из элементов макета
-    const getUniqueFields = (options: any): string[] => {
-      if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
-        return [];
-      }
+          // Создаем копию элемента с добавлением visible
+          const elementCopy = {
+            ...element,
+            visible: isVisible,
+          };
 
-      const uniqueFields = new Set<string>();
+          // Добавляем элемент в Map
+          elementsMap.set(element.name, elementCopy);
 
-      // Рекурсивная функция для обхода элементов
-      const processElements = (elements: any[]) => {
-        elements.forEach((element) => {
-          // Проверяем, есть ли у элемента вложенные элементы
-          const hasNestedElements =
-            element.elements && Array.isArray(element.elements) && element.elements.length > 0;
-
-          // Добавляем поле, если у него есть имя и нет вложенных элементов
-          if (element.name && typeof element.name === 'string' && !hasNestedElements) {
-            uniqueFields.add(element.name);
-          }
-
-          // Обрабатываем вложенные элементы, если это не ViewSetInlineLayout
-          if (hasNestedElements && element.class_name !== 'ViewSetInlineLayout') {
+          // Рекурсивно обрабатываем вложенные элементы, если они есть и элемент не является специальным типом
+          if (
+            element.elements &&
+            Array.isArray(element.elements) &&
+            element.elements.length > 0 &&
+            !isSpecialType
+          ) {
             processElements(element.elements);
           }
         });
       };
 
+      // Запускаем обработку всех элементов
       processElements(options.layout.elements);
 
-      return Array.from(uniqueFields);
+      // Создаем упорядоченную Map на основе displayList
+      const orderedMap = new Map<string, any>();
+
+      // Сначала добавляем элементы в порядке из displayList
+      displayList.forEach((fieldName: string) => {
+        if (elementsMap.has(fieldName)) {
+          orderedMap.set(fieldName, elementsMap.get(fieldName));
+        }
+      });
+
+      // Затем добавляем оставшиеся элементы, которых нет в displayList
+      elementsMap.forEach((value, key) => {
+        if (!orderedMap.has(key)) {
+          orderedMap.set(key, value);
+        }
+      });
+
+      // Всегда возвращаем упорядоченную Map
+      return orderedMap;
     };
 
     // Функция для поиска URL каталога по viewname (т.е. загружаем данные из шага 1 чтобы найти URL для шага 2)
@@ -244,49 +258,9 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
           getResponseData = getResponse.data;
           optionsResponseData = optionsResponse.data;
         }
-
         // Добавляем наши вычисляемые поля в OPTIONS для удобства
         if (optionsResponseData?.layout) {
-          optionsResponseData.layout.elementsMap = getElementsMap(optionsResponseData);
-          optionsResponseData.layout.uniqueFields = getUniqueFields(optionsResponseData);
-
-          // Проверяем поля из display_list на существование в uniqueFields
-          const display_list = optionsResponseData.layout.display_list || [];
-
-          // Фильтруем display_list, оставляя только поля, которые есть в uniqueFields
-          const displayList = Array.isArray(display_list)
-            ? display_list.filter((field: string) => optionsResponseData.layout.uniqueFields.includes(field))
-            : [];
-
-          // Создаем оптимизированную структуру для управления колонками
-          const columnsState: {
-            metadata: Record<string, { header: string }>;
-            visible: Set<string>;
-            order: string[];
-          } = {
-            metadata: {},
-            visible: new Set<string>(),
-            order: []
-          };
-          
-          // Заполняем метаданные колонок
-          optionsResponseData.layout.uniqueFields.forEach((field: string) => {
-            const fieldInfo = optionsResponseData.layout.elementsMap?.[field];
-            columnsState.metadata[field] = {
-              header: fieldInfo?.label || field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ')
-            };
-            
-            // Добавляем поле в порядок колонок
-            columnsState.order.push(field);
-            
-            // Если поле должно быть видимым, добавляем его в Set
-            if (displayList.includes(field)) {
-              columnsState.visible.add(field);
-            }
-          });
-          
-          // Сохраняем структуру в OPTIONS
-          optionsResponseData.layout.columnsState = columnsState;
+          optionsResponseData.layout.tableColumns = getTableColumns(optionsResponseData);
         }
 
         // Создаем новый объект с данными (общая логика для моковых и реальных данных)

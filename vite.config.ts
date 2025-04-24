@@ -17,9 +17,9 @@ export default defineConfig({
     host: '0.0.0.0',
     cors: false,
     proxy: {
-      '/static': 'http://localhost:8001',
+      '/static': 'http://localhost:7008',
       '/catalog/api/': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:7008',
         xfwd: true,
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
@@ -31,7 +31,7 @@ export default defineConfig({
         },
       },
       '/inventory/api/': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:7008',
         xfwd: true,
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
@@ -43,7 +43,7 @@ export default defineConfig({
         },
       },
       '/ocsmanage/api/': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:7008',
         xfwd: true,
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
@@ -55,7 +55,7 @@ export default defineConfig({
         },
       },
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:7008',
         xfwd: true,
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {

@@ -21,11 +21,7 @@
           </div>
 
           <div class="column-selector-list">
-            <div 
-              v-for="field in props.availableFields" 
-              :key="field" 
-              class="column-selector-item"
-            >
+            <div v-for="field in availableFields" :key="field" class="column-selector-item">
               <Checkbox
                 v-model="selectedFields"
                 :value="field"
@@ -52,57 +48,66 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, watch } from 'vue';
+  import { ref, onMounted } from 'vue';
   import Button from 'primevue/button';
   import Checkbox from 'primevue/checkbox';
   import Popover from 'primevue/popover';
 
   const props = defineProps<{
-    availableFields: string[];
-    modelValue: string[];
-    columnsMetadata?: Record<string, { header: string }>;
+    tableColumns?: Map<string, any>;
   }>();
 
   const emit = defineEmits<{
-    (e: 'update:modelValue', value: string[]): void;
+    (e: 'update-column-visibility', fieldName: string, isVisible: boolean): void;
   }>();
 
   const popover = ref();
 
   // Выбранные поля
-  const selectedFields = ref<string[]>([...props.modelValue]);
-  const originalSelection = ref<string[]>([]);
+  const selectedFields = ref<string[]>([]);
+  const availableFields = ref<string[]>([]);
 
-  // Обновляем выбранные поля при изменении входных данных
-  watch(
-    () => props.modelValue,
-    (newValue) => {
-      selectedFields.value = [...newValue];
-    },
-  );
+  // Инициализируем выбранные поля и доступные поля на основе tableColumns
+  onMounted(() => {
+    initializeFields();
+  });
+
+  // Функция для инициализации полей из tableColumns
+  const initializeFields = () => {
+    if (props.tableColumns) {
+      const visibleFields: string[] = [];
+      const allFields: string[] = [];
+
+      props.tableColumns.forEach((column, key) => {
+        allFields.push(key);
+        if (column.visible) {
+          visibleFields.push(key);
+        }
+      });
+
+      availableFields.value = allFields;
+      selectedFields.value = [...visibleFields];
+    }
+  };
 
   // Функция для открытия/закрытия popover
   const toggle = (event: Event) => {
-    // Сохраняем оригинальный выбор для возможности отмены
-    originalSelection.value = [...selectedFields.value];
     popover.value.toggle(event);
   };
 
   // Отмена изменений
   const cancel = () => {
-    selectedFields.value = [...originalSelection.value];
     popover.value.hide();
   };
 
   // Выбрать все поля
   const selectAll = () => {
-    selectedFields.value = [...props.availableFields];
+    selectedFields.value = [...availableFields.value];
   };
 
   // Снять выбор со всех полей, кроме ID
   const deselectAll = () => {
-    selectedFields.value = props.availableFields
-      .filter((field) => field === 'id');
+    selectedFields.value = availableFields.value.filter((field) => field === 'id');
   };
 
   // Применить изменения
@@ -111,14 +116,27 @@
       // Проверяем, что хотя бы одно поле выбрано
       if (selectedFields.value.length === 0) {
         // Если ничего не выбрано, добавляем хотя бы поле ID
-        const idField = props.availableFields.find((field) => field === 'id');
+        const idField = availableFields.value.find((field) => field === 'id');
         if (idField) {
           selectedFields.value = ['id'];
         }
       }
 
-      // Отправляем обновленный список полей (создаем новый массив)
-      emit('update:modelValue', [...selectedFields.value]);
+      // Обновляем видимость колонок в tableColumns
+      if (props.tableColumns) {
+        props.tableColumns.forEach((column, key) => {
+          if (column) {
+            // Устанавливаем visible в зависимости от того, выбрано ли поле
+            column.visible = selectedFields.value.includes(key);
+          }
+        });
+      }
+
+      // Обновляем видимость колонок через emit
+      availableFields.value.forEach((field) => {
+        emit('update-column-visibility', field, selectedFields.value.includes(field));
+      });
+
       popover.value.hide();
     } catch (error) {
       console.error('Ошибка при применении изменений:', error);
@@ -129,10 +147,10 @@
   // Получение метки поля из метаданных колонок
   const getFieldLabel = (field: string): string => {
     // Если переданы метаданные колонок, используем заголовок из них
-    if (props.columnsMetadata && props.columnsMetadata[field]?.header) {
-      return props.columnsMetadata[field].header;
+    if (props.tableColumns && props.tableColumns.get(field)?.header) {
+      return props.tableColumns.get(field).header;
     }
-    
+
     // Используем имя поля как метку, если не удалось получить из метаданных
     return field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
   };

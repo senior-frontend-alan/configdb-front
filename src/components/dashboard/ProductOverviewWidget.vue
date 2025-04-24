@@ -101,3 +101,111 @@ onMounted(() => {
         </div>
     </div>
 </template>
+
+<style scoped>
+.layout-card {
+    background-color: var(--p-surface-0);
+    color: var(--p-surface-950);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--p-surface-200);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.products-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.products-title {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--p-surface-900);
+}
+
+.products-table-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background-color: var(--p-surface-0);
+}
+
+.products-table {
+    width: 100%;
+    color: var(--p-surface-900);
+}
+
+.products-table-mask {
+    backdrop-filter: blur(4px) !important;
+    background-color: color-mix(in srgb, var(--p-surface-0), transparent 80%) !important;
+}
+
+.products-table-loading {
+    color: var(--p-primary-500) !important;
+}
+
+.products-search {
+    font-size: 0.875rem;
+    padding: 0.5rem;
+    background-color: var(--p-surface-0);
+    color: var(--p-surface-900);
+    border: 1px solid var(--p-surface-200);
+}
+
+/* Темная тема */
+:global(.p-dark) .layout-card {
+    background-color: var(--p-surface-900);
+    color: var(--p-surface-0);
+    border-color: var(--p-surface-700);
+}
+
+:global(.p-dark) .products-title {
+    color: var(--p-surface-0);
+}
+
+:global(.p-dark) .products-table-container {
+    background-color: var(--p-surface-900);
+}
+
+:global(.p-dark) .products-table {
+    color: var(--p-surface-0);
+}
+
+:global(.p-dark) .products-table-mask {
+    background-color: color-mix(in srgb, var(--p-surface-900), transparent 80%) !important;
+}
+
+:global(.p-dark) .products-search {
+    background-color: var(--p-surface-900);
+    color: var(--p-surface-0);
+    border-color: var(--p-surface-700);
+}
+
+/* Адаптивность */
+@media (max-width: 640px) {
+    .products-header {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .products-header .search-field {
+        width: 100%;
+    }
+}
+
+@media (min-width: 768px) {
+    .products-search {
+        width: auto !important;
+    }
+}
+
+@media (max-width: 767px) {
+    .products-search {
+        width: 100% !important;
+    }
+}
+</style>

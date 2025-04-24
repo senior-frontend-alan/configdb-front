@@ -92,3 +92,46 @@ onMounted(() => {
         </div>
     </div>
 </template>
+
+<style scoped>
+.layout-card {
+    background-color: var(--p-surface-0);
+    color: var(--p-surface-950);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--p-surface-200);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chart-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.chart-title {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--p-surface-900);
+}
+
+.chart-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+}
+
+/* Темная тема */
+:global(.p-dark) .layout-card {
+    background-color: var(--p-surface-900);
+    color: var(--p-surface-0);
+    border-color: var(--p-surface-700);
+}
+
+:global(.p-dark) .chart-title {
+    color: var(--p-surface-0);
+}
+</style>

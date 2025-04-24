@@ -1,133 +1,123 @@
 <template>
   <div class="catalog-details-page">
-    <Card>
-      <template #title>
-        <div class="header-container">
-          <h4>{{ moduleTitle }}</h4>
-          <div class="refresh-button-container">
-            <Button
-              id="refresh-button"
-              icon="pi pi-refresh"
-              class="p-button-rounded p-button-text"
-              :disabled="loading"
-              @click="refreshData"
-              :loading="loading"
-              aria-label="Обновить данные"
-              v-tooltip="'Обновить данные'"
-            />
-          </div>
-        </div>
-      </template>
-      <template #content>
-        <div v-if="loading" class="loading-container">
-          <ProgressSpinner />
-          <p>Загрузка данных...</p>
-        </div>
+    <div class="header-container">
+      <h4>{{ moduleTitle }}</h4>
+      <div class="refresh-button-container">
+        <Button
+          id="refresh-button"
+          icon="pi pi-refresh"
+          class="p-button-rounded p-button-text"
+          :disabled="loading"
+          @click="refreshData"
+          :loading="loading"
+          aria-label="Обновить данные"
+          v-tooltip="'Обновить данные'"
+        />
+      </div>
+    </div>
+    <div v-if="loading" class="loading-container">
+      <ProgressSpinner />
+      <p>Загрузка данных...</p>
+    </div>
 
-        <div v-else-if="error" class="error-container">
-          <Message severity="error">{{ error }}</Message>
-        </div>
+    <div v-else-if="error" class="error-container">
+      <Message severity="error">{{ error }}</Message>
+    </div>
 
-        <div v-else-if="!tableData.length" class="empty-container">
-          <Message severity="info">Данные каталога отсутствуют</Message>
-        </div>
+    <div v-else-if="!tableData.length" class="empty-container">
+      <Message severity="info">Данные каталога отсутствуют</Message>
+    </div>
 
-        <div v-else class="catalog-details">
-          <!-- Отображение в виде таблицы -->
-          <div class="table-controls">
-            <AddNewDataDialog :moduleId="moduleId" @data-added="refreshData" />
-            <Button
-              :icon="isTableScrollable ? 'pi pi-arrows-h' : 'pi pi-table'"
-              class="p-button-rounded p-button-text"
-              aria-label="Переключить режим ширины"
-              v-tooltip="
-                isTableScrollable
-                  ? 'Отключить горизонтальную прокрутку'
-                  : 'Включить горизонтальную прокрутку'
-              "
-              @click="isTableScrollable = !isTableScrollable"
-            />
-            <ColumnVisibilitySelector
-              :available-fields="columnsOrder"
-              v-model="visibleColumns"
-              :columns-metadata="columnsMetadata"
-              @update:modelValue="updateVisibleColumns"
-            />
-          </div>
-          <div class="table-wrapper" :class="{ 'table-scrollable': isTableScrollable }">
-            <DataTable
-              :value="tableData"
-              stripedRows
-              responsiveLayout="scroll"
-              reorderableColumns
-              removableSort
-              @column-reorder="onColumnReorder"
-              class="p-datatable-sm"
-              v-model:selection="selectedItems"
-              :selection-mode="hasBatchPermission ? 'multiple' : undefined"
-              dataKey="id"
-              :scrollable="isTableScrollable"
-              :resizableColumns="true"
-              columnResizeMode="fit"
-              :tableStyle="isTableScrollable ? 'min-width: 1000px' : 'width: 100%'"
-              @row-click="onRowClick"
-            >
-              <!-- Колонка с чекбоксами для массового выделения, если разрешены batch операции -->
-              <Column
-                v-if="hasBatchPermission"
-                selectionMode="multiple"
-                headerStyle="width: 3rem"
-              />
+    <div v-else class="catalog-details">
+      <!-- Отображение в виде таблицы -->
+      <div class="table-controls">
+        <AddNewDataDialog :moduleId="moduleId" @data-added="refreshData" />
+        <Button
+          :icon="isTableScrollable ? 'pi pi-arrows-h' : 'pi pi-table'"
+          class="p-button-rounded p-button-text"
+          aria-label="Переключить режим ширины"
+          v-tooltip="
+            isTableScrollable
+              ? 'Отключить горизонтальную прокрутку'
+              : 'Включить горизонтальную прокрутку'
+          "
+          @click="isTableScrollable = !isTableScrollable"
+        />
+        <ColumnVisibilitySelector
+          :table-columns="currentStoreDetails?.OPTIONS?.layout?.tableColumns"
+          @update-column-visibility="updateColumnVisibility"
+        />
+      </div>
+      <div class="table-wrapper" :class="{ 'table-scrollable': isTableScrollable }">
+        <DataTable
+          :value="tableData"
+          stripedRows
+          responsiveLayout="scroll"
+          reorderableColumns
+          removableSort
+          @column-reorder="onColumnReorder"
+          class="p-datatable-sm transparent-header inner-shadow"
+          v-model:selection="selectedItems"
+          :selection-mode="hasBatchPermission ? 'multiple' : undefined"
+          dataKey="id"
+          :scrollable="isTableScrollable"
+          :resizableColumns="true"
+          columnResizeMode="fit"
+          :tableStyle="isTableScrollable ? 'min-width: 1000px' : 'width: 100%'"
+          @row-click="onRowClick"
+        >
+          <!-- Колонка с чекбоксами для массового выделения, если разрешены batch операции -->
+          <Column v-if="hasBatchPermission" selectionMode="multiple" headerStyle="width: 3rem" />
 
-              <!-- Динамические колонки -->
-              <Column
-                v-for="col in columns"
-                :key="col.field"
-                :field="col.field"
-                :header="col.header"
-                :sortable="true"
-                :style="getColumnStyle(col.field)"
-                :frozen="col.field === 'id' && isTableScrollable"
+          <!-- Динамические колонки -->
+          <Column
+            v-for="col in columns"
+            :key="col.field"
+            :field="col.field"
+            :header="col.header"
+            :sortable="true"
+            :style="getColumnStyle(col.field)"
+            :frozen="col.field === 'id' && isTableScrollable"
+          >
+            <template #body="slotProps">
+              <!-- Отладочный вывод для HTML-строки -->
+              <div
+                v-if="
+                  typeof slotProps.field === 'string' &&
+                  slotProps.field === 'layout_rich_edit_field' &&
+                  typeof slotProps.data[slotProps.field] === 'string'
+                "
               >
-                <template #body="slotProps">
-                  <!-- Отладочный вывод для HTML-строки -->
-                  <div
-                    v-if="
-                      typeof slotProps.field === 'string' &&
-                      slotProps.field === 'layout_rich_edit_field' &&
-                      typeof slotProps.data[slotProps.field] === 'string'
-                    "
-                  >
-                    <pre class="text-xs bg-surface-50 p-1 rounded overflow-auto max-h-20">
-                    Тип: {{ typeof slotProps.data[slotProps.field] }}
-                    Длина: {{ slotProps.data[slotProps.field].length }}
-                    Начало: {{ slotProps.data[slotProps.field].substring(0, 30) }}...
-                  </pre
-                    >
-                  </div>
+                <pre class="text-xs bg-surface-50 p-1 rounded overflow-auto max-h-20">
+                Тип: {{ typeof slotProps.data[slotProps.field] }}
+                Длина: {{ slotProps.data[slotProps.field].length }}
+                Начало: {{ slotProps.data[slotProps.field].substring(0, 30) }}...
+              </pre
+                >
+              </div>
 
-                  <!-- В PrimeVue DataTable слот #body передает объект slotProps, содержащий данные текущей строки (data) и имя текущего поля (field)
-                TypeScript не мог определить, что slotProps.field всегда является строкой, поэтому выдавал ошибку при попытке использовать это значение как индекс объекта -->
-                  <RichEditPopover
-                    v-if="typeof slotProps.field === 'string' && 
-                        slotProps.data[slotProps.field as string] && 
-                        (typeof slotProps.data[slotProps.field as string] === 'object' || 
-                         (typeof slotProps.data[slotProps.field as string] === 'object' && 
-                          'label' in slotProps.data[slotProps.field as string]))"
-                    :fieldData="slotProps.data[slotProps.field as string]"
-                  />
-                  <span v-else>{{
-                    typeof slotProps.field === 'string'
-                      ? slotProps.data[slotProps.field as string]
-                      : ''
-                  }}</span>
-                </template>
-              </Column>
-            </DataTable>
-          </div>
-        </div>
-      </template>
-    </Card>
+              <!-- В PrimeVue DataTable слот #body передает объект slotProps, содержащий данные текущей строки (data) и имя текущего поля (field)
+            TypeScript не мог определить, что slotProps.field всегда является строкой, поэтому выдавал ошибку при попытке использовать это значение как индекс объекта -->
+              <RichEditPopover
+                v-if="typeof slotProps.field === 'string' && 
+                    slotProps.data[slotProps.field as string] && 
+                    (typeof slotProps.data[slotProps.field as string] === 'object' || 
+                     (typeof slotProps.data[slotProps.field as string] === 'object' && 
+                      'label' in slotProps.data[slotProps.field as string]))"
+                :fieldData="slotProps.data[slotProps.field as string]"
+              />
+              <span v-else>{{
+                typeof slotProps.field === 'string' ? slotProps.data[slotProps.field as string] : ''
+              }}</span>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+    </div>
+    <!-- <Card>
+      <template #title> </template>
+      <template #content> </template>
+    </Card> -->
 
     <!-- Статус-бар с информацией о количестве элементов -->
     <div class="status-bar">
@@ -156,7 +146,6 @@
   import ColumnVisibilitySelector from '../components/ColumnVisibilitySelector.vue';
   import AddNewDataDialog from '../components/AddNewDataDialog.vue';
   import RichEditPopover from '../components/RichEditPopover.vue';
-
   import Card from 'primevue/card';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
@@ -170,15 +159,14 @@
   const viewname = computed(() => route.params.viewname as string);
 
   // Состояние компонента
+  const selectedItems = ref<any[]>([]);
+  const columns = ref<any[]>([]);
+  const tableData = ref<any[]>([]);
   const loading = ref(true);
   const error = ref<string | null>(null);
-  const selectedItems = ref<any[]>([]);
-  const tableData = ref<Array<any>>([]);
-  const columns = ref<Array<{ field: string; header: string }>>([]);
   const primaryKey = ref<string>('id');
   const hasBatchPermission = ref(true);
   const visibleColumns = ref<string[]>([]);
-  const columnsMetadata = ref<Record<string, { header: string }>>({});
   const columnsOrder = ref<string[]>([]);
   const isTableScrollable = ref(false);
 
@@ -193,13 +181,55 @@
   // Получаем ссылку на хранилище модуля
   const moduleStore = computed(() => useModuleStore(moduleId.value));
 
+  // Создаем реактивную ссылку на текущие данные из стора
+  const currentStoreDetails = computed(() => {
+    return moduleStore.value?.catalogDetails[viewname.value];
+  });
+
   // Вычисляемые свойства для статус-бара
   const totalItems = ref(0);
   const fetchedItems = computed(() => tableData.value.length);
 
-  // Функция для получения текущих данных из стора
-  const getCurrentStoreDetails = () => {
-    return moduleStore.value?.catalogDetails[viewname.value];
+  // Функция для формирования колонок таблицы из tableColumns
+  const generateTableColumns = (tableColumns: Map<string, any>) => {
+    if (!tableColumns) return;
+
+    // Создаем массивы для колонок таблицы и селектора
+    const tableColumnsList: Array<{ field: string; header: string }> = [];
+    const allFields: string[] = [];
+
+    // Обрабатываем tableColumns напрямую
+    tableColumns.forEach((column: any, fieldName: string) => {
+      // Добавляем поле в список всех полей
+      allFields.push(fieldName);
+
+      // Если поле видимое, добавляем его в список колонок таблицы
+      if (column.visible) {
+        tableColumnsList.push({
+          field: fieldName,
+          header: column.label || fieldName,
+        });
+      }
+    });
+
+    // Устанавливаем значения
+    columnsOrder.value = allFields;
+    visibleColumns.value = tableColumnsList.map((col) => col.field);
+    columns.value = tableColumnsList;
+  };
+
+  // Функция для обновления видимости колонок
+  const updateColumnVisibility = (fieldName: string, isVisible: boolean) => {
+    const tableColumns = currentStoreDetails.value?.OPTIONS?.layout?.tableColumns;
+    if (!tableColumns) return;
+
+    const column = tableColumns.get(fieldName);
+    if (column) {
+      column.visible = isVisible;
+
+      // Перегенерируем колонки таблицы
+      generateTableColumns(tableColumns);
+    }
   };
 
   // Функция для обработки полученных данных
@@ -229,24 +259,8 @@
     // Обновляем данные таблицы
     tableData.value = createRows(storeDetails);
 
-    // Получаем данные о колонках из columnsState
-    const columnsState = storeDetails.OPTIONS?.layout?.columnsState;
-    if (columnsState) {
-      // Сохраняем метаданные колонок
-      columnsMetadata.value = columnsState.metadata;
-
-      // Сохраняем порядок колонок
-      columnsOrder.value = [...columnsState.order];
-
-      // Получаем список видимых колонок
-      visibleColumns.value = Array.from(columnsState.visible);
-
-      // Создаем колонки для таблицы
-      columns.value = visibleColumns.value.map((field) => ({
-        field,
-        header: columnsMetadata.value[field]?.header || field,
-      }));
-    }
+    // Формируем колонки таблицы
+    generateTableColumns(storeDetails.OPTIONS?.layout?.tableColumns);
 
     // Обновляем общее количество элементов
     totalItems.value = storeDetails.GET.count || tableData.value.length;
@@ -277,11 +291,11 @@
       );
 
       if (dataLoaded) {
-        const newStoreDetails = getCurrentStoreDetails();
+        const storeDetails = currentStoreDetails.value;
 
-        if (newStoreDetails) {
+        if (storeDetails) {
           // Обрабатываем полученные данные
-          processData(newStoreDetails);
+          processData(storeDetails);
 
           // Сбрасываем выбранные элементы
           selectedItems.value = [];
@@ -294,23 +308,28 @@
 
   // Функция для создания строк таблицы из отформатированных данных
   const createRows = (storeDetails: any): any[] => {
-    // Проверяем наличие данных
     if (!storeDetails || !storeDetails.GET || !storeDetails.GET.results) {
       console.error('Ошибка: GET не содержит results');
       return [];
     }
 
-    // Получаем карту элементов для форматирования
-    const elementsMap = storeDetails.OPTIONS?.layout?.elementsMap || {};
+    const tableColumns = storeDetails.OPTIONS?.layout?.tableColumns || new Map();
 
-    // Форматируем каждую строку и каждое поле в ней
     return storeDetails.GET.results.map((row: any) => {
       const formattedRow = { ...row };
 
       // Форматируем каждое поле в соответствии с его типом
       Object.keys(row).forEach((fieldName) => {
         try {
-          const fieldInfo = elementsMap[fieldName];
+          const fieldInfo = tableColumns.get(fieldName);
+          // Не удалять!
+          // Определяем тип поля на основе class_name или field_class
+          // let fieldType = FIELD_TYPES.LAYOUT_CHAR_FIELD; // Тип по умолчанию
+          // if (element.class_name && element.class_name !== '') {
+          //   fieldType = element.class_name;
+          // } else if (element.field_class && element.field_class !== '') {
+          //   fieldType = element.field_class;
+          // }
 
           if (fieldInfo) {
             // Форматируем по типу поля
@@ -331,7 +350,7 @@
 
   // Обработка перетаскивания столбцов
   const onColumnReorder = (event: any) => {
-    const storeDetails = getCurrentStoreDetails();
+    const storeDetails = currentStoreDetails.value;
     if (!storeDetails) return;
 
     // Получаем новый порядок столбцов
@@ -343,37 +362,13 @@
     console.log('Порядок столбцов изменен:', newColumns);
   };
 
-  // Обновление видимости колонок
-  const updateVisibleColumns = (newColumns: string[]) => {
-    // Обновляем локальное состояние
-    visibleColumns.value = [...newColumns];
-
-    try {
-      // Получаем ссылку на columnsState
-      const storeDetails = getCurrentStoreDetails();
-      if (!storeDetails || !storeDetails.OPTIONS || !storeDetails.OPTIONS.layout) return;
-
-      const columnsState = storeDetails.OPTIONS.layout.columnsState;
-      if (!columnsState) return;
-
-      // Обновляем видимость в columnsState
-      columnsState.visible.clear();
-      newColumns.forEach((field) => {
-        columnsState.visible.add(field);
-      });
-
-      // Обновляем колонки для таблицы
-      columns.value = newColumns.map((field) => ({
-        field,
-        header: columnsMetadata.value[field]?.header || field,
-      }));
-    } catch (error) {
-      console.error('Ошибка при обновлении видимости колонок:', error);
-    }
-  };
-
   const getColumnStyle = (field: string) => {
+    // Используем field для определения стиля колонки
     if (isTableScrollable.value) {
+      // Для ID колонки можно задать меньшую ширину
+      if (field === 'id') {
+        return 'min-width: 100px';
+      }
       return 'min-width: 150px';
     } else {
       return '';
@@ -403,11 +398,11 @@
     }
 
     // Если данные уже загружены роутером, просто используем их
-    const currentStoreDetails = getCurrentStoreDetails();
-    if (currentStoreDetails && currentStoreDetails.GET && currentStoreDetails.GET.results) {
+    const storeDetails = currentStoreDetails.value;
+    if (storeDetails && storeDetails.GET && storeDetails.GET.results) {
       console.log('Используем данные, предварительно загруженные роутером');
 
-      processData(currentStoreDetails);
+      processData(storeDetails);
 
       loading.value = false;
     } else {
@@ -419,55 +414,21 @@
 
 <style scoped>
   .catalog-details-page {
-    padding: 1rem;
-    padding-bottom: 3rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
 
   .header-container {
     display: flex;
-    justify-content: flex-start;
+    justify-content: space-between;
     align-items: center;
+    margin-bottom: 1rem;
   }
 
   .refresh-button-container {
-    margin-left: 1rem;
     display: flex;
-    align-items: center;
-  }
-
-  .table-controls {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 0.5rem;
     gap: 0.5rem;
-  }
-
-  .table-wrapper {
-    width: 100%;
-  }
-
-  .table-wrapper:not(.table-scrollable) {
-    overflow-x: hidden;
-  }
-
-  .table-wrapper:not(.table-scrollable) :deep(.p-datatable) {
-    width: 100%;
-  }
-
-  .table-wrapper:not(.table-scrollable) :deep(.p-datatable-wrapper) {
-    overflow-x: hidden;
-  }
-
-  .table-wrapper:not(.table-scrollable) :deep(.p-datatable-table) {
-    width: 100% !important;
-    table-layout: fixed;
-  }
-
-  .table-wrapper:not(.table-scrollable) :deep(.p-datatable-tbody > tr > td) {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
   }
 
   .loading-container,
@@ -481,17 +442,25 @@
   }
 
   .catalog-details {
-    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
   }
 
-  .batch-actions-panel {
+  .table-controls {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background-color: var(--surface-hover);
-    border-radius: 4px;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .table-wrapper {
+    flex: 1;
+    overflow: auto;
+  }
+
+  .table-scrollable {
+    overflow-x: auto;
   }
 
   .selected-info {
@@ -526,6 +495,32 @@
   .column-drag-handle:hover {
     opacity: 1;
   }
+
+  :deep(.transparent-header .p-datatable-thead > tr > th) {
+    background-color: transparent;
+    /* border-color: var(--surface-200); */
+  }
+
+  :deep(.inner-shadow .p-datatable-wrapper) {
+    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  :deep(.inner-shadow .p-datatable-tbody) {
+    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  :deep(.inner-shadow .table-wrapper) {
+    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
+  }
+  .inner-shadow {
+    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
+  }
+  /* Применяем тень к обертке таблицы
+  :deep(.inner-shadow .p-datatable-wrapper) {
+    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
+  }
+
+*/
 
   /* Стили для статус-бара */
   .status-bar {

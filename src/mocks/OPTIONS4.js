@@ -19,10 +19,14 @@ export const OPTIONS4 = {
                 "label": "layout_integer_field",
                 "help_text": "LayoutIntegerField help_text",
                 "field_class": "",
+
+                // 4 поля которые есть для любого типа поля
                 // "required": false,
                 // "allow_null": true,
                 // "default": 0,
                 // "read_only": false, // при добавлении показываем только те которые false а при редактировании показываем все, но с disabled
+
+
                 // "input_type": "number",
                 // "filterable": true,
                 // "sortable": true,
@@ -87,6 +91,7 @@ export const OPTIONS4 = {
                 // "pattern": "^[a-zA-Z0-9_-]+$",
                 // "filterable": true,
                 // "sortable": true,
+                // "min_length": 15,
                 // "max_length": 255,
                 // "multiline": false
             },
@@ -350,7 +355,7 @@ export const OPTIONS4 = {
                     }
                 ],
                 "multiple": false,
-                "list_view_items": 3, 
+                "list_view_items": 3,
             },
             {
                 "class_name": "LayoutSection", // просто обрамление элементов с label
@@ -358,71 +363,71 @@ export const OPTIONS4 = {
                 "name": "additional-attributes",
                 "label": "Additional Attributes",
                 "elements": [
-                  {
-                    "class_name": "LayoutField",
-                    "element_id": "audittransaction/date_opened",
-                    "name": "date_opened",
-                    "label": "Date opened",
-                    "field_class": "DateTimeField",
-                    "read_only": true,
-                    "input_type": "text"
-                  },
-                  {
-                    "class_name": "LayoutField",
-                    "element_id": "audittransaction/date_updated",
-                    "name": "date_updated",
-                    "label": "Date updated",
-                    "field_class": "DateTimeField",
-                    "read_only": true,
-                    "input_type": "text"
-                  },
-                  {
-                    "class_name": "LayoutField",
-                    "element_id": "audittransaction/date_closed",
-                    "name": "date_closed",
-                    "label": "Date closed",
-                    "field_class": "DateTimeField",
-                    "allow_null": true,
-                    "read_only": true,
-                    "input_type": "text"
-                  }
+                    {
+                        "class_name": "LayoutField",
+                        "element_id": "audittransaction/date_opened",
+                        "name": "date_opened",
+                        "label": "Date opened",
+                        "field_class": "DateTimeField",
+                        "read_only": true,
+                        "input_type": "text"
+                    },
+                    {
+                        "class_name": "LayoutField",
+                        "element_id": "audittransaction/date_updated",
+                        "name": "date_updated",
+                        "label": "Date updated",
+                        "field_class": "DateTimeField",
+                        "read_only": true,
+                        "input_type": "text"
+                    },
+                    {
+                        "class_name": "LayoutField",
+                        "element_id": "audittransaction/date_closed",
+                        "name": "date_closed",
+                        "label": "Date closed",
+                        "field_class": "DateTimeField",
+                        "allow_null": true,
+                        "read_only": true,
+                        "input_type": "text"
+                    }
                 ]
-              },
-              {
+            },
+            {
                 "class_name": "LayoutRow", // в ряд
                 "element_id": "audittransaction/layout_row",
                 "name": "layout_row",
                 "elements": [
-                  {
-                    "class_name": "LayoutField",
-                    "element_id": "audittransaction/date_opened",
-                    "name": "date_opened",
-                    "label": "Date opened",
-                    "field_class": "DateTimeField",
-                    "read_only": true,
-                    "input_type": "text"
-                  },
-                  {
-                    "class_name": "LayoutField",
-                    "element_id": "audittransaction/date_updated",
-                    "name": "date_updated",
-                    "label": "Date updated",
-                    "field_class": "DateTimeField",
-                    "read_only": true,
-                    "input_type": "text"
-                  },
-                  {
-                    "class_name": "LayoutField",
-                    "element_id": "audittransaction/date_closed",
-                    "name": "date_closed",
-                    "label": "Date closed",
-                    "field_class": "DateTimeField",
-                    "allow_null": true,
-                    "read_only": true,
-                    "input_type": "text"
-                  }
+                    {
+                        "class_name": "LayoutField",
+                        "element_id": "audittransaction/date_opened",
+                        "name": "date_opened",
+                        "label": "Date opened",
+                        "field_class": "DateTimeField",
+                        "read_only": true,
+                        "input_type": "text"
+                    },
+                    {
+                        "class_name": "LayoutField",
+                        "element_id": "audittransaction/date_updated",
+                        "name": "date_updated",
+                        "label": "Date updated",
+                        "field_class": "DateTimeField",
+                        "read_only": true,
+                        "input_type": "text"
+                    },
+                    {
+                        "class_name": "LayoutField",
+                        "element_id": "audittransaction/date_closed",
+                        "name": "date_closed",
+                        "label": "Date closed",
+                        "field_class": "DateTimeField",
+                        "allow_null": true,
+                        "read_only": true,
+                        "input_type": "text"
+                    }
                 ]
-              }
+            }
 
             // {
             //     "class_name": "ViewSetInlineLayout",
@@ -509,7 +514,7 @@ export const OPTIONS4 = {
         // "natural_key": ["id", "name"],
         // "primary_key": "id",
         // "keyset": ["id", "name"],
-        // "set_operations": true,
+        "set_operations": true, // рисуем чекбоксы первым стобцом
         // "display_list_modal": ["name", "state", "priority"]
     }
 }
