@@ -46,14 +46,14 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, reactive } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  import { useModuleStore } from '../stores/module-factory';
+  import { useModuleStore } from '../../stores/module-factory';
 
   import Card from 'primevue/card';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import Button from 'primevue/button';
-  import DynamicFormField from '../components/DynamicFormField.vue';
-  import DynamicFormLayout from '../components/DynamicFormLayout.vue';
+  import DynamicFormField from './components/DynamicFormField.vue';
+  import DynamicFormLayout from './components/DynamicFormLayout.vue';
 
   // Определяем типы для формы
   interface FormField {
@@ -129,7 +129,7 @@
   // Функция для возврата к списку
   const goBack = () => {
     const currentPath = route.path;
-    const basePath = currentPath.split('/').slice(0, -1).join('/');
+    const basePath = currentPath.split('/').slice(0, -2).join('/');
     router.push(basePath);
   };
 
@@ -258,6 +258,15 @@
 </script>
 
 <style scoped>
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-bottom: 0.5rem;
+  }
+
   .edit-record-page {
     padding: 1rem;
     padding-bottom: 3rem;

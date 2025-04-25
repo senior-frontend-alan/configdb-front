@@ -10,6 +10,18 @@
 
     <Popover ref="popover">
       <div class="popover-content">
+        <Button
+          :icon="isTableScrollable ? 'pi pi-arrows-h' : 'pi pi-table'"
+          class="p-button-rounded p-button-text"
+          aria-label="Переключить режим ширины"
+          v-tooltip="
+            isTableScrollable
+              ? 'Отключить горизонтальную прокрутку'
+              : 'Включить горизонтальную прокрутку'
+          "
+          @click="toggleTableScrollable"
+          label="Включить горизонтальную прокрутку"
+        />
         <div class="popover-header">
           <span>Настройка видимости колонок</span>
         </div>
@@ -55,10 +67,12 @@
 
   const props = defineProps<{
     tableColumns?: Map<string, any>;
+    isTableScrollable?: boolean;
   }>();
 
   const emit = defineEmits<{
     (e: 'update-column-visibility', fieldName: string, isVisible: boolean): void;
+    (e: 'toggle-table-scrollable'): void;
   }>();
 
   const popover = ref();
@@ -142,6 +156,11 @@
       console.error('Ошибка при применении изменений:', error);
       popover.value.hide();
     }
+  };
+
+  // Функция для переключения режима прокрутки таблицы
+  const toggleTableScrollable = () => {
+    emit('toggle-table-scrollable');
   };
 
   // Получение метки поля из метаданных колонок

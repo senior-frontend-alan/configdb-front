@@ -40,7 +40,7 @@
       />
 
       <!-- Отображение в виде табов -->
-      <TabViewP1
+      <P1_TabView
         v-else
         :catalogData="filteredData"
         :moduleId="moduleId"
@@ -54,15 +54,14 @@
 <script setup lang="ts">
   import { ref, onMounted, computed, watch } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  import { useModuleStore } from '../stores/module-factory';
-  import { useSettingsStore } from '../stores/settingsStore';
-  import type { CatalogGroup } from '../stores/types/moduleStore.type';
+  import { useModuleStore } from '../../stores/module-factory';
+  import { useSettingsStore } from '../../stores/settingsStore';
+  import type { CatalogGroup } from '../../stores/types/moduleStore.type';
 
-  import Card from 'primevue/card';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
-  import TabViewP1 from '../components/TabViewP1.vue';
-  import ListViewP1 from '../components/ListViewP1.vue';
+  import P1_TabView from './components/P1_TabView.vue';
+  import ListViewP1 from './components/P1_ListView.vue';
 
   const route = useRoute();
   const router = useRouter();

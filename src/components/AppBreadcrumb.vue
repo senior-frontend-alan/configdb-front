@@ -40,16 +40,38 @@
       let currentPath = '';
       let currentQuery = {};
 
-      pathSegments.forEach((segment) => {
+      // Обрабатываем сегменты пути
+      for (let i = 0; i < pathSegments.length; i++) {
+        const segment = pathSegments[i];
         currentPath += `/${segment}`;
-        // Преобразуем сегмент пути для отображения (первая буква заглавная, дефисы заменяем на пробелы)
-        const label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
 
+        let label = '';
+
+        // Обработка специальных случаев
+        if (segment === 'edit' && i + 1 < pathSegments.length) {
+          // Случай редактирования записи (edit/ID)
+          const id = pathSegments[i + 1];
+          if (!isNaN(Number(id))) {
+            currentPath += `/${id}`;
+            label = `edit ${id}`;
+            i++; // Пропускаем следующий сегмент (ID)
+          } else {
+            label = 'edit';
+          }
+        } else if (segment === 'add') {
+          // Случай добавления новой записи
+          label = 'add';
+        } else {
+          // Стандартный случай - форматируем сегмент пути
+          label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
+        }
+
+        // Добавляем элемент хлебных крошек
         items.push({
           label,
           route: { path: currentPath, query: currentQuery },
         });
-      });
+      }
 
       // Добавляем группу в хлебные крошки, если она указана в параметрах запроса
       if (route.query.group) {

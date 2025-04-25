@@ -1,9 +1,12 @@
-import "./assets/styles/main.css";
+import './assets/styles/main.css';
 
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
+import Lara from '@primeuix/themes/lara';
+import Nora from '@primeuix/themes/nora';
+import Material from '@primeuix/themes/material';
 import { definePreset } from '@primeuix/themes';
 import App from './App.vue';
 import router from './router';
@@ -20,23 +23,38 @@ app.use(router);
 
 // Меняем цветовую тему на голубую
 const MyPreset = definePreset(Aura, {
-    semantic: {
-        primary: {
-            50: '{sky.50}',
-            100: '{sky.100}',
-            200: '{sky.200}',
-            300: '{sky.300}',
-            400: '{sky.400}',
-            500: '{sky.500}',
-            600: '{sky.600}',
-            700: '{sky.700}',
-            800: '{sky.800}',
-            900: '{sky.900}',
-            950: '{sky.950}'
-        }
-    }
+  colors: {
+    // Определяем собственную палитру
+  },
+  semantic: {
+    nexignBlue: {
+      50: '#e6f0f3',
+      100: '#cce1e7',
+      200: '#99c3cf',
+      300: '#66a5b7',
+      400: '#33879f',
+      500: '#0d475b', // эталонный цвет nexign
+      600: '#0b3a49',
+      700: '#082c37',
+      800: '#051d24',
+      900: '#030f12',
+      950: '#010708',
+    },
+    primary: {
+      50: '{nexignBlue.50}',
+      100: '{nexignBlue.100}',
+      200: '{nexignBlue.200}',
+      300: '{nexignBlue.300}',
+      400: '{nexignBlue.400}',
+      500: '{nexignBlue.500}',
+      600: '{nexignBlue.600}',
+      700: '{nexignBlue.700}',
+      800: '{nexignBlue.800}',
+      900: '{nexignBlue.900}',
+      950: '{nexignBlue.950}',
+    },
+  },
 });
-
 
 app.use(PrimeVue, {
   theme: {
@@ -51,12 +69,12 @@ app.use(PrimeVue, {
 const initializeModuleStores = () => {
   try {
     const { config } = useConfig();
-    
+
     // Создаем сторы для каждого модуля в конфигурации
-    config.value.modules.forEach(moduleConfig => {
+    config.value.modules.forEach((moduleConfig) => {
       console.log(`Создание стора для модуля: ${moduleConfig.id}`);
       const storeDefinition = createModuleStore(moduleConfig);
-      
+
       // Создание экземпляра стора для регистрации в Pinia и видимости в Vue Devtools
       storeDefinition();
     });

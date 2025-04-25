@@ -1,8 +1,8 @@
 <template>
   <div class="catalog-details-page">
     <div class="header-container">
-      <h4>{{ moduleTitle }}</h4>
-      <div class="refresh-button-container">
+      <div class="title-container">
+        <h3>{{ currentStoreDetails?.OPTIONS?.verbose_name || 'Каталог без названия' }}</h3>
         <Button
           id="refresh-button"
           icon="pi pi-refresh"
@@ -12,6 +12,21 @@
           :loading="loading"
           aria-label="Обновить данные"
           v-tooltip="'Обновить данные'"
+        />
+      </div>
+      <div class="table-controls">
+        <!-- <AddNewDataDialog :moduleId="moduleId" @data-added="refreshData" /> -->
+        <Button
+          icon="pi pi-plus"
+          class="p-button-sm"
+          aria-label="Добавить запись"
+          @click="goToAddRecord"
+        />
+        <ColumnVisibilitySelector
+          :table-columns="currentStoreDetails?.OPTIONS?.layout?.tableColumns"
+          :is-table-scrollable="isTableScrollable"
+          @update-column-visibility="updateColumnVisibility"
+          @toggle-table-scrollable="isTableScrollable = !isTableScrollable"
         />
       </div>
     </div>
@@ -30,24 +45,7 @@
 
     <div v-else class="catalog-details">
       <!-- Отображение в виде таблицы -->
-      <div class="table-controls">
-        <AddNewDataDialog :moduleId="moduleId" @data-added="refreshData" />
-        <Button
-          :icon="isTableScrollable ? 'pi pi-arrows-h' : 'pi pi-table'"
-          class="p-button-rounded p-button-text"
-          aria-label="Переключить режим ширины"
-          v-tooltip="
-            isTableScrollable
-              ? 'Отключить горизонтальную прокрутку'
-              : 'Включить горизонтальную прокрутку'
-          "
-          @click="isTableScrollable = !isTableScrollable"
-        />
-        <ColumnVisibilitySelector
-          :table-columns="currentStoreDetails?.OPTIONS?.layout?.tableColumns"
-          @update-column-visibility="updateColumnVisibility"
-        />
-      </div>
+
       <div class="table-wrapper" :class="{ 'table-scrollable': isTableScrollable }">
         <DataTable
           :value="tableData"
@@ -114,11 +112,6 @@
         </DataTable>
       </div>
     </div>
-    <!-- <Card>
-      <template #title> </template>
-      <template #content> </template>
-    </Card> -->
-
     <!-- Статус-бар с информацией о количестве элементов -->
     <div class="status-bar">
       <div class="status-item">
@@ -140,13 +133,12 @@
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  import { useModuleStore } from '../stores/module-factory';
-  import { findAndLoadCatalogData } from '../router';
-  import { formatByClassName, FIELD_TYPES } from '../utils/formatter';
-  import ColumnVisibilitySelector from '../components/ColumnVisibilitySelector.vue';
-  import AddNewDataDialog from '../components/AddNewDataDialog.vue';
-  import RichEditPopover from '../components/RichEditPopover.vue';
-  import Card from 'primevue/card';
+  import { useModuleStore } from '../../stores/module-factory';
+  import { findAndLoadCatalogData } from '../../router';
+  import { formatByClassName, FIELD_TYPES } from '../../utils/formatter';
+  import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
+  import AddNewDataDialog from './components/AddNewDataDialog.vue';
+  import RichEditPopover from './components/RichEditPopover.vue';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import DataTable from 'primevue/datatable';
@@ -169,11 +161,6 @@
   const visibleColumns = ref<string[]>([]);
   const columnsOrder = ref<string[]>([]);
   const isTableScrollable = ref(false);
-
-  // Заголовок страницы
-  const moduleTitle = computed(() => {
-    return `Детали каталога: ${viewname.value}`;
-  });
 
   // Получаем ID модуля из meta-данных маршрута
   const moduleId = computed(() => (route.meta.moduleId as string) || '');
@@ -380,7 +367,7 @@
 
     if (rowData && rowData.id) {
       const currentPath = route.path;
-      const editUrl = `${currentPath}/${rowData.id}`;
+      const editUrl = `${currentPath}/edit/${rowData.id}`;
 
       router.push(editUrl);
     } else {
@@ -388,6 +375,14 @@
         'Не удалось получить идентификатор строки для перехода на страницу редактирования',
       );
     }
+  };
+
+  // Переход на страницу добавления новой записи
+  const goToAddRecord = () => {
+    const currentPath = route.path;
+    const addUrl = `${currentPath}/add`;
+
+    router.push(addUrl);
   };
 
   onMounted(async () => {
@@ -421,14 +416,20 @@
 
   .header-container {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     margin-bottom: 1rem;
   }
 
-  .refresh-button-container {
+  .title-container {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .table-controls {
+    align-items: center;
+    display: flex;
+    justify-content: flex-end;
   }
 
   .loading-container,
@@ -445,13 +446,6 @@
     display: flex;
     flex-direction: column;
     flex: 1;
-  }
-
-  .table-controls {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
   }
 
   .table-wrapper {
@@ -498,29 +492,7 @@
 
   :deep(.transparent-header .p-datatable-thead > tr > th) {
     background-color: transparent;
-    /* border-color: var(--surface-200); */
   }
-
-  :deep(.inner-shadow .p-datatable-wrapper) {
-    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  :deep(.inner-shadow .p-datatable-tbody) {
-    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  :deep(.inner-shadow .table-wrapper) {
-    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
-  }
-  .inner-shadow {
-    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
-  }
-  /* Применяем тень к обертке таблицы
-  :deep(.inner-shadow .p-datatable-wrapper) {
-    box-shadow: inset -8px 0px 4px rgba(0, 0, 0, 0.1);
-  }
-
-*/
 
   /* Стили для статус-бара */
   .status-bar {

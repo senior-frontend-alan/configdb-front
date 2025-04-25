@@ -162,7 +162,7 @@
   import Textarea from 'primevue/textarea';
   import FileUpload from 'primevue/fileupload';
   import IftaLabel from 'primevue/iftalabel';
-  import { FIELD_TYPES } from '../utils/formatter';
+  import { FIELD_TYPES } from '../../../utils/formatter';
 
   const props = defineProps<{
     field: {

@@ -48,7 +48,7 @@ try {
     routes.push({
       path: `/${module.id}`,
       name: `${module.id}Catalog`,
-      component: () => import('./pages/Page1CatalogList.vue'),
+      component: () => import('./pages/Page1CatalogList/index.vue'),
       meta: {
         moduleId: module.id, // Всегда знаем какой модуль открыт на странице чтобы найти его стор
       },
@@ -58,7 +58,7 @@ try {
     routes.push({
       path: `/${module.id}/:viewname`,
       name: `${module.id}CatalogDetails`,
-      component: () => import('./pages/Page2CatalogDetails.vue'),
+      component: () => import('./pages/Page2CatalogDetails/index.vue'),
       meta: {
         moduleId: module.id, // Передаем ID модуля для доступа к стору
       },
@@ -67,9 +67,9 @@ try {
 
     // Страница 3 - Редактирование записи
     routes.push({
-      path: `/${module.id}/:viewname/:id`,
+      path: `/${module.id}/:viewname/edit/:id`,
       name: `${module.id}EditRecord`,
-      component: () => import('./pages/Page3EditRecord.vue'),
+      component: () => import('./pages/Page3EditRecord/index.vue'),
       meta: {
         moduleId: module.id, // Передаем ID модуля для доступа к стору
       },
