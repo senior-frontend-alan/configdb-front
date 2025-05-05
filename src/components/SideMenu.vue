@@ -55,38 +55,15 @@
   );
 
   const handleMenuItemClick = async (event: any, path: string) => {
-    console.log('Клик по пункту меню:', event, path);
+    console.log('Клик по пункту меню:', path);
 
     // Предотвращаем стандартное поведение ссылки
     if (event && event.originalEvent) {
       event.originalEvent.preventDefault();
     }
 
-    // Проверяем, является ли путь путем к модулю
-    const isModulePath =
-      path !== '/' && path !== '/settings' && path !== '/login' && path !== '/widgets';
-
-    // Загружаем данные модуля только если это путь к модулю
-    if (isModulePath) {
-      const cleanPath = path.split('?')[0]; // Удаляем все после ?
-
-      const pathParts = cleanPath.split('/');
-      const pathModuleId = pathParts[1]; // Получаем ID модуля
-
-      if (pathModuleId) {
-        try {
-          const moduleStore = useModuleStore(pathModuleId);
-          if (moduleStore) {
-            await moduleStore.getCatalog(); // если данные каталога загружены повторного запроса не будет
-            console.log(`Загрузка данных для модуля ${pathModuleId} завершена`);
-          }
-        } catch (error) {
-          console.error(`Ошибка при загрузке данных для модуля ${pathModuleId}:`, error);
-        }
-      }
-    }
-
-    // Навигация
+    // Просто выполняем переход по указанному пути
+    // Роутер сам загрузит данные через хуки beforeResolve/beforeEach
     router.push(path);
   };
 

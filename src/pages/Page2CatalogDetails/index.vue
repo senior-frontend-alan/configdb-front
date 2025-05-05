@@ -482,7 +482,6 @@
     cursor: move;
     color: var(--text-color-secondary);
     margin-left: 0.5rem;
-    opacity: 0.5;
     transition: opacity 0.2s;
   }
 

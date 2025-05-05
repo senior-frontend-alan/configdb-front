@@ -46,6 +46,8 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, reactive } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
+  import api from '../../api';
+  import { useToast } from 'primevue/usetoast';
   import { useModuleStore } from '../../stores/module-factory';
 
   import Card from 'primevue/card';
@@ -80,8 +82,9 @@
   }>();
 
   // Получаем параметры маршрута
-  const route = useRoute();
   const router = useRouter();
+  const route = useRoute();
+  const toast = useToast();
   const moduleId = computed(() => props.moduleId || (route.meta.moduleId as string));
   const viewname = computed(() => props.viewname || (route.params.viewname as string));
   const recordId = computed(() => props.id || (route.params.id as string));
@@ -228,16 +231,43 @@
         throw new Error(`Заполните обязательные поля: ${missingRequiredFields.join(', ')}`);
       }
 
-      // В реальном приложении здесь должен быть запрос к API для сохранения данных
-      // Например: await api.put(`/api/v1/${viewname.value}/${recordId.value}/`, formData.value);
-
-      console.log('Сохранение данных:', formData.value);
-
-      // Имитация задержки сохранения
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // После успешного сохранения возвращаемся к списку
-      goBack();
+      // Отправляем PATCH запрос для сохранения данных
+      try {
+        saving.value = true;
+        
+        // Формируем URL для запроса
+        const url = `/catalog/api/v1/${viewname.value}/${recordId.value}/?mode=short`;
+        console.log(`Отправка PATCH запроса на: ${url}`);
+        console.log('Данные для отправки:', formData.value);
+        
+        // Отправляем запрос
+        const response = await api.patch(url, formData.value);
+        
+        console.log('Ответ сервера:', response.data);
+        
+        // Показываем сообщение об успешном сохранении
+        toast.add({
+          severity: 'success',
+          summary: 'Успешно',
+          detail: 'Данные успешно сохранены',
+          life: 3000
+        });
+        
+        // Возвращаемся к списку после сохранения
+        goBack();
+      } catch (err: any) {
+        console.error('Ошибка при сохранении данных:', err);
+        
+        // Показываем сообщение об ошибке
+        toast.add({
+          severity: 'error',
+          summary: 'Ошибка',
+          detail: `Не удалось сохранить данные: ${err.message || 'Неизвестная ошибка'}`,
+          life: 5000
+        });
+      } finally {
+        saving.value = false;
+      }
     } catch (e) {
       console.error('Ошибка сохранения данных:', e);
       error.value = e instanceof Error ? e.message : 'Ошибка сохранения данных';

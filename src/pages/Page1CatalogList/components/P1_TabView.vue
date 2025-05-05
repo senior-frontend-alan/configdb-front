@@ -144,13 +144,11 @@
   .update-date {
     font-size: 0.85rem;
     color: var(--text-color-secondary);
-    opacity: 0.5;
   }
 
   .item-description {
     font-size: 0.9rem;
     color: var(--text-color-secondary);
-    opacity: 0.5;
   }
 
   .catalog-items-container {

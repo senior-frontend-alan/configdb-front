@@ -1,5 +1,9 @@
 @import 'primeicons/primeicons.css';
 
+:root {
+  --text-color-secondary: #0000008a;
+}
+
 html {
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;

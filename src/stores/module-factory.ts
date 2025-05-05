@@ -112,7 +112,6 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         return catalog.value;
       }
 
-      // Устанавливаем флаги загрузки
       loading.value = true;
 
       try {

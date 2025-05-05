@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { useConfig, initConfig } from './config-loader';
 import { ref } from 'vue';
-import { setCsrfTokenFromHeader } from './utils/localstorage';
+import { setCsrfTokenFromHeader, getCsrfToken } from './utils/localstorage';
 
 // Инициализируем конфигурацию
 const config = initConfig();
@@ -45,6 +45,12 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Добавляем CSRF-токен в заголовки
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
     }
     
     // Увеличиваем счетчик активных запросов

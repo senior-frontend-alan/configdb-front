@@ -8,6 +8,7 @@ import SideMenu from "./components/SideMenu.vue";
 import AppBreadcrumb from "./components/AppBreadcrumb.vue";
 import AppProgressBar from "./components/AppProgressBar.vue";
 import Button from "primevue/button";
+import Toast from "primevue/toast";
 
 const route = useRoute();
 const router = useRouter();
@@ -94,10 +95,18 @@ onUnmounted(() => {
       </div>
 
       <div class="layout-content">
-        <router-view />
+        <!-- :key="route.fullPath" - Это важно! 
+         Оно заставляет Vue полностью пересоздавать компонент при изменении маршрута. 
+         Когда мы переходим между разными модулями (например, с /catalog на /ocsmanage), 
+         Vue будет полностью уничтожать старый компонент и создавать новый, вместо того чтобы 
+         пытаться переиспользовать существующий иначе загружаются данные из предыдущего стора -->
+        <router-view :key="route.fullPath" /> 
       </div>
     </div>
 
+    <!-- Компонент Toast для уведомлений -->
+    <Toast />
+    
     <!-- Маска для мобильных устройств -->
     <div class="layout-mask" @click="sidebarVisible = false"></div>
   </div>

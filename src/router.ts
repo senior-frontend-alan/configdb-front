@@ -162,7 +162,7 @@ export const findAndLoadCatalogData = async (
       return true;
     }
 
-    // Ищем URL в каталоге, функция автоматически загрузит список каталогов (шаг 1), если они не загружены для поиска URL (шаг 2)
+    // Ищем URL в каталоге
     const href = await moduleStore.findCatalogItemUrl(viewname);
 
     if (!href) {
@@ -185,25 +185,66 @@ export const findAndLoadCatalogData = async (
 // Точка входа для загрузки данных любого маршрута
 // Добавляем хук для предварительной загрузки данных
 router.beforeResolve(async (to, from, next) => {
-  // Проверяем, нужно ли загружать данные для этого маршрута
-  if (to.meta.moduleId && to.params.viewname) {
+  // Проверяем, есть ли в маршруте moduleId
+  if (to.meta.moduleId) {
     const moduleId = to.meta.moduleId as string;
-    const viewname = to.params.viewname as string;
-
-    // Проверяем, есть ли уже данные в кэше
-    if (checkCachedCatalogData(moduleId, viewname)) {
+    
+    try {
+      // 1. Получаем стор модуля
+      const moduleStore = useModuleStore(moduleId);
+      if (!moduleStore) {
+        console.error(`Не удалось получить стор для модуля ${moduleId}`);
+        next();
+        return;
+      }
+      
+      // 2. Проверяем, загружен ли каталог, и загружаем его если нет
+      if (!moduleStore.catalog || moduleStore.catalog.length === 0) {
+        console.log(`Загрузка данных каталога для модуля ${moduleId}`);
+        await moduleStore.getCatalog();
+      }
+      
+      // 3. Проверяем тип запроса
+      if (to.params.viewname) {
+        // Загрузка деталей каталога (viewname)
+        const viewname = to.params.viewname as string;
+        
+        // Если данные не в кэше, загружаем их
+        if (!checkCachedCatalogData(moduleId, viewname)) {
+          try {
+            // Ищем URL в каталоге
+            const href = await moduleStore.findCatalogItemUrl(viewname);
+            if (href) {
+              // Загружаем данные каталога
+              await loadCatalogData(moduleId, viewname, href);
+            } else {
+              console.error(`URL для каталога ${viewname} не найден`);
+            }
+          } catch (error) {
+            console.error(`Ошибка при загрузке деталей каталога ${viewname}:`, error);
+          }
+        }
+      } else if (to.query.group) {
+        // Проверка группы, если она указана
+        const groupName = to.query.group as string;
+        if (moduleStore.catalog && moduleStore.catalog.length > 0) {
+          const groupExists = moduleStore.catalog.some((group) => group.name === groupName);
+          if (!groupExists) {
+            console.warn(`Группа ${groupName} не найдена в данных каталога модуля ${moduleId}`);
+          }
+        }
+      }
+      
+      // Продолжаем навигацию
       next();
-      return;
-    }
-
-    // Ищем URL и загружаем данные
-    const dataLoaded = await findAndLoadCatalogData(moduleId, viewname, next);
-    if (dataLoaded) {
+    } catch (error) {
+      console.error(`Ошибка при загрузке данных для модуля ${moduleId}:`, error);
       next();
     }
-  } else {
-    next();
   }
+  
+  // Для всех остальных маршрутов просто продолжаем навигацию
+  next();
 });
 
 export default router;

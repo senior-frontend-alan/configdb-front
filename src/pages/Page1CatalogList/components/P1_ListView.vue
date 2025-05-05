@@ -2,13 +2,9 @@
   <div class="catalog-accordion-container">
     <!-- Отображаем группы каталога -->
     <div v-for="group in catalogData" :key="group.name" class="catalog-accordion">
-      <div
-        class="catalog-accordion-header"
-        :class="{ clickable: !groupName }"
-        @click="!groupName && navigateToGroup(group.name)"
-      >
-        <h3>{{ group.verbose_name }}</h3>
-      </div>
+      <h3 class="catalog-accordion-header" @click="!groupName && navigateToGroup(group.name)">
+        {{ group.verbose_name }}
+      </h3>
       <div class="catalog-accordion-content">
         <div v-if="group.description" class="group-description">
           <p>{{ group.description }}</p>
@@ -97,15 +93,25 @@
 </script>
 
 <style scoped>
+  .catalog-accordion-header {
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--p-surface-200);
+    color: var(--text-color-secondary);
+  }
+
+  .catalog-accordion-header:hover {
+    background-color: var(--p-surface-100);
+  }
+
   .update-date {
     font-size: 0.85rem;
     color: var(--text-color-secondary);
-    opacity: 0.5;
   }
   .item-description {
     font-size: 0.9rem;
     color: var(--text-color-secondary);
-    opacity: 0.5;
   }
 
   .catalog-accordion {
@@ -132,6 +138,10 @@
     border-bottom: 1px solid var(--p-surface-200);
     cursor: pointer;
     transition: all 0.2s;
+  }
+
+  .catalog-item h3 {
+    margin-bottom: 0.3rem;
   }
 
   .group-description {
