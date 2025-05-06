@@ -96,7 +96,7 @@
 
               <!-- В PrimeVue DataTable слот #body передает объект slotProps, содержащий данные текущей строки (data) и имя текущего поля (field)
             TypeScript не мог определить, что slotProps.field всегда является строкой, поэтому выдавал ошибку при попытке использовать это значение как индекс объекта -->
-              <RichEditPopover
+              <RichEdit
                 v-if="typeof slotProps.field === 'string' && 
                     slotProps.data[slotProps.field as string] && 
                     (typeof slotProps.data[slotProps.field as string] === 'object' || 
@@ -133,12 +133,13 @@
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
+  import { formatters } from './components/fields';
+  import RichEdit from './components/fields/RichEdit.vue';
   import { useModuleStore } from '../../stores/module-factory';
   import { findAndLoadCatalogData } from '../../router';
-  import { formatByClassName, FIELD_TYPES } from '../../utils/formatter';
+  // import { formatByClassName, FIELD_TYPES } from '../../utils/formatter';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import AddNewDataDialog from './components/AddNewDataDialog.vue';
-  import RichEditPopover from './components/RichEditPopover.vue';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import DataTable from 'primevue/datatable';
@@ -293,8 +294,10 @@
     }
   };
 
+  // Форматтеры полей импортируются из './components/fields'
+
   // Функция для создания строк таблицы из отформатированных данных
-  const createRows = (storeDetails: any): any[] => {
+  function createRows(storeDetails: any): any[] {
     if (!storeDetails || !storeDetails.GET || !storeDetails.GET.results) {
       console.error('Ошибка: GET не содержит results');
       return [];
@@ -304,30 +307,25 @@
 
     return storeDetails.GET.results.map((row: any) => {
       const formattedRow = { ...row };
+      console.log('row', row);
 
       // Форматируем каждое поле в соответствии с его типом
       Object.keys(row).forEach((fieldName) => {
         try {
           const fieldInfo = tableColumns.get(fieldName);
-          // Не удалять!
-          // Определяем тип поля на основе class_name или field_class
-          // let fieldType = FIELD_TYPES.LAYOUT_CHAR_FIELD; // Тип по умолчанию
-          // if (element.class_name && element.class_name !== '') {
-          //   fieldType = element.class_name;
-          // } else if (element.field_class && element.field_class !== '') {
-          //   fieldType = element.field_class;
-          // }
 
           if (fieldInfo) {
-            // Форматируем по типу поля
-            const fieldType = fieldInfo.class_name || FIELD_TYPES.LAYOUT_CHAR_FIELD;
-            formattedRow[fieldName] = formatByClassName(fieldType, formattedRow[fieldName], {
-              jsItemRepr: fieldInfo.js_item_repr,
-              moduleId: storeDetails.viewname,
-            });
+            // Используем уже предварительно вычисленный и сохраненнный FRONTEND_CLASS тип
+            const { FRONTEND_CLASS } = fieldInfo;
+            
+            // Используем объект-отображение для доступа к функции форматирования со сложностью O(1)
+            const formatter = formatters[FRONTEND_CLASS] || formatters.default;
+            formattedRow[fieldName] = formatter(row[fieldName]);
           }
-        } catch (e) {
-          console.warn(`Ошибка форматирования поля ${fieldName}:`, e);
+        } catch (error) {
+          console.error(`Ошибка форматирования поля ${fieldName}:`, error);
+          // В случае ошибки оставляем исходное значение
+          formattedRow[fieldName] = row[fieldName];
         }
       });
 

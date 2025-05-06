@@ -3,6 +3,7 @@ import { defineStore, getActivePinia } from 'pinia';
 import { ref, reactive } from 'vue';
 import api from '../api';
 import { FIELD_TYPES } from '../utils/formatter';
+import { FieldTypeService } from '../services/fieldTypeService';
 import { useConfig } from '../config-loader';
 import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
@@ -158,12 +159,15 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
             element.class_name === 'ViewSetInlineDynamicModelLayout' ||
             element.field_class === 'ListSerializer';
 
-          // Определяем видимость элемента
+          // Определяем изначальную видимость элемента
           const isVisible = displayList.length === 0 || displayList.includes(element.name);
 
-          // Создаем копию элемента с добавлением visible
+          // Однозначно определяем FRONTEND тип на основании BACKEND типов
+          const FRONTEND_CLASS = FieldTypeService.getFieldType(element);
+
           const elementCopy = {
             ...element,
+            FRONTEND_CLASS,
             visible: isVisible,
           };
 

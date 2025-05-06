@@ -241,10 +241,10 @@ router.beforeResolve(async (to, from, next) => {
       console.error(`Ошибка при загрузке данных для модуля ${moduleId}:`, error);
       next();
     }
+  } else {
+    // Для всех остальных маршрутов просто продолжаем навигацию
+    next();
   }
-  
-  // Для всех остальных маршрутов просто продолжаем навигацию
-  next();
 });
 
 export default router;
