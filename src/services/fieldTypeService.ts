@@ -29,7 +29,7 @@ export const BACKEND = {
     CHOICE_FIELD: 'ChoiceField',
     PRIMARY_KEY_RELATED_FIELD: 'PrimaryKeyRelatedLookupField',
     COMPUTED_FIELD: 'ComputedField',
-    // MANY_RELATED_FIELD: 'ManyRelatedField',
+    MANY_RELATED_FIELD: 'ManyRelatedField',
     // WEAK_RELATED_FIELD: 'WeakRelatedLookupField',
     // LIST_SERIALIZER: 'ListSerializer',
     // SERIALIZER: 'Serializer',
@@ -131,9 +131,9 @@ export class FieldTypeService {
         case BACKEND.field_class.CHOICE_FIELD:
           return FRONTEND.CHOICE;
         case BACKEND.field_class.PRIMARY_KEY_RELATED_FIELD:
-        // case BACKEND.field_class.MANY_RELATED_FIELD:
+        case BACKEND.field_class.MANY_RELATED_FIELD:
         // case BACKEND.field_class.WEAK_RELATED_FIELD:
-        //   return FRONTEND.RELATED;
+          return FRONTEND.RELATED;
         case BACKEND.field_class.COMPUTED_FIELD:
           return FRONTEND.COMPUTED;
         case BACKEND.field_class.BOOLEAN_FIELD:
@@ -154,6 +154,12 @@ export class FieldTypeService {
           return FRONTEND.CHAR;
         case BACKEND.class_name.LAYOUT_RICH_EDIT_FIELD:
           return FRONTEND.RICH_EDIT;
+        case BACKEND.class_name.LAYOUT_CHOICE_FIELD:
+          return FRONTEND.CHOICE;
+        case BACKEND.class_name.LAYOUT_COMPUTED_FIELD:
+          return FRONTEND.COMPUTED;
+        case BACKEND.class_name.LAYOUT_RELATED_FIELD:
+          return FRONTEND.RELATED;
         default:
           return FRONTEND.CHAR;
       }

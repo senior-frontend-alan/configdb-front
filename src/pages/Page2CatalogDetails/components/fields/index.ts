@@ -14,7 +14,7 @@ import { formatRelatedValue } from './Related';
 import { formatChoiceValue } from './Choice';
 
 // Тип для функций форматирования
-export type FormatterFunction = (value: any) => string | any;
+export type FormatterFunction = (value: any, fieldMetadata?: any) => string | any;
 
 // Тип для объекта форматтеров
 export type FormattersMap = {
@@ -36,7 +36,7 @@ export const formatters: FormattersMap = {
   [FRONTEND.DATE_TIME]: (value: any) => formatDateTimeValue(value),
   [FRONTEND.COMPUTED]: (value: any) => formatComputedValue(value),
   [FRONTEND.RELATED]: (value: any) => formatRelatedValue(value),
-  [FRONTEND.CHOICE]: (value: any) => formatChoiceValue(value),
+  [FRONTEND.CHOICE]: (value: any, fieldMetadata?: any) => formatChoiceValue(value, fieldMetadata),
   // Функция по умолчанию для неизвестных типов
   default: (value: any) => formatChar(value, { maximumLength: 100 }),
 };

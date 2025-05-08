@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted } from 'vue';
+  import { ref, onMounted, computed } from 'vue';
   import Button from 'primevue/button';
   import Checkbox from 'primevue/checkbox';
   import Popover from 'primevue/popover';
@@ -69,6 +69,8 @@
     tableColumns?: Map<string, any>;
     isTableScrollable?: boolean;
   }>();
+  
+  const TABLE_COLUMNS = computed(() => props.tableColumns);
 
   const emit = defineEmits<{
     (e: 'update-column-visibility', fieldName: string, isVisible: boolean): void;
@@ -87,21 +89,26 @@
   });
 
   // Функция для инициализации полей из tableColumns
-  const initializeFields = () => {
-    if (props.tableColumns) {
-      const visibleFields: string[] = [];
-      const allFields: string[] = [];
-
-      props.tableColumns.forEach((column, key) => {
-        allFields.push(key);
-        if (column.visible) {
-          visibleFields.push(key);
-        }
-      });
-
-      availableFields.value = allFields;
-      selectedFields.value = [...visibleFields];
+  function initializeFields() {
+    // Если нет колонок, ничего не делаем
+    if (!TABLE_COLUMNS.value || TABLE_COLUMNS.value.size === 0) {
+      return;
     }
+
+    // Инициализируем поля из TABLE_COLUMNS
+    const allFields: string[] = [];
+    const visibleFields: string[] = [];
+
+    TABLE_COLUMNS.value.forEach((column: any, key: string) => {
+      allFields.push(key);
+      if (column.VISIBLE) {
+        visibleFields.push(key);
+      }
+    });
+
+    availableFields.value = allFields;
+    console.log('!!!!availableFields.value', availableFields.value);
+    selectedFields.value = [...visibleFields];
   };
 
   // Функция для открытия/закрытия popover
@@ -136,12 +143,12 @@
         }
       }
 
-      // Обновляем видимость колонок в tableColumns
-      if (props.tableColumns) {
-        props.tableColumns.forEach((column, key) => {
+      // Проходим по всем полям и применяем изменения
+    if (TABLE_COLUMNS.value) {
+      TABLE_COLUMNS.value.forEach((column: any, key: string) => {
           if (column) {
-            // Устанавливаем visible в зависимости от того, выбрано ли поле
-            column.visible = selectedFields.value.includes(key);
+            // Устанавливаем VISIBLE в зависимости от того, выбрано ли поле
+            column.VISIBLE = selectedFields.value.includes(key);
           }
         });
       }
@@ -164,10 +171,13 @@
   };
 
   // Получение метки поля из метаданных колонок
-  const getFieldLabel = (field: string): string => {
-    // Если переданы метаданные колонок, используем заголовок из них
-    if (props.tableColumns && props.tableColumns.get(field)?.header) {
-      return props.tableColumns.get(field).header;
+  function getFieldLabel(field: string): string {
+    // Получаем метку поля из метаданных колонок
+    if (TABLE_COLUMNS.value && TABLE_COLUMNS.value.has(field)) {
+      const column = TABLE_COLUMNS.value.get(field);
+      const label = column?.label || field;
+      const frontendClass = column?.FRONTEND_CLASS || '';
+      return `${label} [${frontendClass}]`;
     }
 
     // Используем имя поля как метку, если не удалось получить из метаданных

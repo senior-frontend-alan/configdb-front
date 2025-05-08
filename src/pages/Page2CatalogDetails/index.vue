@@ -23,7 +23,7 @@
           @click="goToAddRecord"
         />
         <ColumnVisibilitySelector
-          :table-columns="currentStoreDetails?.OPTIONS?.layout?.tableColumns"
+          :tableColumns="currentStoreDetails?.OPTIONS?.layout?.TABLE_COLUMNS"
           :is-table-scrollable="isTableScrollable"
           @update-column-visibility="updateColumnVisibility"
           @toggle-table-scrollable="isTableScrollable = !isTableScrollable"
@@ -39,7 +39,7 @@
       <Message severity="error">{{ error }}</Message>
     </div>
 
-    <div v-else-if="!tableData.length" class="empty-container">
+    <div v-else-if="!tableRows.length" class="empty-container">
       <Message severity="info">Данные каталога отсутствуют</Message>
     </div>
 
@@ -48,7 +48,7 @@
 
       <div class="table-wrapper" :class="{ 'table-scrollable': isTableScrollable }">
         <DataTable
-          :value="tableData"
+          :value="tableRows"
           stripedRows
           responsiveLayout="scroll"
           reorderableColumns
@@ -75,38 +75,27 @@
             :header="col.header"
             :sortable="true"
             :style="getColumnStyle(col.field)"
-            :frozen="col.field === 'id' && isTableScrollable"
           >
             <template #body="slotProps">
-              <!-- Отладочный вывод для HTML-строки -->
-              <div
-                v-if="
-                  typeof slotProps.field === 'string' &&
-                  slotProps.field === 'layout_rich_edit_field' &&
-                  typeof slotProps.data[slotProps.field] === 'string'
-                "
-              >
-                <pre class="text-xs bg-surface-50 p-1 rounded overflow-auto max-h-20">
-                Тип: {{ typeof slotProps.data[slotProps.field] }}
-                Длина: {{ slotProps.data[slotProps.field].length }}
-                Начало: {{ slotProps.data[slotProps.field].substring(0, 30) }}...
-              </pre
-                >
-              </div>
-
-              <!-- В PrimeVue DataTable слот #body передает объект slotProps, содержащий данные текущей строки (data) и имя текущего поля (field)
-            TypeScript не мог определить, что slotProps.field всегда является строкой, поэтому выдавал ошибку при попытке использовать это значение как индекс объекта -->
-              <RichEdit
-                v-if="typeof slotProps.field === 'string' && 
-                    slotProps.data[slotProps.field as string] && 
-                    (typeof slotProps.data[slotProps.field as string] === 'object' || 
-                     (typeof slotProps.data[slotProps.field as string] === 'object' && 
-                      'label' in slotProps.data[slotProps.field as string]))"
-                :fieldData="slotProps.data[slotProps.field as string]"
-              />
-              <span v-else>{{
-                typeof slotProps.field === 'string' ? slotProps.data[slotProps.field as string] : ''
-              }}</span>
+              <!-- Используем динамический рендеринг на основе FRONTEND_CLASS -->
+              <template v-if="slotProps.field && typeof slotProps.field === 'string'">
+                <!-- 
+                  Динамический компонент на основе FRONTEND_CLASS поля
+                  Фабрика компонентов возвращает нужный компонент в зависимости от типа поля
+                  Для полей типа CHAR возвращается CharWithButton
+                  Для полей типа RICH_EDIT возвращается RichEdit
+                -->
+                <component
+                  :is="
+                    resolveComponent(
+                      DYNAMIC_FIELD[getColumnFrontendClass(slotProps.field)],
+                      slotProps.data[slotProps.field], // значение поля
+                      getFieldMetadata(slotProps.field), // метаданные поля
+                    )
+                  "
+                />
+              </template>
+              <span v-else>Компонент не определен</span>
             </template>
           </Column>
         </DataTable>
@@ -133,13 +122,11 @@
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  import { formatters } from './components/fields';
-  import RichEdit from './components/fields/RichEdit.vue';
+  import { resolveComponent, DYNAMIC_FIELD } from './components/fields/DYNAMIC_FIELD';
   import { useModuleStore } from '../../stores/module-factory';
   import { findAndLoadCatalogData } from '../../router';
-  // import { formatByClassName, FIELD_TYPES } from '../../utils/formatter';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
-  import AddNewDataDialog from './components/AddNewDataDialog.vue';
+  // Компонент AddNewDataDialog закомментирован в шаблоне, поэтому удаляем его импорт
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import DataTable from 'primevue/datatable';
@@ -154,7 +141,7 @@
   // Состояние компонента
   const selectedItems = ref<any[]>([]);
   const columns = ref<any[]>([]);
-  const tableData = ref<any[]>([]);
+  const tableRows = ref<any[]>([]);
   const loading = ref(true);
   const error = ref<string | null>(null);
   const primaryKey = ref<string>('id');
@@ -176,26 +163,27 @@
 
   // Вычисляемые свойства для статус-бара
   const totalItems = ref(0);
-  const fetchedItems = computed(() => tableData.value.length);
+  const fetchedItems = computed(() => tableRows.value.length);
 
-  // Функция для формирования колонок таблицы из tableColumns
-  const generateTableColumns = (tableColumns: Map<string, any>) => {
-    if (!tableColumns) return;
+  // Функция для формирования колонок таблицы из TABLE_COLUMNS
+  const generateTableColumns = (TABLE_COLUMNS: Map<string, any>) => {
+    if (!TABLE_COLUMNS) return;
 
     // Создаем массивы для колонок таблицы и селектора
-    const tableColumnsList: Array<{ field: string; header: string }> = [];
+    const tableColumnsList: Array<{ field: string; header: string; frontendClass?: string }> = [];
     const allFields: string[] = [];
 
-    // Обрабатываем tableColumns напрямую
-    tableColumns.forEach((column: any, fieldName: string) => {
+    // Обрабатываем TABLE_COLUMNS напрямую
+    TABLE_COLUMNS.forEach((column: any, fieldName: string) => {
       // Добавляем поле в список всех полей
       allFields.push(fieldName);
 
       // Если поле видимое, добавляем его в список колонок таблицы
-      if (column.visible) {
+      if (column.VISIBLE) {
         tableColumnsList.push({
           field: fieldName,
-          header: column.label || fieldName,
+          header: `${column.label || fieldName} [${column.FRONTEND_CLASS}]`,
+          frontendClass: column.FRONTEND_CLASS || '',
         });
       }
     });
@@ -208,15 +196,15 @@
 
   // Функция для обновления видимости колонок
   const updateColumnVisibility = (fieldName: string, isVisible: boolean) => {
-    const tableColumns = currentStoreDetails.value?.OPTIONS?.layout?.tableColumns;
-    if (!tableColumns) return;
+    const TABLE_COLUMNS = currentStoreDetails.value?.OPTIONS?.layout?.TABLE_COLUMNS;
+    if (!TABLE_COLUMNS) return;
 
-    const column = tableColumns.get(fieldName);
+    const column = TABLE_COLUMNS.get(fieldName);
     if (column) {
-      column.visible = isVisible;
+      column.VISIBLE = isVisible; // Используем VISIBLE вместо visible
 
       // Перегенерируем колонки таблицы
-      generateTableColumns(tableColumns);
+      generateTableColumns(TABLE_COLUMNS);
     }
   };
 
@@ -245,13 +233,13 @@
     }
 
     // Обновляем данные таблицы
-    tableData.value = createRows(storeDetails);
+    tableRows.value = createRows(storeDetails);
 
     // Формируем колонки таблицы
-    generateTableColumns(storeDetails.OPTIONS?.layout?.tableColumns);
+    generateTableColumns(storeDetails.OPTIONS?.layout?.TABLE_COLUMNS);
 
     // Обновляем общее количество элементов
-    totalItems.value = storeDetails.GET.count || tableData.value.length;
+    totalItems.value = storeDetails.GET.count || tableRows.value.length;
 
     // Сбрасываем выбранные элементы
     selectedItems.value = [];
@@ -294,43 +282,28 @@
     }
   };
 
-  // Форматтеры полей импортируются из './components/fields'
-
-  // Функция для создания строк таблицы из отформатированных данных
   function createRows(storeDetails: any): any[] {
     if (!storeDetails || !storeDetails.GET || !storeDetails.GET.results) {
       console.error('Ошибка: GET не содержит results');
       return [];
     }
 
-    const tableColumns = storeDetails.OPTIONS?.layout?.tableColumns || new Map();
+    // Теперь просто возвращаем исходные данные, форматирование будет выполняться в компонентах
+    return storeDetails.GET.results;
+  }
 
-    return storeDetails.GET.results.map((row: any) => {
-      const formattedRow = { ...row };
-      console.log('row', row);
+  // Функция для получения FRONTEND_CLASS поля
+  const getColumnFrontendClass = (fieldName: string): string => {
+    const TABLE_COLUMNS = currentStoreDetails.value?.OPTIONS?.layout?.TABLE_COLUMNS;
+    if (!TABLE_COLUMNS || !TABLE_COLUMNS.has(fieldName)) return '';
+    return TABLE_COLUMNS.get(fieldName)?.FRONTEND_CLASS || '';
+  };
 
-      // Форматируем каждое поле в соответствии с его типом
-      Object.keys(row).forEach((fieldName) => {
-        try {
-          const fieldInfo = tableColumns.get(fieldName);
-
-          if (fieldInfo) {
-            // Используем уже предварительно вычисленный и сохраненнный FRONTEND_CLASS тип
-            const { FRONTEND_CLASS } = fieldInfo;
-            
-            // Используем объект-отображение для доступа к функции форматирования со сложностью O(1)
-            const formatter = formatters[FRONTEND_CLASS] || formatters.default;
-            formattedRow[fieldName] = formatter(row[fieldName]);
-          }
-        } catch (error) {
-          console.error(`Ошибка форматирования поля ${fieldName}:`, error);
-          // В случае ошибки оставляем исходное значение
-          formattedRow[fieldName] = row[fieldName];
-        }
-      });
-
-      return formattedRow;
-    });
+  // Функция для получения метаданных поля
+  const getFieldMetadata = (fieldName: string): any => {
+    const TABLE_COLUMNS = currentStoreDetails.value?.OPTIONS?.layout?.TABLE_COLUMNS;
+    if (!TABLE_COLUMNS || !TABLE_COLUMNS.has(fieldName)) return null;
+    return TABLE_COLUMNS.get(fieldName);
   };
 
   // Обработка перетаскивания столбцов
@@ -410,6 +383,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    padding: 1rem;
   }
 
   .header-container {
@@ -453,6 +427,13 @@
 
   .table-scrollable {
     overflow-x: auto;
+  }
+
+  /* Стили для контейнера полей типа Char с кнопкой просмотра полного текста */
+  .char-field-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .selected-info {
