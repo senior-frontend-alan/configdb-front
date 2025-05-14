@@ -46,37 +46,44 @@ const baseJSInterface: ModuleJSInterface = {
     }
     return `${amount}`;
   },
-  
+
   // Обрезание текста до указанной длины с добавлением многоточия
-  truncateText: function(text: string, maxLength: number = 100, suffix: string = '...'): string {
+  truncateText: function (text: string, maxLength: number = 100, suffix: string = '...'): string {
     if (!text) return '';
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + suffix;
   },
-  
+
   // Форматирование денежных значений с указанием валюты
-  formatCurrency: function(value: number, currency: string = 'RUB', locale: string = 'ru-RU'): string {
+  formatCurrency: function (
+    value: number,
+    currency: string = 'RUB',
+    locale: string = 'ru-RU',
+  ): string {
     if (value === null || value === undefined) return '';
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value);
   },
-  
+
   // Преобразование строки в camelCase
-  toCamelCase: function(text: string): string {
+  toCamelCase: function (text: string): string {
     if (!text) return '';
-    return text.replace(/(?:^\w|[A-Z]|\b\w)/g, (letter, index) => 
-      index === 0 ? letter.toLowerCase() : letter.toUpperCase()
-    ).replace(/\s+/g, '');
+    return text
+      .replace(/(?:^\w|[A-Z]|\b\w)/g, (letter, index) =>
+        index === 0 ? letter.toLowerCase() : letter.toUpperCase(),
+      )
+      .replace(/\s+/g, '');
   },
-  
+
   // Преобразование строки в snake_case
-  toSnakeCase: function(text: string): string {
+  toSnakeCase: function (text: string): string {
     if (!text) return '';
-    return text.replace(/\s+/g, '_')
+    return text
+      .replace(/\s+/g, '_')
       .replace(/([A-Z])/g, '_$1')
       .toLowerCase()
       .replace(/^_/, '');
@@ -137,7 +144,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     // Сохраненные данные по различным viewname - используем reactive вместо ref
     const catalogDetails = reactive<Record<string, any>>({});
 
-    // (ШАГ 1) получаем список каталогов 
+    // (ШАГ 1) получаем список каталогов
     const getCatalog = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
       if (catalog.value && catalog.value.length > 0) {
@@ -208,6 +215,12 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
             });
           }
 
+          // Добавляем FRONTEND_CLASS и CHOICES в оригинальный элемент
+          element.FRONTEND_CLASS = FRONTEND_CLASS;
+          if (CHOICES) {
+            element.CHOICES = CHOICES;
+          }
+
           const elementCopy = {
             ...element,
             FRONTEND_CLASS,
@@ -252,6 +265,47 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
       // Всегда возвращаем упорядоченную Map
       return orderedMap;
+    };
+
+    // Функция для создания Map-структуры элементов макета
+    const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
+      const elementsMap = new Map<string, any>();
+
+      if (!elements || !Array.isArray(elements)) {
+        return elementsMap;
+      }
+
+      // Рекурсивная функция для обработки элементов
+      const processElements = (items: any[]) => {
+        items.forEach((element) => {
+          // Если у элемента есть поле name, добавляем его в Map
+          if (element.name) {
+            element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
+
+            elementsMap.set(element.name, element);
+          }
+
+          // Рекурсивно обрабатываем вложенные элементы
+          if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
+            element.ELEMENTS = new Map<string, any>();
+
+            // Заполняем Map вложенных элементов
+            element.elements.forEach((childElement: any) => {
+              if (childElement.name) {
+                childElement.FRONTEND_CLASS = FieldTypeService.getFieldType(childElement);
+                element.ELEMENTS.set(childElement.name, childElement);
+              }
+            });
+
+            // Рекурсивно обрабатываем все вложенные элементы
+            processElements(element.elements);
+          }
+        });
+      };
+
+      processElements(elements);
+
+      return elementsMap;
     };
 
     // Функция для поиска URL каталога по viewname (т.е. загружаем данные из шага 1 чтобы найти URL для шага 2)
@@ -310,6 +364,10 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         // Добавляем наши вычисляемые поля в OPTIONS для удобства
         if (optionsResponseData?.layout) {
           optionsResponseData.layout.TABLE_COLUMNS = getTableColumns(optionsResponseData);
+
+          optionsResponseData.layout.ELEMENTS = createElementsMap(
+            optionsResponseData.layout.elements,
+          );
         }
 
         // Создаем новый объект с данными (общая логика для моковых и реальных данных)
@@ -336,71 +394,138 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
 
+    // Загрузка данных по идентификатору представления
+    const findAndLoadCatalogData = async (viewname: string, forceReload = false): Promise<any> => {
+      if (!viewname) {
+        console.error('Не указан viewname для загрузки данных');
+        return null;
+      }
+
+      // Если данные уже загружены и не требуется принудительная перезагрузка
+      if (!forceReload && catalogDetails[viewname]) {
+        console.log(`Данные для ${viewname} уже загружены, возвращаем из кэша`);
+        return catalogDetails[viewname];
+      }
+
+      try {
+        // Получаем URL для загрузки данных
+        const url = await findCatalogItemUrl(viewname);
+
+        if (!url) {
+          throw new Error(`URL для ${viewname} не найден`);
+        }
+
+        // Загружаем данные по полученному URL
+        return await loadCatalogDetails(viewname, url);
+      } catch (err) {
+        console.error(`Ошибка при загрузке данных для ${viewname}:`, err);
+        error.value = err;
+        return null;
+      }
+    };
+
+    // Метод для обновления записи в сторе после PATCH-запроса
+    const updateRecordInStore = (viewname: string, recordId: string | number, updatedData: any): boolean => {
+      try {
+        // Проверяем, что данные для этого представления загружены
+        if (!catalogDetails[viewname] || !catalogDetails[viewname].GET) {
+          console.warn(`Невозможно обновить запись в сторе: данные для ${viewname} не загружены`);
+          return false;
+        }
+
+        // Получаем текущие данные
+        const currentData = catalogDetails[viewname].GET;
+
+        // Проверяем, что есть массив results
+        if (!currentData.results || !Array.isArray(currentData.results)) {
+          console.warn(`Невозможно обновить запись в сторе: нет массива results в данных ${viewname}`);
+          return false;
+        }
+
+        // Находим индекс записи в массиве
+        const recordIndex = currentData.results.findIndex((item: any) => item.id == recordId);
+
+        if (recordIndex === -1) {
+          console.warn(`Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${viewname}`);
+          return false;
+        }
+
+        // Обновляем запись, сохраняя существующие поля и добавляя новые
+        currentData.results[recordIndex] = { ...currentData.results[recordIndex], ...updatedData };
+
+        console.log(`Запись с ID ${recordId} успешно обновлена в сторе для ${viewname}`);
+        return true;
+      } catch (error) {
+        console.error(`Ошибка при обновлении записи в сторе:`, error);
+        return false;
+      }
+    };
+
     // Метод для получения JS-функций модуля
     // const getJSInterface = async (): Promise<ModuleJSInterface> => {
     //   loading.value = true;
 
-      // try {
-        // Все базовые функции теперь находятся в baseJSInterface
-        // console.log(`JS-функции для модуля ${moduleConfig.id} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
-        
-        // return jsInterface;
-        
-        // TODO: Не удалять! в будущем будет использоваться для загрузки JS-функций
-        // Формируем URL для запроса JS-функций
-        // const routes = moduleConfig.routes as unknown as Record<string, string>;
-        // const jsUrl = routes['getJSInterface'];
+    // try {
+    // Все базовые функции теперь находятся в baseJSInterface
+    // console.log(`JS-функции для модуля ${moduleConfig.id} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
 
-        // console.log(`Загрузка JS-функций из: ${jsUrl}`);
+    // return jsInterface;
 
-        // // Загружаем JS-код как текст через API-клиент
-        // const response = await api.get(jsUrl, {
-        //   responseType: 'text',
-        //   headers: { 'Content-Type': 'text/plain' },
-        // });
+    // TODO: Не удалять! в будущем будет использоваться для загрузки JS-функций
+    // Формируем URL для запроса JS-функций
+    // const routes = moduleConfig.routes as unknown as Record<string, string>;
+    // const jsUrl = routes['getJSInterface'];
 
-        // const jsCode = response.data;
+    // console.log(`Загрузка JS-функций из: ${jsUrl}`);
 
-        // Выполняем код и получаем функции напрямую
-        // try {
-        //   // Создаем функцию, которая выполнит код модуля и вернет объект с функциями
-        //   const moduleFunction = new Function(`
-        //     // Создаем переменную module для экспорта функций
-        //     const module = { exports: {} };
-            
-        //     // Выполняем код модуля в изолированном контексте
-        //     ${jsCode}
-            
-        //     // Возвращаем экспортированные функции
-        //     return module.exports;
-        //   `);
+    // // Загружаем JS-код как текст через API-клиент
+    // const response = await api.get(jsUrl, {
+    //   responseType: 'text',
+    //   headers: { 'Content-Type': 'text/plain' },
+    // });
 
-        //   // Выполняем функцию и получаем объект с функциями
-        //   const moduleFunctions = moduleFunction();
+    // const jsCode = response.data;
 
-        //   // Копируем функции в объект
-        //   Object.assign(JSIFunctions, moduleFunctions);
+    // Выполняем код и получаем функции напрямую
+    // try {
+    //   // Создаем функцию, которая выполнит код модуля и вернет объект с функциями
+    //   const moduleFunction = new Function(`
+    //     // Создаем переменную module для экспорта функций
+    //     const module = { exports: {} };
 
-        //   // Выводим информацию о загруженных функциях
-        //   const loadedFunctions = Object.keys(JSIFunctions).filter(
-        //     (key) => !Object.keys(baseJSFunctions).includes(key),
-        //   );
-        //   console.log(
-        //     `JS-функции для модуля ${moduleConfig.id} успешно загружены: ${loadedFunctions.join(
-        //       ', ',
-        //     )}`,
-        //   );
-        // } catch (evalError) {
-        //   console.error(`Ошибка выполнения кода JS-функций:`, evalError);
-        // }
+    //     // Выполняем код модуля в изолированном контексте
+    //     ${jsCode}
 
-        // return JSIFunctions;
-      // } catch (err) {
-      //   console.error(`Ошибка при получении JS-функций для модуля ${moduleConfig.id}:`, err);
-      //   return JSIFunctions;
-      // } finally {
-      //   loading.value = false;
-      // }
+    //     // Возвращаем экспортированные функции
+    //     return module.exports;
+    //   `);
+
+    //   // Выполняем функцию и получаем объект с функциями
+    //   const moduleFunctions = moduleFunction();
+
+    //   // Копируем функции в объект
+    //   Object.assign(JSIFunctions, moduleFunctions);
+
+    //   // Выводим информацию о загруженных функциях
+    //   const loadedFunctions = Object.keys(JSIFunctions).filter(
+    //     (key) => !Object.keys(baseJSFunctions).includes(key),
+    //   );
+    //   console.log(
+    //     `JS-функции для модуля ${moduleConfig.id} успешно загружены: ${loadedFunctions.join(
+    //       ', ',
+    //     )}`,
+    //   );
+    // } catch (evalError) {
+    //   console.error(`Ошибка выполнения кода JS-функций:`, evalError);
+    // }
+
+    // return JSIFunctions;
+    // } catch (err) {
+    //   console.error(`Ошибка при получении JS-функций для модуля ${moduleConfig.id}:`, err);
+    //   return JSIFunctions;
+    // } finally {
+    //   loading.value = false;
+    // }
     // };
 
     // // загрузка JS-функций начнётся автоматически при создании стора
@@ -434,6 +559,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       // getJSInterface,
       findCatalogItemUrl,
       loadCatalogDetails,
+      updateRecordInStore,
       // initialize,
     };
   });

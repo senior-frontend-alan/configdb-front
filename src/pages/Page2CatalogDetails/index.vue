@@ -88,7 +88,7 @@
                 <component
                   :is="
                     resolveComponent(
-                      DYNAMIC_FIELD[getColumnFrontendClass(slotProps.field)],
+                      dynamicField[getColumnFrontendClass(slotProps.field)],
                       slotProps.data[slotProps.field], // значение поля
                       getFieldMetadata(slotProps.field), // метаданные поля
                     )
@@ -122,7 +122,7 @@
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  import { resolveComponent, DYNAMIC_FIELD } from './components/fields/DYNAMIC_FIELD';
+  import { resolveComponent, dynamicField } from './components/fields';
   import { useModuleStore } from '../../stores/module-factory';
   import { findAndLoadCatalogData } from '../../router';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';

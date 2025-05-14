@@ -1,78 +1,67 @@
+<!-- оптимальное место для работы со стором, так как:
+Страница является точкой входа и отвечает за получение и подготовку данных
+Страница знает о контексте использования (ID записи, модуль и т.д.)
+Упрощается повторное использование дочерних компонентов -->
+
 <template>
-  <div class="edit-record-page">
-    <div class="header-container">
-      <h4>{{ pageTitle }}</h4>
-      <div class="actions-container">
-        <Button
-          icon="pi pi-arrow-left"
-          class="p-button-rounded p-button-text"
-          aria-label="Вернуться к списку"
-          v-tooltip="'Вернуться к списку'"
-          @click="goBack"
-        />
-      </div>
+  <div class="p-4">
+    <div class="flex justify-content-between align-items-center mb-4">
+      <h1 class="text-2xl font-bold">{{ pageTitle }}</h1>
+      <Button
+        label="Назад"
+        icon="pi pi-arrow-left"
+        class="p-button-rounded p-button-text"
+        aria-label="Вернуться к списку"
+        v-tooltip="'Вернуться к списку'"
+        @click="goBack"
+      />
     </div>
-    <div v-if="loading" class="loading-container">
+
+    <div v-if="loading" class="flex justify-content-center">
       <ProgressSpinner />
-      <p>Загрузка данных...</p>
     </div>
 
-    <div v-else-if="error" class="error-container">
-      <Message severity="error">{{ error }}</Message>
+    <div v-else-if="error" class="p-4 bg-red-100 text-red-700 border-round mb-4">
+      {{ error }}
     </div>
 
-    <div v-else class="edit-form-container">
-      <div v-if="saving" class="saving-overlay">
-        <ProgressSpinner />
-        <p>Сохранение данных...</p>
-      </div>
-
-      <!-- Используем DynamicFormLayout для рекурсивного отображения элементов формы -->
-      <DynamicFormLayout
-        v-if="layoutElements.length > 0 || formFields.length > 0"
-        :elements="layoutElements.length > 0 ? layoutElements : formFields"
-        :model-value="formData"
-        @update:model-value="(newValue) => (formData = newValue)"
+    <div v-else class="card">
+      <!-- Используем DynamicLayout для рекурсивного отображения элементов формы -->
+      <DynamicLayout
+        v-if="storeOptions && storeOptions.layout.ELEMENTS"
+        :layout-elements="storeOptions.layout.ELEMENTS"
+        :record-data="recordData || null"
+        :record-id="recordId"
+        v-model="formData"
       />
 
-      <div class="form-actions">
+      <div class="form-actions flex justify-content-end mt-4 gap-2">
         <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
-        <Button label="Сохранить" icon="pi pi-check" @click="saveData" :loading="saving" />
+        <Button
+          label="Сохранить"
+          icon="pi pi-check"
+          class="p-button-primary"
+          :loading="saving"
+          @click="saveData"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, reactive } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import api from '../../api';
   import { useToast } from 'primevue/usetoast';
   import { useModuleStore } from '../../stores/module-factory';
 
-  import Card from 'primevue/card';
-  import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import Button from 'primevue/button';
-  import DynamicFormField from './components/DynamicFormField.vue';
-  import DynamicFormLayout from './components/DynamicFormLayout.vue';
 
-  // Определяем типы для формы
-  interface FormField {
-    name: string;
-    label: string;
-    type: string;
-    class_name?: string;
-    field_class?: string;
-    readonly?: boolean;
-    required?: boolean;
-    placeholder?: string;
-    choices?: Array<{ value: string | number; display_name: string }>;
-    min?: number;
-    max?: number;
-    related_model?: string;
-    related_url?: string;
-  }
+  import DynamicLayout from './components/DynamicLayout.vue';
+
+  // Типы элементов макета определены в компоненте DynamicLayout
 
   // Определяем props компонента
   const props = defineProps<{
@@ -98,6 +87,24 @@
   const pageTitle = computed(() => {
     return `Редактирование записи: ${viewname.value} (ID: ${recordId.value})`;
   });
+
+  // Данные формы
+  const formData = ref<Record<string, any>>({});
+  const storeOptions = ref<any>(null);
+  const recordData = ref<any>(undefined);
+
+  // Функция для сбора имен полей из элементов макета
+  const collectFieldNames = (elements: any[]): string[] => {
+    return elements.reduce((names: string[], element: any) => {
+      if (element.name && !element.class_name?.includes('Layout')) {
+        names.push(element.name);
+      }
+      if (element.elements && Array.isArray(element.elements)) {
+        names.push(...collectFieldNames(element.elements));
+      }
+      return names;
+    }, []);
+  };
 
   // Получаем стор модуля и проверяем его наличие
   const getModuleStore = () => {
@@ -125,10 +132,6 @@
     }
   };
 
-  const formFields = ref<FormField[]>([]);
-  const formData = ref<Record<string, any>>({});
-  const layoutElements = ref<any[]>([]);
-
   // Функция для возврата к списку
   const goBack = () => {
     const currentPath = route.path;
@@ -148,9 +151,9 @@
       const moduleStore = getModuleStore();
 
       // Получаем метаданные из OPTIONS
-      const storeOptions = moduleStore.catalogDetails?.[viewname.value]?.OPTIONS;
+      const options = moduleStore.catalogDetails?.[viewname.value]?.OPTIONS;
 
-      if (!storeOptions || !storeOptions.layout) {
+      if (!options || !options.layout) {
         throw new Error(`Метаданные для представления ${viewname.value} не найдены`);
       }
 
@@ -161,52 +164,44 @@
 
       console.log('Найденная запись:', recordData);
 
-      // Создаем поля формы на основе элементов из OPTIONS
-      if (storeOptions.layout.elements && Array.isArray(storeOptions.layout.elements)) {
-        layoutElements.value = storeOptions.layout.elements;
-        formFields.value = layoutElements.value.map((element: any) => {
-          // Создаем объект поля формы
-          const field: FormField = {
-            name: element.name,
-            label: element.label || element.name,
-            type: element.type || 'text',
-            class_name: element.class_name,
-            field_class: element.field_class,
-            readonly: element.readonly || element.name === 'id',
-            required: element.required || false,
-            placeholder: element.placeholder || '',
-          };
+      // Сохраняем метаданные и данные записи для передачи в DynamicLayout
+      if (options.layout.ELEMENTS) {
+        storeOptions.value = options;
+        recordData.value = recordData || null;
 
-          // Если это поле с выбором, добавляем опции
-          if (element.choices && Array.isArray(element.choices)) {
-            field.choices = element.choices.map((choice: any) => ({
-              value: choice.value,
-              display_name: choice.display_name || choice.value,
-            }));
-          }
+        console.log('Загруженные метаданные:', storeOptions.value);
+        console.log('Данные записи:', recordData.value);
 
-          return field;
-        });
+        // Инициализируем formData данными записи или пустыми полями
+        // Если есть данные записи, используем их
+        formData.value = recordData ? { ...recordData } : {};
 
-        console.log('Созданные поля формы:', formFields.value);
+        // Если создаем новую запись (нет recordData), инициализируем пустыми полями
+        if (!recordData) {
+          // Используем Map для инициализации полей
+          options.layout.ELEMENTS.forEach((element: any, name: string) => {
+            // Инициализируем поле с учетом его типа
+            let defaultValue: any = null;
 
-        // Заполняем данные формы
-        if (recordData) {
-          // Если запись найдена, заполняем данными из записи
-          formData.value = { ...recordData };
-        } else {
-          // Если запись не найдена, создаем пустой объект с полями из формы
-          formFields.value.forEach((field) => {
-            formData.value[field.name] = null;
+            // НЕ удалять! Можно добавить логику для разных типов полей
+            // if (element.FRONTEND_CLASS === 'Boolean') {
+            //   defaultValue = false;
+            // } else if (element.FRONTEND_CLASS === 'Number') {
+            //   defaultValue = 0;
+            // } else if (element.FRONTEND_CLASS === 'Array') {
+            //   defaultValue = [];
+            // }
+
+            formData.value[name] = defaultValue;
           });
 
-          // ID записи всегда устанавливаем из URL
-          formData.value.id = recordId.value;
+          // Если есть ID записи, устанавливаем его
+          if (recordId.value) {
+            formData.value.id = recordId.value;
+          }
         }
-
-        console.log('Данные формы:', formData.value);
       } else {
-        throw new Error('Не удалось получить элементы формы из метаданных');
+        throw new Error(`Метаданные ELEMENTS для представления ${viewname.value} не найдены`);
       }
     } catch (e) {
       console.error('Ошибка загрузки данных записи:', e);
@@ -214,6 +209,50 @@
     } finally {
       loading.value = false;
     }
+  };
+  // Функция JSON.parse(JSON.stringify()) не справляется с циклическими ссылками и выбрасывает ошибку
+  // Наша функция cleanObject специально обрабатывает такие случаи, пропуская проблемные свойства
+  // Она также более безопасна для сложных объектов, содержащих специальные типы данных
+  // Теперь при сохранении данных формы не должно возникать ошибок, связанных с циклическими ссылками. Функция cleanObject создает "плоскую" копию объекта, которая безопасно сериализуется в JSON для отправки на сервер.
+  // Функция для очистки объекта от циклических ссылок и реактивных свойств
+  const cleanObject = (obj: any) => {
+    // Создаем новый объект для результата
+    const result: Record<string, any> = {};
+
+    // Перебираем все ключи объекта
+    for (const key in obj) {
+      // Пропускаем служебные свойства Vue
+      if (key.startsWith('__v_') || key === 'value' || key === 'effect' || key === 'dep') {
+        continue;
+      }
+
+      // Получаем значение
+      const value = obj[key];
+
+      // Обрабатываем значение в зависимости от его типа
+      if (value === null || value === undefined) {
+        result[key] = value;
+      } else if (typeof value === 'object' && !Array.isArray(value)) {
+        // Если это объект, рекурсивно очищаем его
+        // Проверяем, что это не функция и не DOM-элемент
+        if (typeof value !== 'function' && !(value instanceof Node)) {
+          result[key] = cleanObject(value);
+        }
+      } else if (Array.isArray(value)) {
+        // Если это массив, очищаем каждый элемент
+        result[key] = value.map((item) => {
+          if (item === null || item === undefined || typeof item !== 'object') {
+            return item;
+          }
+          return cleanObject(item);
+        });
+      } else {
+        // Примитивные значения копируем как есть
+        result[key] = value;
+      }
+    }
+
+    return result;
   };
 
   // Сохранение данных
@@ -223,47 +262,59 @@
 
     try {
       // Проверка обязательных полей
-      const missingRequiredFields = formFields.value
-        .filter((field) => field.required && !formData.value[field.name])
-        .map((field) => field.label);
-
-      if (missingRequiredFields.length > 0) {
-        throw new Error(`Заполните обязательные поля: ${missingRequiredFields.join(', ')}`);
+      // Вся логика проверки обязательных полей теперь в компоненте DynamicLayout
+      // Проверяем только наличие данных в formData
+      if (Object.keys(formData.value).length === 0) {
+        throw new Error('Форма не содержит данных для сохранения');
       }
 
       // Отправляем PATCH запрос для сохранения данных
       try {
         saving.value = true;
-        
+
         // Формируем URL для запроса
         const url = `/catalog/api/v1/${viewname.value}/${recordId.value}/?mode=short`;
         console.log(`Отправка PATCH запроса на: ${url}`);
-        console.log('Данные для отправки:', formData.value);
-        
+
+        // Создаем чистый объект данных без реактивности и циклических ссылок
+        const cleanData = cleanObject(formData.value);
+        console.log('Данные для отправки:', cleanData);
+
         // Отправляем запрос
-        const response = await api.patch(url, formData.value);
-        
+        const response = await api.patch(url, cleanData);
+
         console.log('Ответ сервера:', response.data);
         
+        // Обновляем данные в сторе
+        const moduleStore = getModuleStore();
+        if (moduleStore.updateRecordInStore) {
+          const updated = moduleStore.updateRecordInStore(viewname.value, recordId.value, response.data);
+          if (updated) {
+            console.log('Данные в сторе успешно обновлены');
+          } else {
+            console.warn('Не удалось обновить данные в сторе');
+          }
+        }
+
         // Показываем сообщение об успешном сохранении
         toast.add({
           severity: 'success',
           summary: 'Успешно',
           detail: 'Данные успешно сохранены',
-          life: 3000
+          life: 3000,
         });
-        
+
         // Возвращаемся к списку после сохранения
         goBack();
       } catch (err: any) {
         console.error('Ошибка при сохранении данных:', err);
-        
+
         // Показываем сообщение об ошибке
         toast.add({
           severity: 'error',
           summary: 'Ошибка',
           detail: `Не удалось сохранить данные: ${err.message || 'Неизвестная ошибка'}`,
-          life: 5000
+          life: 5000,
         });
       } finally {
         saving.value = false;
