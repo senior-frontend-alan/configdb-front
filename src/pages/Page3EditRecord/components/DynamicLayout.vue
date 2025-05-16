@@ -95,7 +95,6 @@ DynamicLayout: чисто презентационный компонент
   const props = defineProps<{
     layoutElements: Map<string, FormElement>;
     modelValue: Record<string, any>;
-    recordData?: Record<string, any> | null;
     recordId?: string;
   }>();
 

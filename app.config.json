@@ -30,26 +30,26 @@
   },
   "modules": [
     {
-      "id": "catalog",
-      "name": "Catalog",
+      "viewname": "catalog",
+      "label": "Catalog",
       "routes": {
-        "getCatalog": "/catalog/api/v1/-catalog/",
+        "getCatalog": "http://localhost:5173/catalog/api/v1/-catalog/",
         "getJSIFunctions": "/js/modules/catalog.js"
       }
     },
     {
-      "id": "inventory",
-      "name": "Inventory",
+      "viewname": "inventory",
+      "label": "Inventory",
       "routes": {
-        "getCatalog": "/inventory/api/v1/-catalog/",
+        "getCatalog": "http://localhost:5173/inventory/api/v1/-catalog/",
         "getJSIFunctions": "/js/modules/applicationReferences.js"
       }
     },
     {
-      "id": "ocsmanage",
-      "name": "OCS Manage",
+      "viewname": "ocsmanage",
+      "label": "OCS Manage",
       "routes": {
-        "getCatalog": "/ocsmanage/api/v1/-catalog/",
+        "getCatalog": "http://localhost:5173/ocsmanage/api/v1/-catalog/",
         "getJSIFunctions": "/js/modules/applicationReferences.js"
       }
     }

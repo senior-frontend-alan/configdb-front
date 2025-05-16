@@ -1,62 +1,228 @@
+<!-- Отображаем как модальное окно с новой таблицей -->
 <template>
-  <FloatLabel variant="in">
-    <Dropdown
-      :id="props.id"
-      v-model="value"
-      variant="filled"
-      :options="props.options"
-      optionValue="id"
-      :disabled="props.disabled"
-      :required="props.required"
-      :placeholder="props.placeholder || 'Выберите значение'"
-      :filter="true"
-      :virtualScrollerOptions="{ itemSize: 38 }"
-      class="w-full"
-    />
-    <label :for="props.id">{{ props.label }}</label>
-  </FloatLabel>
+  <div class="w-full">
+    <FloatLabel variant="in">
+      <div class="p-inputgroup">
+        <InputText
+          :id="props.id"
+          v-model="displayValue"
+          :disabled="true"
+          :required="props.required"
+          :placeholder="props.placeholder || 'Выберите значение'"
+          class="w-full"
+        />
+        <Button
+          icon="pi pi-search"
+          :disabled="props.disabled"
+          @click="openDialog"
+          aria-label="Выбрать"
+        />
+      </div>
+      <label :for="props.id">{{ props.label }}</label>
+    </FloatLabel>
+
+    <div v-if="props.help_text" class="flex align-items-center justify-content-between mt-1">
+      <Message size="small" severity="secondary" variant="simple" class="flex-grow-1">
+        {{ props.help_text }}
+      </Message>
+    </div>
+
+    <!-- Модальное окно для выбора связанной записи -->
+    <Dialog
+      v-model:visible="dialogVisible"
+      :header="`Выберите ${props.label}`"
+      :style="{ width: '80vw' }"
+      :modal="true"
+      :closable="true"
+      :dismissableMask="true"
+    >
+      <div v-if="loading" class="flex justify-content-center">
+        <ProgressSpinner />
+      </div>
+      <div v-else-if="error" class="p-error">
+        {{ error }}
+      </div>
+      <div v-else-if="relatedData && relatedData.length > 0" class="card">
+        <DataTable
+          :value="relatedData"
+          :paginator="true"
+          :rows="10"
+          :rowsPerPageOptions="[5, 10, 20, 50]"
+          tableStyle="min-width: 50rem"
+          :filters="filters"
+          filterDisplay="row"
+          v-model:selection="selectedItem"
+          selectionMode="single"
+          dataKey="id"
+          @row-select="onRowSelect"
+        >
+          <template #header>
+            <div class="flex justify-content-end">
+              <span class="p-input-icon-left">
+                <i class="pi pi-search" />
+                <InputText v-model="filters.global.value" placeholder="Поиск..." />
+              </span>
+            </div>
+          </template>
+
+          <!-- Динамически создаем колонки на основе первого элемента данных -->
+          <Column
+            v-for="(_, key) in Object.keys(relatedData[0] || {})"
+            :key="key"
+            :field="String(key)"
+            :header="String(key)"
+            :sortable="true"
+            v-if="key !== 'id' && !String(key).startsWith('_')"
+          >
+            <template #filter="{ filterModel, filterCallback }">
+              <InputText
+                v-model="filterModel.value"
+                @input="filterCallback()"
+                class="p-column-filter"
+                placeholder="Поиск"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+      <div v-else class="p-4 text-center">Нет доступных данных для выбора</div>
+
+      <template #footer>
+        <Button label="Отмена" icon="pi pi-times" @click="closeDialog" class="p-button-text" />
+        <Button
+          label="Выбрать"
+          icon="pi pi-check"
+          @click="selectItem"
+          :disabled="!selectedItem"
+          autofocus
+        />
+      </template>
+    </Dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, watch, computed } from 'vue';
-  import Dropdown from 'primevue/dropdown';
+  import { ref, computed, onMounted } from 'vue';
+  import { useModuleStore } from '../../../../stores/module-factory';
+  import InputText from 'primevue/inputtext';
+  import Button from 'primevue/button';
   import FloatLabel from 'primevue/floatlabel';
+  import Dialog from 'primevue/dialog';
+  import DataTable from 'primevue/datatable';
+  import Column from 'primevue/column';
+  import ProgressSpinner from 'primevue/progressspinner';
+  import Message from 'primevue/message';
+  import api from '../../../../api';
 
   interface RelatedItem {
     id: number | string;
+    name: string;
     [key: string]: any;
   }
 
   const props = defineProps<{
-    modelValue?: number | string | null;
+    modelValue?: RelatedItem | number | string | null;
     id: string;
     label: string;
     placeholder?: string;
     disabled?: boolean;
     required?: boolean;
-    options: RelatedItem[];
+    apiEndpoint?: string;
+    help_text?: string;
+    moduleId?: string;
   }>();
 
   const emit = defineEmits<{
-    (e: 'update:modelValue', value: number | string | null): void;
+    (e: 'update:modelValue', value: RelatedItem | number | string | null): void;
   }>();
 
-  const value = ref(props.modelValue);
+  // Состояние компонента
+  const dialogVisible = ref(false);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+  const relatedData = ref<RelatedItem[]>([]);
+  const selectedItem = ref<RelatedItem | null>(null);
+  const displayValue = ref('');
 
-  // Обновляем локальное значение при изменении props.modelValue
-  watch(
-    () => props.modelValue,
-    (newValue) => {
-      value.value = newValue;
-    },
-  );
+  // Фильтры для таблицы
+  const filters = ref({
+    global: { value: null, matchMode: 'contains' },
+  });
 
-  // Отправляем событие при изменении локального значения
-  watch(value, (newValue) => {
-    emit('update:modelValue', newValue);
+  // Получаем текущее значение id из modelValue
+  const getCurrentId = (): number | string | null => {
+    if (!props.modelValue) return null;
+
+    // Если массив, возвращаем null (пустое значение)
+    if (Array.isArray(props.modelValue)) return null;
+
+    // Если объект с id
+    if (
+      typeof props.modelValue === 'object' &&
+      props.modelValue !== null &&
+      'id' in props.modelValue
+    ) {
+      return props.modelValue.id;
+    }
+
+    // Если просто id (число или строка)
+    if (typeof props.modelValue === 'number' || typeof props.modelValue === 'string') {
+      return props.modelValue;
+    }
+
+    return null;
+  };
+
+  // Открытие диалога и загрузка данных
+  const openDialog = async () => {
+    if (props.disabled) return;
+
+    dialogVisible.value = true;
+    await loadRelatedData();
+
+    // Устанавливаем выбранный элемент, если есть текущее значение
+    const currentId = getCurrentId();
+    if (currentId && relatedData.value) {
+      selectedItem.value = relatedData.value.find((item) => item.id == currentId) || null;
+    }
+  };
+
+  // Закрытие диалога
+  const closeDialog = () => {
+    dialogVisible.value = false;
+  };
+
+  // Загрузка данных для выбора
+  const loadRelatedData = async () => {
+    if (!props.apiEndpoint && !props.moduleId) {
+      error.value = 'Не указан apiEndpoint или moduleId';
+      return;
+    }
+
+    loading.value = true;
+    error.value = null;
+  };
+
+  // Обработка выбора строки в таблице
+  const onRowSelect = (event: any) => {
+    selectedItem.value = event.data;
+  };
+
+  // Выбор элемента и закрытие диалога
+  const selectItem = () => {
+    if (selectedItem.value) {
+      emit('update:modelValue', selectedItem.value);
+      closeDialog();
+    }
+  };
+
+  // При изменении modelValue обновляем отображаемое значение
+  onMounted(() => {
+    // updateDisplayValue();
   });
 </script>
 
 <style scoped>
+  /* Используются общие стили из tailwind.css */
   /* При необходимости можно добавить дополнительные стили */
 </style>

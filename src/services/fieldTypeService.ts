@@ -126,9 +126,12 @@ export class FieldTypeService {
         case BACKEND.field_class.CHOICE_FIELD:
           return FRONTEND.CHOICE;
         case BACKEND.field_class.PRIMARY_KEY_RELATED_FIELD:
-        case BACKEND.field_class.MANY_RELATED_FIELD:
-          // case BACKEND.field_class.WEAK_RELATED_FIELD:
-          return FRONTEND.RELATED;
+          if (fieldDef.choices && Array.isArray(fieldDef.choices)) {
+            return FRONTEND.RELATED; // Если есть choices, то это обычный Related (отображаем как выпадающий список),
+          }
+          return FRONTEND.PRIMARY_KEY_RELATED; // иначе - PrimaryKeyRelated (отображаем как модальное окно с новой таблицей)
+        // case BACKEND.field_class.MANY_RELATED_FIELD:
+        // case BACKEND.field_class.WEAK_RELATED_FIELD:
         case BACKEND.field_class.COMPUTED_FIELD:
           return FRONTEND.COMPUTED;
         case BACKEND.field_class.BOOLEAN_FIELD:

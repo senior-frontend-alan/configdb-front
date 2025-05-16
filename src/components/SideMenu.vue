@@ -44,7 +44,7 @@
       if (pathParts.length >= 2) {
         const moduleId = pathParts[1];
         // Проверяем, что модуль существует в конфигурации
-        const moduleExists = config.value.modules.some((m) => m.id === moduleId);
+        const moduleExists = config.value.modules.some((m) => m.viewname === moduleId);
         if (moduleExists) {
           // Открываем меню для активного модуля
           openMenuItems.value[moduleId] = true;
@@ -67,9 +67,8 @@
     router.push(path);
   };
 
-  // Вычисляемое свойство moduleId для всего компонента
   const moduleId = computed(() => {
-    return (route.meta.moduleId as string) || '';
+    return (route.params.moduleId as string) || '';
   });
 
   const isRouteActive = (path: string) => {
@@ -131,12 +130,12 @@
 
     // Пункты меню модулей из конфигурации
     const moduleItems = config.value.modules.map((module) => {
-      const path = `/${module.id}`;
+      const path = `/${module.viewname}`;
       const moduleItem: any = {
-        label: module.name,
+        label: module.label,
         icon: module.icon || 'pi pi-folder',
         command: (event: any) => handleMenuItemClick(event, path),
-        key: module.id, // Уникальный ключ для пункта меню
+        key: module.viewname, // Уникальный ключ для пункта меню
         style: isRouteActive(path)
           ? {
               backgroundColor: 'var(--primary-color-lighter, #e3f2fd)',
@@ -146,20 +145,21 @@
       };
 
       // Подменю строится на данных стора каждого модуля
-      const moduleStore = useModuleStore(module.id);
+      const moduleStore = useModuleStore(module.viewname);
 
       // Всегда используем данные из стора, Данные будут загружены при клике на пункт меню в функции handleMenuItemClick
       if (moduleStore) {
         // Если в сторе есть данные, формируем подменю
         if (moduleStore.catalog && moduleStore.catalog.length > 0) {
           moduleItem.items = moduleStore.catalog.map((group: CatalogGroup) => {
-            const path = `/${module.id}?group=${group.name}`;
+            // Формируем путь с параметром group
+            const path = `/${module.viewname}?group=${group.name}`;
             return {
               label: group.verbose_name,
               command: (event: any) => {
                 handleMenuItemClick(event, path);
               },
-              key: `${module.id}_${group.name}`, // Уникальный ключ для элемента подменю
+              key: `${module.viewname}_${group.name}`, // Уникальный ключ для элемента подменю
               style: isRouteActive(path)
                 ? {
                     backgroundColor: 'var(--primary-color-lighter, #e3f2fd)',

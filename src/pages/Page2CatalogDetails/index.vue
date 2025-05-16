@@ -121,10 +121,10 @@
 
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue';
-  import { useRoute, useRouter } from 'vue-router';
+  import { useRouter } from 'vue-router';
   import { resolveComponent, dynamicField } from './components/fields';
   import { useModuleStore } from '../../stores/module-factory';
-  import { findAndLoadCatalogData } from '../../router';
+  import { findAndLoadCatalogDetails } from '../../router';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   // Компонент AddNewDataDialog закомментирован в шаблоне, поэтому удаляем его импорт
   import Message from 'primevue/message';
@@ -133,10 +133,8 @@
   import Column from 'primevue/column';
   import Button from 'primevue/button';
 
-  // Получаем параметры маршрута
-  const route = useRoute();
+  // Получаем параметры маршрута только для навигации
   const router = useRouter();
-  const viewname = computed(() => route.params.viewname as string);
 
   // Состояние компонента
   const selectedItems = ref<any[]>([]);
@@ -150,8 +148,15 @@
   const columnsOrder = ref<string[]>([]);
   const isTableScrollable = ref(false);
 
-  // Получаем ID модуля из meta-данных маршрута
-  const moduleId = computed(() => (route.meta.moduleId as string) || '');
+  // Получаем moduleId и viewname из props
+  const props = defineProps<{
+    moduleId: string; // Обязательный параметр
+    viewname: string; // Обязательный параметр
+  }>();
+  
+  // Используем значения из props
+  const moduleId = computed(() => props.moduleId);
+  const viewname = computed(() => props.viewname);
 
   // Получаем ссылку на хранилище модуля
   const moduleStore = computed(() => useModuleStore(moduleId.value));
@@ -251,12 +256,14 @@
     error.value = null;
 
     try {
-      // Определяем viewname из маршрута
-      const viewname = route.params.viewname as string;
+      // Используем вычисляемое свойство viewname
+      if (!viewname.value) {
+        throw new Error('Не удалось определить viewname для загрузки данных');
+      }
 
-      const dataLoaded = await findAndLoadCatalogData(
+      const dataLoaded = await findAndLoadCatalogDetails(
         moduleId.value,
-        viewname,
+        viewname.value,
         (err) => {
           if (err) {
             error.value = err.message || 'Ошибка загрузки данных';
@@ -333,12 +340,13 @@
     }
   };
 
+  // Обработка клика по строке таблицы - переход на страницу редактирования
   const onRowClick = (event: any) => {
     const rowData = event.data;
 
     if (rowData && rowData.id) {
-      const currentPath = route.path;
-      const editUrl = `${currentPath}/edit/${rowData.id}`;
+      // Формируем URL для страницы редактирования, используя moduleId и viewname из props
+      const editUrl = `/${moduleId.value}/${viewname.value}/edit/${rowData.id}`;
 
       router.push(editUrl);
     } else {
@@ -350,8 +358,8 @@
 
   // Переход на страницу добавления новой записи
   const goToAddRecord = () => {
-    const currentPath = route.path;
-    const addUrl = `${currentPath}/add`;
+    // Формируем URL для страницы добавления, используя moduleId и viewname из props
+    const addUrl = `/${moduleId.value}/${viewname.value}/add`;
 
     router.push(addUrl);
   };

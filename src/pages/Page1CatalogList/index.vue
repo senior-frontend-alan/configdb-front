@@ -9,8 +9,8 @@
       <ProgressSpinner />
       <p>Загрузка данных каталога...</p>
     </div>
-    <div v-else-if="error">
-      <Message severity="error">{{ error }}</Message>
+    <div v-if="displayError" class="error-message">
+      <Message severity="error" :closable="false">{{ displayError }}</Message>
     </div>
     <div v-else-if="!filteredData || filteredData.length === 0">
       <Message severity="info">Данные каталога отсутствуют</Message>
@@ -52,12 +52,11 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed, watch } from 'vue';
+  import { computed, ref } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
-  import type { CatalogGroup } from '../../stores/types/moduleStore.type';
-
+  import type { CatalogGroup, CatalogItem } from '../../stores/types/moduleStore.type';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import P1_TabView from './components/P1_TabView.vue';
@@ -66,20 +65,34 @@
   const route = useRoute();
   const router = useRouter();
 
-  const loading = ref(true);
-  const error = ref<string | null>(null);
-  const catalogData = ref<CatalogGroup[]>([]);
-  const moduleTitle = computed(() => moduleStore?.moduleName || 'Каталог элементов');
+  // Используем реактивные ссылки на данные из стора
+  // computed кэширует результат и пересчитывает его только при изменении зависимостей
+  const loading = computed(() => moduleStore.value?.loading ?? true);
+  const error = computed(() => (moduleStore.value?.error ? String(moduleStore.value.error) : null));
+  const catalogData = computed(() => moduleStore.value?.catalog ?? []);
+  const moduleTitle = computed(() => moduleStore.value?.moduleName || 'Каталог элементов');
 
   // Используем настройки из хранилища
   const settingsStore = useSettingsStore();
   const tabMode = computed(() => settingsStore.useTabMode); // Режим отображения из настроек
   const showDebugJson = ref(false); // Показывать ли JSON для отладки
 
+  // Получаем moduleId из props или из параметров маршрута
+  const props = defineProps<{
+    moduleId?: string;
+  }>();
+
   const moduleId = computed(() => {
-    return (route.meta.moduleId as string) || '';
+    return props.moduleId || (route.params.moduleId as string) || '';
   });
-  const moduleStore = useModuleStore(moduleId.value);
+
+  // Получаем стор модуля только если moduleId не пустой
+  const moduleStore = computed(() => {
+    if (moduleId.value) {
+      return useModuleStore(moduleId.value);
+    }
+    return null;
+  });
 
   const queryGroupName = computed(() => (route.query.group as string) || '');
   const searchQuery = computed(() => (route.query.search as string) || '');
@@ -126,56 +139,37 @@
 
   // Фильтрация данных уже выполнена в filteredData
 
-  // Следим за изменениями данных в сторе
-  onMounted(() => {
-    if (!moduleId.value || !moduleStore) {
-      error.value = 'Не удалось определить модуль';
-      return;
+  // Проверка наличия moduleId
+  const moduleIdError = computed(() => {
+    if (!moduleId.value) {
+      return 'Не удалось определить модуль';
     }
-
-    // Синхронизируем локальное состояние со стором
-    catalogData.value = moduleStore.catalog;
-    loading.value = moduleStore.loading;
-    error.value = moduleStore.error ? String(moduleStore.error) : null;
+    return null;
   });
 
-  // Следим за изменениями в сторе
-  watch(
-    () => moduleStore?.catalog,
-    (newCatalog: CatalogGroup[]) => {
-      if (newCatalog) {
-        catalogData.value = newCatalog;
-      }
-    },
-  );
+  // Итоговая ошибка - либо ошибка moduleId, либо ошибка из стора, либо ошибка от компонента табов
+  const displayError = computed(() => moduleIdError.value || error.value || tabViewError.value);
 
-  watch(
-    () => moduleStore?.loading,
-    (newLoading: boolean) => {
-      loading.value = newLoading;
-    },
-  );
+  // Наблюдатели больше не нужны, так как мы используем вычисляемые свойства,
+  // которые автоматически обновляются при изменении данных в сторе
 
-  watch(
-    () => moduleStore?.error,
-    (newError: any) => {
-      error.value = newError ? String(newError) : null;
-    },
-  );
+  // Создаем отдельный ref для ошибок от компонента табов
+  const tabViewError = ref<string | null>(null);
 
   // Обработчик ошибок от компонента табов
   const handleTabViewError = (message: string) => {
-    error.value = message;
+    tabViewError.value = message;
   };
 
   const handleCardClick = async (item: any) => {
     try {
       if (item && item.viewname) {
-        // Формируем новый URL из модуля и viewname элемента
-        const moduleId = route.meta.moduleId as string;
-        const newPath = `/${moduleId}/${item.viewname}`;
+        const currentModuleId = route.params.moduleId as string;
 
-        // Загрузка данных будет инициирована роутером
+        // Формируем новый URL для перехода к деталям элемента
+        const newPath = `/${currentModuleId}/${item.viewname}`;
+
+        // Загрузка данных будет инициирована роутером через хук beforeResolve
         console.log(`Переход по пути: ${newPath}`);
         router.push(newPath);
       }

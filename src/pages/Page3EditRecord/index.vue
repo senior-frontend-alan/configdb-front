@@ -30,7 +30,6 @@
       <DynamicLayout
         v-if="storeOptions && storeOptions.layout.ELEMENTS"
         :layout-elements="storeOptions.layout.ELEMENTS"
-        :record-data="recordData || null"
         :record-id="recordId"
         v-model="formData"
       />
@@ -91,7 +90,6 @@
   // Данные формы
   const formData = ref<Record<string, any>>({});
   const storeOptions = ref<any>(null);
-  const recordData = ref<any>(undefined);
 
   // Функция для сбора имен полей из элементов макета
   const collectFieldNames = (elements: any[]): string[] => {
@@ -284,11 +282,15 @@
         const response = await api.patch(url, cleanData);
 
         console.log('Ответ сервера:', response.data);
-        
+
         // Обновляем данные в сторе
         const moduleStore = getModuleStore();
         if (moduleStore.updateRecordInStore) {
-          const updated = moduleStore.updateRecordInStore(viewname.value, recordId.value, response.data);
+          const updated = moduleStore.updateRecordInStore(
+            viewname.value,
+            recordId.value,
+            response.data,
+          );
           if (updated) {
             console.log('Данные в сторе успешно обновлены');
           } else {

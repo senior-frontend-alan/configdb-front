@@ -1,3 +1,4 @@
+<!-- Отображаем как выпадающий список с полем name -->
 <template>
   <div class="w-full">
     <FloatLabel variant="in">

@@ -8,8 +8,8 @@ export interface ModuleRoutes {
 }
 
 export interface ModuleConfig {
-  id: string;
-  name: string;
+  viewname: string;
+  label: string;
   icon?: string;
   routes: ModuleRoutes;
 }
@@ -51,15 +51,15 @@ export function useConfig() {
     // Возвращаем только для чтения версию конфигурации
     config: readonly(config),
 
-    // Получение конфигурации модуля по ID
+    // Получение конфигурации модуля по viewname
     getModuleConfig: (moduleId: string) => {
-      const module = config.value.modules.find(m => m.id === moduleId);
+      const module = config.value.modules.find((m) => m.viewname === moduleId);
       if (!module) {
-        console.error(`Модуль с ID ${moduleId} не найден в конфигурации`);
+        console.error(`Модуль с viewname ${moduleId} не найден в конфигурации`);
         return null;
       }
       return module;
-    }
+    },
   };
 }
 

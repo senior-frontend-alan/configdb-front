@@ -90,13 +90,19 @@ const baseJSInterface: ModuleJSInterface = {
   },
 };
 
-// Функция для получения стора модуля по ID
+// Функция для получения стора модуля по viewname
 export function useModuleStore(moduleId: string) {
+  // Проверка на пустое значение moduleId
+  if (!moduleId || moduleId.trim() === '') {
+    console.error('Невозможно получить стор: moduleId не указан или пуст');
+    return null;
+  }
+  
   const { getModuleConfig } = useConfig();
   const moduleConfig = getModuleConfig(moduleId);
 
   if (!moduleConfig) {
-    console.error(`Модуль ${moduleId} не найден в конфигурации`);
+    console.error(`Модуль с viewname '${moduleId}' не найден в конфигурации`);
     return null;
   }
 
@@ -108,8 +114,8 @@ export function useModuleStore(moduleId: string) {
     return null;
   }
 
-  // ID стора формируется как `${moduleConfig.id}Store`
-  const storeId = `${moduleConfig.id}`;
+  // ID стора формируется как `${moduleConfig.viewname}Store`
+  const storeId = `${moduleConfig.viewname}`;
 
   try {
     // Используем стандартную функцию Pinia для получения стора по ID
@@ -122,9 +128,10 @@ export function useModuleStore(moduleId: string) {
 }
 
 export function createModuleStore(moduleConfig: ModuleConfig) {
-  return defineStore(`${moduleConfig.id}`, () => {
+  return defineStore(`${moduleConfig.viewname}`, () => {
     // состояние
-    const moduleName = ref<string>(moduleConfig.name);
+    const moduleName = ref<string>(moduleConfig.label);
+    const url = ref<string>(moduleConfig.routes['getCatalog']);
     const catalog = ref<CatalogsAPIResponseGET>([]);
 
     // JS функции которые специфичны для конкретного модуля
@@ -139,17 +146,16 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
     const loading = ref<boolean>(false);
     const error = ref<any | null>(null);
-    const diamApplicationList = ref<any[]>([]);
 
     // Сохраненные данные по различным viewname - используем reactive вместо ref
     const catalogDetails = reactive<Record<string, any>>({});
 
     // (ШАГ 1) получаем список каталогов
-    const getCatalog = async (): Promise<CatalogsAPIResponseGET> => {
+    const loadCatalog = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
       if (catalog.value && catalog.value.length > 0) {
         console.log(
-          `Данные для модуля ${moduleConfig.id} уже загружены, используем кэшированные данные`,
+          `Данные для модуля ${moduleConfig.viewname} уже загружены, используем кэшированные данные`,
         );
         return catalog.value;
       }
@@ -157,24 +163,81 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       loading.value = true;
 
       try {
-        const routes = moduleConfig.routes as unknown as Record<string, string>;
-        const url = routes['getCatalog'];
-
-        console.log(`Отправка запроса на ${url}`);
-        const response = await api.get<CatalogsAPIResponseGET>(url);
+        console.log(`Отправка запроса на ${url.value}`);
+        const response = await api.get<CatalogsAPIResponseGET>(url.value);
         catalog.value = response.data;
         error.value = null;
         return response.data;
       } catch (err) {
         error.value = err;
-        console.error(`Ошибка при получении ${moduleConfig.name}:`, err);
+        console.error(`Ошибка при получении ${moduleConfig.label}:`, err);
         return [];
       } finally {
         loading.value = false;
       }
     };
 
-    // (ШАГ 2) Формируем список столбцов для отображения в таблице из элементов OPTIONS
+    // (ШАГ 2) Загрузка конкретного каталога и сохранение их в соответствующее поле catalogDetails
+    const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
+      loading.value = true;
+      error.value = null;
+
+      try {
+        let getResponseData;
+        let optionsResponseData;
+
+        // !УДАЛИТЬ моковый блок if (только для теста!)
+        if (url === 'http://localhost:5173/api/v1/draConfig/diamVendor/') {
+          console.log('Загрузка моковых данных для diamVendor');
+
+          // Импортируем моковые данные
+          const { OPTIONS4 } = await import('../mocks/OPTIONS4.js');
+          const { GET4 } = await import('../mocks/GET4.js');
+
+          getResponseData = GET4;
+          optionsResponseData = OPTIONS4;
+        } else {
+          // Добавляем параметр mode=short для получения сокращенных данных
+          const detailsUrl = url.includes('?') ? `${url}&mode=short` : `${url}?mode=short`;
+          const getResponse = await api.get<CatalogDetailsAPIResponseGET>(detailsUrl);
+          const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
+
+          getResponseData = getResponse.data;
+          optionsResponseData = optionsResponse.data;
+        }
+        // Добавляем наши вычисляемые поля в OPTIONS для удобства
+        if (optionsResponseData?.layout) {
+          optionsResponseData.layout.TABLE_COLUMNS = getTableColumns(optionsResponseData);
+
+          optionsResponseData.layout.ELEMENTS = createElementsMap(
+            optionsResponseData.layout.elements,
+          );
+        }
+
+        // Создаем новый объект с данными (общая логика для моковых и реальных данных)
+        const detailsData = {
+          GET: getResponseData,
+          OPTIONS: optionsResponseData,
+          viewname: viewname,
+          url: url,
+        };
+
+        // Напрямую обновляем реактивный объект
+        catalogDetails[viewname] = detailsData;
+
+        console.log(`Данные для ${viewname} успешно загружены в стор:`, catalogDetails[viewname]);
+
+        error.value = null;
+        return detailsData;
+      } catch (err) {
+        error.value = err;
+        console.error(`Ошибка при загрузке данных для ${viewname}:`, err);
+        return null;
+      } finally {
+        loading.value = false;
+      }
+    };
+
     // Map структура нам поможет быстро сопоставлять с GET запросом
     const getTableColumns = (options: any): Map<string, any> => {
       if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
@@ -308,13 +371,15 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       return elementsMap;
     };
 
-    // Функция для поиска URL каталога по viewname (т.е. загружаем данные из шага 1 чтобы найти URL для шага 2)
-    // Например нам дали url и мы должны сразу загрузить данные конкретного каталога (таблицы)
-    const findCatalogItemUrl = async (viewname: string): Promise<string | null> => {
-      // Если каталог еще не загружен, загружаем его
+    // Функция для поиска URL каталога по viewname в уже загруженном каталоге (на шаге 1)
+    // Предполагается, что каталог уже загружен до вызова этой функции
+    const findUrlInCatalog = (viewname: string): string | null => {
+      // Проверяем, что каталог загружен
       if (!catalog.value || catalog.value.length === 0) {
-        console.log(`Каталог для модуля ${moduleConfig.id} не загружен, загружаем...`);
-        await getCatalog();
+        console.warn(
+          `Каталог для модуля ${moduleConfig.viewname} не загружен. Сначала нужно вызвать loadCatalog()`,
+        );
+        return null;
       }
 
       // Ищем элемент каталога с нужным viewname
@@ -333,99 +398,17 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       return null;
     };
 
-    // Загрузка данных по URL и сохранение их в соответствующее поле catalogDetails
-    const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
-      loading.value = true;
-      error.value = null;
-
-      try {
-        let getResponseData;
-        let optionsResponseData;
-
-        // !УДАЛИТЬ моковый блок if (только для теста!)
-        if (url === 'http://localhost:5173/api/v1/draConfig/diamVendor/') {
-          console.log('Загрузка моковых данных для diamVendor');
-
-          // Импортируем моковые данные
-          const { OPTIONS4 } = await import('../mocks/OPTIONS4.js');
-          const { GET4 } = await import('../mocks/GET4.js');
-
-          getResponseData = GET4;
-          optionsResponseData = OPTIONS4;
-        } else {
-          // Добавляем параметр mode=short для получения сокращенных данных
-          const detailsUrl = url.includes('?') ? `${url}&mode=short` : `${url}?mode=short`;
-          const getResponse = await api.get<CatalogDetailsAPIResponseGET>(detailsUrl);
-          const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
-
-          getResponseData = getResponse.data;
-          optionsResponseData = optionsResponse.data;
-        }
-        // Добавляем наши вычисляемые поля в OPTIONS для удобства
-        if (optionsResponseData?.layout) {
-          optionsResponseData.layout.TABLE_COLUMNS = getTableColumns(optionsResponseData);
-
-          optionsResponseData.layout.ELEMENTS = createElementsMap(
-            optionsResponseData.layout.elements,
-          );
-        }
-
-        // Создаем новый объект с данными (общая логика для моковых и реальных данных)
-        const detailsData = {
-          GET: getResponseData,
-          OPTIONS: optionsResponseData,
-          viewname: viewname,
-          href: url,
-        };
-
-        // Напрямую обновляем реактивный объект
-        catalogDetails[viewname] = detailsData;
-
-        console.log(`Данные для ${viewname} успешно загружены в стор:`, catalogDetails[viewname]);
-
-        error.value = null;
-        return detailsData;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при загрузке данных для ${viewname}:`, err);
-        return null;
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    // Загрузка данных по идентификатору представления
-    const findAndLoadCatalogData = async (viewname: string, forceReload = false): Promise<any> => {
-      if (!viewname) {
-        console.error('Не указан viewname для загрузки данных');
-        return null;
-      }
-
-      // Если данные уже загружены и не требуется принудительная перезагрузка
-      if (!forceReload && catalogDetails[viewname]) {
-        console.log(`Данные для ${viewname} уже загружены, возвращаем из кэша`);
-        return catalogDetails[viewname];
-      }
-
-      try {
-        // Получаем URL для загрузки данных
-        const url = await findCatalogItemUrl(viewname);
-
-        if (!url) {
-          throw new Error(`URL для ${viewname} не найден`);
-        }
-
-        // Загружаем данные по полученному URL
-        return await loadCatalogDetails(viewname, url);
-      } catch (err) {
-        console.error(`Ошибка при загрузке данных для ${viewname}:`, err);
-        error.value = err;
-        return null;
-      }
+    // Проверка наличия данных в кэше для конкретного viewname
+    const hasCachedData = (viewname: string): boolean => {
+      return !!catalogDetails[viewname];
     };
 
     // Метод для обновления записи в сторе после PATCH-запроса
-    const updateRecordInStore = (viewname: string, recordId: string | number, updatedData: any): boolean => {
+    const updateRecordInStore = (
+      viewname: string,
+      recordId: string | number,
+      updatedData: any,
+    ): boolean => {
       try {
         // Проверяем, что данные для этого представления загружены
         if (!catalogDetails[viewname] || !catalogDetails[viewname].GET) {
@@ -438,7 +421,9 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
         // Проверяем, что есть массив results
         if (!currentData.results || !Array.isArray(currentData.results)) {
-          console.warn(`Невозможно обновить запись в сторе: нет массива results в данных ${viewname}`);
+          console.warn(
+            `Невозможно обновить запись в сторе: нет массива results в данных ${viewname}`,
+          );
           return false;
         }
 
@@ -446,7 +431,9 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         const recordIndex = currentData.results.findIndex((item: any) => item.id == recordId);
 
         if (recordIndex === -1) {
-          console.warn(`Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${viewname}`);
+          console.warn(
+            `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${viewname}`,
+          );
           return false;
         }
 
@@ -467,7 +454,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
     // try {
     // Все базовые функции теперь находятся в baseJSInterface
-    // console.log(`JS-функции для модуля ${moduleConfig.id} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
+    // console.log(`JS-функции для модуля ${moduleConfig.viewname} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
 
     // return jsInterface;
 
@@ -511,7 +498,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     //     (key) => !Object.keys(baseJSFunctions).includes(key),
     //   );
     //   console.log(
-    //     `JS-функции для модуля ${moduleConfig.id} успешно загружены: ${loadedFunctions.join(
+    //     `JS-функции для модуля ${moduleConfig.viewname} успешно загружены: ${loadedFunctions.join(
     //       ', ',
     //     )}`,
     //   );
@@ -521,7 +508,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
     // return JSIFunctions;
     // } catch (err) {
-    //   console.error(`Ошибка при получении JS-функций для модуля ${moduleConfig.id}:`, err);
+    //   console.error(`Ошибка при получении JS-функций для модуля ${moduleConfig.viewname}:`, err);
     //   return JSIFunctions;
     // } finally {
     //   loading.value = false;
@@ -537,7 +524,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     //       await getJSInterface();
     //     }
     //   } catch (error: any) {
-    //     console.error(`Ошибка при инициализации стора модуля ${moduleConfig.id}:`, error);
+    //     console.error(`Ошибка при инициализации стора модуля ${moduleConfig.viewname}:`, error);
     //   }
     // };
 
@@ -551,15 +538,16 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       loading,
       error,
       moduleName,
-      diamApplicationList,
+      url,
       catalogDetails,
 
       // действия
-      getCatalog,
-      // getJSInterface,
-      findCatalogItemUrl,
+      loadCatalog,
       loadCatalogDetails,
+      // getJSInterface,
+      findUrlInCatalog,
       updateRecordInStore,
+      hasCachedData,
       // initialize,
     };
   });
