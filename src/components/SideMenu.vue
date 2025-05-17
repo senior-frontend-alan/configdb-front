@@ -13,7 +13,7 @@
 
 <script setup lang="ts">
   import { computed } from 'vue';
-  import { useConfig, extractModuleNameFromUrl } from '../config-loader';
+  import { useConfig, parseBackendApiUrl } from '../config-loader';
   import PanelMenu from 'primevue/panelmenu';
   import { useModuleStore } from '../stores/module-factory';
   import type { CatalogGroup } from '../stores/types/moduleStore.type';
@@ -42,7 +42,7 @@
     if (currentModuleName.value) {
       // Проверяем, что модуль существует в конфигурации
       const moduleExists = config.value.modules.some((m) => {
-        const extractedModuleName = extractModuleNameFromUrl(m.routes.getCatalog);
+        const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
         return extractedModuleName === currentModuleName.value;
       });
 
@@ -131,8 +131,8 @@
 
     // Пункты меню модулей из конфигурации
     const moduleItems = config.value.modules.map((module) => {
-      // Получаем имя модуля из URL getCatalog
-      const moduleName = extractModuleNameFromUrl(module.routes.getCatalog);
+      // Получаем имя модуля из URL
+      const moduleName = parseBackendApiUrl(module.routes.getCatalog).moduleName;
       const path = `/${moduleName}`;
       const moduleItem: any = {
         label: module.label,

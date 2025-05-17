@@ -6,9 +6,9 @@ import {
   RouteLocationNormalized,
   NavigationGuardNext,
 } from 'vue-router';
-import { useConfig, extractModuleNameFromUrl } from './config-loader';
-import { useAuthStore } from './stores/authStore';
 import { useModuleStore } from './stores/module-factory';
+import { useConfig, parseBackendApiUrl } from './config-loader';
+import { useAuthStore } from './stores/authStore';
 
 const { config } = useConfig();
 
@@ -61,9 +61,9 @@ const validateModuleName = (
     return;
   }
 
-  // Проверяем, что moduleName соответствует имени модуля из URL getCatalog
+  // Проверяем, что модуль существует в конфигурации
   const module = config.value.modules.find((m) => {
-    const extractedModuleName = extractModuleNameFromUrl(m.routes.getCatalog);
+    const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
     return extractedModuleName === moduleName;
   });
 
@@ -107,7 +107,8 @@ routes.push({
 // Добавляем дополнительные маршруты для модулей, если необходимо
 try {
   config.value.modules.forEach((module) => {
-    const moduleName = extractModuleNameFromUrl(module.routes.getCatalog);
+    // Получаем имя модуля из URL
+    const moduleName = parseBackendApiUrl(module.routes.getCatalog).moduleName;
     console.log(`Добавление дополнительных маршрутов для модуля: ${moduleName}`);
 
     // Здесь можно добавить специфичные маршруты для конкретных модулей, если необходимо
@@ -158,9 +159,9 @@ router.beforeEach((to, _, next) => {
  * 4. Поиск URL для загрузки деталей каталога
  * 5. Загрузка деталей каталога
  */
-export const findAndLoadCatalogDetails = async (
+export const loadCatalogByNameFromGroups = async (
   moduleName: string,
-  viewname: string,
+  catalogName: string,
   next: (error?: any) => void,
   forceReload: boolean = false,
 ): Promise<boolean> => {
@@ -175,29 +176,29 @@ export const findAndLoadCatalogDetails = async (
 
   try {
     // ШАГ 2: Проверка наличия данных в кэше
-    if (!forceReload && moduleStore.hasCachedData(viewname)) {
-      console.log(`Данные для ${viewname} уже загружены, используем кэш`);
+    if (!forceReload && moduleStore.hasCachedData(catalogName)) {
+      console.log(`Данные для ${catalogName} уже загружены, используем кэш`);
       return true;
     }
 
-    // ШАГ 3: Загрузка каталога модуля, если он еще не загружен
+    // ШАГ 3: Загрузка групп, если они еще не загружены
     if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
-      console.log(`Загрузка каталога для модуля ${moduleName}...`);
+      console.log(`Загрузка групп для модуля ${moduleName}...`);
       await moduleStore.loadCatalog();
     }
 
-    // ШАГ 4: Поиск URL для загрузки деталей каталога
-    const href = moduleStore.findUrlInCatalog(viewname);
-    if (!href) {
-      const error = new Error(`URL для каталога ${viewname} не найден`);
+    // ШАГ 4: Поиск URL для загрузки конкретного справочника
+    const url = moduleStore.findUrlInCatalog(catalogName);
+    if (!url) {
+      const error = new Error(`URL для справочника ${catalogName} не найден`);
       console.error(error);
       next(error);
       return false;
     }
 
     // ШАГ 5: Загрузка деталей каталога
-    await moduleStore.loadCatalogDetails(viewname, href);
-    console.log(`Детали каталога ${viewname} успешно загружены`);
+    await moduleStore.loadCatalogDetails(catalogName, url);
+    console.log(`Детали каталога ${catalogName} успешно загружены`);
 
     return true;
   } catch (error) {

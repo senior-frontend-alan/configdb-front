@@ -3,7 +3,7 @@ import { defineStore, getActivePinia } from 'pinia';
 import { ref, reactive } from 'vue';
 import api from '../api';
 import { FieldTypeService } from '../services/fieldTypeService';
-import { useConfig, extractModuleNameFromUrl } from '../config-loader';
+import { useConfig, parseBackendApiUrl } from '../config-loader';
 import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseGET } from './types/catalogDetailsAPIResponseGET.type';
@@ -106,7 +106,7 @@ export function useModuleStore(moduleName: string) {
 
   // Находим модуль напрямую в конфигурации
   const moduleConfig = config.value.modules.find((m) => {
-    const extractedModuleName = extractModuleNameFromUrl(m.routes.getCatalog);
+    const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
     return extractedModuleName === moduleName;
   });
 
@@ -140,7 +140,7 @@ export function useModuleStore(moduleName: string) {
 export function createModuleStore(moduleConfig: ModuleConfig) {
   // Извлекаем moduleName из URL getCatalog для использования в качестве идентификатора стора
   // Это нужно для инициализации сторов при запуске приложения
-  const moduleNameFromUrl = extractModuleNameFromUrl(moduleConfig.routes.getCatalog);
+  const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).moduleName;
   return defineStore(`${moduleNameFromUrl}`, () => {
     // состояние
     const moduleName = ref<string>(moduleConfig.label);
@@ -163,11 +163,10 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     // Сохраненные данные по различным moduleName - используем reactive вместо ref
     const catalogsByName = reactive<Record<string, any>>({});
 
-    // (ШАГ 1) получаем список каталогов
     const loadCatalog = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
       if (catalogGroups.value && catalogGroups.value.length > 0) {
-        const moduleNameFromUrl = extractModuleNameFromUrl(moduleConfig.routes.getCatalog);
+        const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).moduleName;
         console.log(
           `Данные для модуля ${moduleNameFromUrl} уже загружены, используем кэшированные данные`,
         );
@@ -191,7 +190,6 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
 
-    // (ШАГ 2) Загрузка конкретного каталога и сохранение их в соответствующее поле catalogsByName
     const loadCatalogDetails = async (moduleName: string, url: string): Promise<any> => {
       loading.value = true;
       error.value = null;
@@ -393,7 +391,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     const findUrlInCatalog = (moduleName: string): string | null => {
       // Проверяем, что каталог загружен
       if (!catalogGroups.value || catalogGroups.value.length === 0) {
-        const moduleNameFromUrl = extractModuleNameFromUrl(moduleConfig.routes.getCatalog);
+        const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).moduleName;
         console.warn(
           `Каталог для модуля ${moduleNameFromUrl} не загружен. Сначала нужно вызвать loadCatalog()`,
         );

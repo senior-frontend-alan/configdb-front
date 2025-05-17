@@ -41,26 +41,68 @@ export interface Config {
   modules: ModuleConfig[];
 }
 
-// Функция для извлечения имени модуля из URL getCatalog
-export function extractModuleNameFromUrl(url: string): string {
-  const urlParts = url.split('/');
-  let extractedModuleName = '';
-  
-  // Если URL начинается с http:// или https:// (абсолютный путь)
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    // Берем первую часть пути после домена
-    // Для http://localhost:5173/catalog/api/v1/-catalog/ -> catalog
-    extractedModuleName = urlParts[3];
-  } else if (url.startsWith('/')) {
-    // Если URL начинается с / (относительный путь)
-    // Для /catalog/api/v1/-catalog/ -> catalog
-    extractedModuleName = urlParts[1];
-  } else {
-    // Для других случаев выбрасываем ошибку
-    throw new Error(`Некорректный формат URL: ${url}. URL должен начинаться с http://, https:// или /`);
+/**
+ * Интерфейс для результата парсинга API URL
+ */
+export interface ApiUrlInfo {
+  moduleName: string;
+  catalogName: string;
+  fullPath: string;
+  segments: string[];
+}
+
+/**
+ * Универсальная функция для парсинга API URL
+ * Извлекает имя модуля, имя каталога и другую информацию из URL
+ *
+ * @param url URL для парсинга (например, http://localhost:5173/catalog/api/v1/charValueType/)
+ * @returns Объект с информацией о URL
+ */
+export function parseBackendApiUrl(url: string): ApiUrlInfo {
+  // Инициализируем переменные с дефолтными значениями
+  let moduleName = '';
+  let segments: string[] = [];
+  let parsedUrl: URL;
+
+  try {
+    // Для абсолютных URL парсим напрямую
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      parsedUrl = new URL(url);
+    }
+    // Для относительных URL используем базовый URL
+    else if (url.startsWith('/')) {
+      // Используем текущий домен как базовый URL
+      parsedUrl = new URL(url, window.location.origin);
+    } else {
+      // Для других случаев выбрасываем ошибку
+      throw new Error(
+        `Некорректный формат URL: ${url}. URL должен начинаться с http://, https:// или /`,
+      );
+    }
+
+    // Разбиваем путь на сегменты, фильтруя пустые сегменты иначе
+    // /catalog/api/v1/ получим ['', 'catalog', 'api', 'v1', '']
+    segments = parsedUrl.pathname.split('/').filter(Boolean);
+    // Модуль - это первый сегмент пути
+    moduleName = segments[0] || '';
+  } catch (error) {
+    console.error('Ошибка при парсинге URL:', error);
+    segments = [];
+    moduleName = '';
   }
-  
-  return extractedModuleName;
+
+  // Имя каталога - последний сегмент пути, если есть как минимум 2 сегмента
+  let catalogName = '';
+  if (segments.length >= 2) {
+    catalogName = segments[segments.length - 1];
+  }
+
+  return {
+    moduleName,
+    catalogName,
+    fullPath: url,
+    segments,
+  };
 }
 
 // Создаем реактивную ссылку на конфигурацию

@@ -124,7 +124,7 @@
   import { useRouter } from 'vue-router';
   import { resolveComponent, dynamicField } from './components/fields';
   import { useModuleStore } from '../../stores/module-factory';
-  import { findAndLoadCatalogDetails } from '../../router';
+  import { loadCatalogByNameFromGroups } from '../../router';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   // Компонент AddNewDataDialog закомментирован в шаблоне, поэтому удаляем его импорт
   import Message from 'primevue/message';
@@ -261,7 +261,7 @@
         throw new Error('Не удалось определить viewname для загрузки данных');
       }
 
-      const dataLoaded = await findAndLoadCatalogDetails(
+      const dataLoaded = await loadCatalogByNameFromGroups(
         moduleName.value,
         viewname.value,
         (err) => {
