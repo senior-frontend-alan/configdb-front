@@ -25,61 +25,28 @@
     <!-- Модальное окно для выбора связанной записи -->
     <Dialog
       v-model:visible="dialogVisible"
-      :header="`Выберите ${label}`"
-      :style="{ width: '80vw' }"
+      :style="{ width: '90vw' }"
       :modal="true"
       :closable="true"
-      :dismissableMask="true"
+      :header="label"
+      @hide="closeDialog"
     >
-      <div v-if="loading" class="flex justify-content-center">
-        <ProgressSpinner />
+      <div v-if="loading" class="p-4 text-center">
+        <ProgressSpinner style="width: 50px; height: 50px" />
+        <div>Загрузка данных...</div>
       </div>
-      <div v-else-if="error" class="p-error">
-        {{ error }}
+      <div v-else-if="error" class="p-4 text-center">
+        <Message severity="error" :life="5000">{{ error }}</Message>
       </div>
-      <div v-else-if="relatedData && relatedData.length > 0" class="card">
-        <DataTable
-          :value="relatedData"
-          :paginator="true"
-          :rows="10"
-          :rowsPerPageOptions="[5, 10, 20, 50]"
-          tableStyle="min-width: 50rem"
-          :filters="filters"
-          filterDisplay="row"
-          v-model:selection="selectedItem"
-          selectionMode="single"
-          dataKey="id"
-          @row-select="onRowSelect"
-        >
-          <template #header>
-            <div class="flex justify-content-end">
-              <span class="p-input-icon-left">
-                <i class="pi pi-search" />
-                <InputText v-model="filters.global.value" placeholder="Поиск..." />
-              </span>
-            </div>
-          </template>
-
-          <!-- Динамически создаем колонки на основе первого элемента данных -->
-          <Column
-            v-for="columnKey in columnKeys"
-            :key="columnKey"
-            :field="columnKey"
-            :header="columnKey"
-            :sortable="true"
-          >
-            <template #filter="{ filterModel, filterCallback }">
-              <InputText
-                v-model="filterModel.value"
-                @input="filterCallback()"
-                class="p-column-filter"
-                placeholder="Поиск"
-              />
-            </template>
-          </Column>
-        </DataTable>
+      <div v-else class="catalog-details-container">
+        <!-- Встраиваем компонент CatalogDetails с передачей необходимых параметров -->
+        <CatalogDetails
+          v-if="currentModuleName && currentCatalogName"
+          :moduleName="currentModuleName"
+          :viewname="currentCatalogName"
+          @record-selected="onRecordSelected"
+        />
       </div>
-      <div v-else class="p-4 text-center">Нет доступных данных для выбора</div>
 
       <template #footer>
         <Button label="Отмена" icon="pi pi-times" @click="closeDialog" class="p-button-text" />
@@ -97,16 +64,15 @@
 
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue';
-  import { useModuleStore } from '../../../../stores/module-factory';
+  import { useCatalogLoader } from '../../../../composables/useCatalogLoader';
+  import { parseBackendApiUrl } from '../../../../config-loader';
+  import CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import InputText from 'primevue/inputtext';
   import Button from 'primevue/button';
   import FloatLabel from 'primevue/floatlabel';
   import Dialog from 'primevue/dialog';
-  import DataTable from 'primevue/datatable';
-  import Column from 'primevue/column';
   import ProgressSpinner from 'primevue/progressspinner';
   import Message from 'primevue/message';
-  import api from '../../../../api';
 
   interface RelatedItem {
     id: number | string;
@@ -117,25 +83,23 @@
   // Определяем интерфейс для объекта options
   interface FieldOptions {
     // Основные свойства
-    class_name: string;        // Класс поля на бэкенде
-    element_id: string;        // Уникальный идентификатор элемента
-    name: string;              // Имя поля
-    label: string;             // Отображаемая метка
-    help_text?: string;        // Текст подсказки
-    field_class: string;      // Класс поля
-    
-    // Специфичные свойства для PrimaryKeyRelated
-    allow_null?: boolean;      // Разрешать пустое значение
-    input_type?: string;       // Тип ввода
-    filterable?: boolean;      // Можно ли фильтровать
-    list_url?: string;         // URL для получения списка значений
-    view_name?: string;        // Имя представления
-    appl_name?: string;        // Имя приложения
-    lookup?: boolean;          // Является ли поле поисковым
-    FRONTEND_CLASS?: string;   // Класс поля на фронтенде
-    
+    class_name: string; // Класс поля на бэкенде
+    element_id: string; // Уникальный идентификатор элемента
+    name: string; // Имя поля
+    label: string; // Отображаемая метка
+    help_text?: string; // Текст подсказки
+    field_class: string; // Класс поля
 
-    
+    // Специфичные свойства для PrimaryKeyRelated
+    allow_null?: boolean; // Разрешать пустое значение
+    input_type?: string; // Тип ввода
+    filterable?: boolean; // Можно ли фильтровать
+    list_url?: string; // URL для получения списка значений
+    view_name?: string; // Имя представления
+    appl_name?: string; // Имя приложения
+    lookup?: boolean; // Является ли поле поисковым
+    FRONTEND_CLASS?: string; // Класс поля на фронтенде
+
     // Другие возможные свойства
     [key: string]: any;
   }
@@ -151,10 +115,8 @@
   const placeholder = computed(() => '');
   const disabled = computed(() => false);
   const required = computed(() => !props.options.allow_null);
-  const apiEndpoint = computed(() => props.options.list_url);
+  const relatedTableUrl = computed(() => props.options.list_url);
   const help_text = computed(() => props.options.help_text);
-  const view_name = computed(() => props.options.view_name);
-  const appl_name = computed(() => props.options.appl_name);
 
   const emit = defineEmits<{
     (e: 'update:modelValue', value: RelatedItem | number | string | null): void;
@@ -164,92 +126,64 @@
   const dialogVisible = ref(false);
   const loading = ref(false);
   const error = ref<string | null>(null);
-  const relatedData = ref<RelatedItem[]>([]);
   const selectedItem = ref<RelatedItem | null>(null);
   const displayValue = ref('');
 
-  // Фильтры для таблицы
-  const filters = ref({
-    global: { value: null, matchMode: 'contains' },
-  });
+  const currentModuleName = ref('');
+  const currentCatalogName = ref('');
 
-  // Получаем текущее значение id из modelValue
-  const getCurrentId = (): number | string | null => {
-    if (!props.modelValue) return null;
+  // Композабл для загрузки данных каталога
+  const catalogLoader = useCatalogLoader();
 
-    // Если массив, возвращаем null (пустое значение)
-    if (Array.isArray(props.modelValue)) return null;
+  // Открытие диалога и загрузка данных
+  const openDialog = async () => {
+    if (disabled.value) return;
 
-    // Если объект с id
-    if (
-      typeof props.modelValue === 'object' &&
-      props.modelValue !== null &&
-      'id' in props.modelValue
-    ) {
-      return props.modelValue.id;
-    }
-
-    // Если просто id (число или строка)
-    if (typeof props.modelValue === 'number' || typeof props.modelValue === 'string') {
-      return props.modelValue;
-    }
-
-    return null;
-  };
-
-  // Загрузка связанных данных из API
-  const loadRelatedData = async () => {
     loading.value = true;
     error.value = null;
-    relatedData.value = [];
 
-    try {
-      // Используем вычисляемое свойство apiEndpoint вместо props.apiEndpoint
-      if (!apiEndpoint.value) {
-        throw new Error('Не указан URL для загрузки связанных данных');
+    // Если есть URL для загрузки связанных данных
+    if (relatedTableUrl.value) {
+      try {
+        console.log('Загрузка данных каталога:', relatedTableUrl.value);
+
+        // Парсим URL для получения информации о модуле и каталоге
+        const urlInfo = parseBackendApiUrl(relatedTableUrl.value);
+        currentModuleName.value = urlInfo.moduleName;
+        currentCatalogName.value = urlInfo.catalogName;
+
+        console.log('Получены параметры:', {
+          модуль: currentModuleName.value,
+          каталог: currentCatalogName.value,
+        });
+
+        // Загружаем данные в соответствующий стор
+        await catalogLoader.loadCatalogByUrl(relatedTableUrl.value);
+        console.log('Данные каталога загружены успешно');
+
+        // Открываем диалог после успешной загрузки данных
+        dialogVisible.value = true;
+      } catch (err) {
+        console.error('Ошибка при загрузке данных каталога:', err);
+        error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';
+      } finally {
+        loading.value = false;
       }
-
-      // Запрос к API для получения данных
-      const response = await api.get(apiEndpoint.value);
-      relatedData.value = response.data;
-    } catch (err) {
-      console.error('Ошибка при загрузке связанных данных:', err);
-      error.value = текстОшибки(err);
-    } finally {
+    } else {
+      error.value = 'Не указан URL для загрузки связанных данных';
       loading.value = false;
     }
   };
 
-  // Получение текста ошибки
-  const текстОшибки = (err: any): string => {
-    if (typeof err === 'string') return err;
-    if (err instanceof Error) return err.message;
-    return 'Неизвестная ошибка при загрузке данных';
-  };
-
-  // Открытие диалога и загрузка данных
-  const openDialog = async () => {
-    // Используем вычисляемое свойство disabled вместо props.disabled
-    if (disabled.value) return;
-
-    dialogVisible.value = true;
-    await loadRelatedData();
-
-    // Устанавливаем выбранный элемент, если есть текущее значение
-    const currentId = getCurrentId();
-    if (currentId && relatedData.value) {
-      selectedItem.value = relatedData.value.find((item) => item.id == currentId) || null;
-    }
+  // Обработка выбора записи из компонента CatalogDetails
+  const onRecordSelected = (record: any) => {
+    console.log('Выбрана запись:', record);
+    selectedItem.value = record;
   };
 
   // Закрытие диалога
   const closeDialog = () => {
     dialogVisible.value = false;
-  };
-
-  // Обработка выбора строки в таблице
-  const onRowSelect = (event: any) => {
-    selectedItem.value = event.data;
   };
 
   // Выбор элемента и закрытие диалога
@@ -259,15 +193,6 @@
       closeDialog();
     }
   };
-
-  // Вычисляемое свойство для ключей колонок
-  const columnKeys = computed(() => {
-    if (!relatedData.value || relatedData.value.length === 0) return [];
-
-    return Object.keys(relatedData.value[0] || {}).filter(
-      (key) => key !== 'id' && !key.startsWith('_'),
-    );
-  });
 
   // При изменении modelValue обновляем отображаемое значение
   onMounted(() => {
