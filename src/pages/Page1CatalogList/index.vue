@@ -33,7 +33,7 @@
       <ListViewP1
         v-if="!tabMode"
         :catalogData="filteredData"
-        :moduleId="moduleId"
+        :moduleName="moduleName"
         :groupName="queryGroupName"
         @error="handleTabViewError"
         @card-click="handleCardClick"
@@ -43,7 +43,7 @@
       <P1_TabView
         v-else
         :catalogData="filteredData"
-        :moduleId="moduleId"
+        :moduleName="moduleName"
         :groupName="queryGroupName"
         @error="handleTabViewError"
       />
@@ -77,19 +77,19 @@
   const tabMode = computed(() => settingsStore.useTabMode); // Режим отображения из настроек
   const showDebugJson = ref(false); // Показывать ли JSON для отладки
 
-  // Получаем moduleId из props или из параметров маршрута
+  // Получаем moduleName из props или из параметров маршрута
   const props = defineProps<{
-    moduleId?: string;
+    moduleName?: string;
   }>();
 
-  const moduleId = computed(() => {
-    return props.moduleId || (route.params.moduleId as string) || '';
+  const moduleName = computed(() => {
+    return props.moduleName || (route.params.moduleName as string) || '';
   });
 
-  // Получаем стор модуля только если moduleId не пустой
+  // Получаем стор модуля только если moduleName не пустой
   const moduleStore = computed(() => {
-    if (moduleId.value) {
-      return useModuleStore(moduleId.value);
+    if (moduleName.value) {
+      return useModuleStore(moduleName.value);
     }
     return null;
   });
@@ -139,16 +139,16 @@
 
   // Фильтрация данных уже выполнена в filteredData
 
-  // Проверка наличия moduleId
-  const moduleIdError = computed(() => {
-    if (!moduleId.value) {
+  // Проверка наличия moduleName
+  const moduleNameError = computed(() => {
+    if (!moduleName.value) {
       return 'Не удалось определить модуль';
     }
     return null;
   });
 
-  // Итоговая ошибка - либо ошибка moduleId, либо ошибка из стора, либо ошибка от компонента табов
-  const displayError = computed(() => moduleIdError.value || error.value || tabViewError.value);
+  // Итоговая ошибка - либо ошибка moduleName, либо ошибка из стора, либо ошибка от компонента табов
+  const displayError = computed(() => moduleNameError.value || error.value || tabViewError.value);
 
   // Наблюдатели больше не нужны, так как мы используем вычисляемые свойства,
   // которые автоматически обновляются при изменении данных в сторе
@@ -164,7 +164,7 @@
   const handleCardClick = async (item: any) => {
     try {
       if (item && item.viewname) {
-        const currentModuleId = route.params.moduleId as string;
+        const currentModuleId = route.params.moduleName as string;
 
         // Формируем новый URL для перехода к деталям элемента
         const newPath = `/${currentModuleId}/${item.viewname}`;

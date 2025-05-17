@@ -52,10 +52,10 @@ export function useConfig() {
     config: readonly(config),
 
     // Получение конфигурации модуля по viewname
-    getModuleConfig: (moduleId: string) => {
-      const module = config.value.modules.find((m) => m.viewname === moduleId);
+    getModuleConfig: (moduleName: string) => {
+      const module = config.value.modules.find((m) => m.viewname === moduleName);
       if (!module) {
-        console.error(`Модуль с viewname ${moduleId} не найден в конфигурации`);
+        console.error(`Модуль с viewname ${moduleName} не найден в конфигурации`);
         return null;
       }
       return module;

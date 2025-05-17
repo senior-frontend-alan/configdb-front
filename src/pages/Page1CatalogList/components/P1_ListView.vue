@@ -44,7 +44,7 @@
 
   const props = defineProps<{
     catalogData: CatalogGroup[];
-    moduleId: string;
+    moduleName: string;
     groupName?: string;
   }>();
 
@@ -57,7 +57,7 @@
 
   // Функция для перехода к группе
   const navigateToGroup = (groupName: string) => {
-    router.push(`/${props.moduleId}?group=${groupName}`);
+    router.push(`/${props.moduleName}?group=${groupName}`);
   };
 
   const formatDate = (dateString: string): string => {

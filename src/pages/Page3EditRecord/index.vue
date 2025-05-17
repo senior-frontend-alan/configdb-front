@@ -64,7 +64,7 @@
 
   // Определяем props компонента
   const props = defineProps<{
-    moduleId?: string;
+    moduleName?: string;
     viewname?: string;
     id?: string;
   }>();
@@ -73,7 +73,7 @@
   const router = useRouter();
   const route = useRoute();
   const toast = useToast();
-  const moduleId = computed(() => props.moduleId || (route.meta.moduleId as string));
+  const moduleName = computed(() => props.moduleName || (route.meta.moduleName as string));
   const viewname = computed(() => props.viewname || (route.params.viewname as string));
   const recordId = computed(() => props.id || (route.params.id as string));
 
@@ -106,17 +106,17 @@
 
   // Получаем стор модуля и проверяем его наличие
   const getModuleStore = () => {
-    console.log('Получение стора для модуля:', moduleId.value);
+    console.log('Получение стора для модуля:', moduleName.value);
 
-    if (!moduleId.value) {
-      throw new Error('moduleId не определен');
+    if (!moduleName.value) {
+      throw new Error('moduleName не определен');
     }
 
     try {
-      const store = useModuleStore(moduleId.value);
+      const store = useModuleStore(moduleName.value);
 
       if (!store) {
-        throw new Error(`Модуль с ID ${moduleId.value} не найден`);
+        throw new Error(`Модуль с ID ${moduleName.value} не найден`);
       }
 
       return store;
@@ -143,7 +143,7 @@
     error.value = null;
 
     try {
-      console.log('Загрузка данных записи:', moduleId.value, viewname.value, recordId.value);
+      console.log('Загрузка данных записи:', moduleName.value, viewname.value, recordId.value);
 
       // Проверяем, загружены ли данные модуля
       const moduleStore = getModuleStore();
@@ -331,7 +331,7 @@
 
   onMounted(async () => {
     console.log('Page3EditRecord mounted, params:', {
-      moduleId: moduleId.value,
+      moduleName: moduleName.value,
       viewname: viewname.value,
       recordId: recordId.value,
       meta: route.meta,

@@ -54,7 +54,7 @@
 
   const props = defineProps<{
     catalogData: CatalogGroup[];
-    moduleId: string;
+    moduleName: string;
     groupName?: string;
   }>();
 

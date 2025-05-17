@@ -91,18 +91,18 @@ const baseJSInterface: ModuleJSInterface = {
 };
 
 // Функция для получения стора модуля по viewname
-export function useModuleStore(moduleId: string) {
-  // Проверка на пустое значение moduleId
-  if (!moduleId || moduleId.trim() === '') {
-    console.error('Невозможно получить стор: moduleId не указан или пуст');
+export function useModuleStore(moduleName: string) {
+  // Проверка на пустое значение moduleName
+  if (!moduleName || moduleName.trim() === '') {
+    console.error('Невозможно получить стор: moduleName не указан или пуст');
     return null;
   }
-  
+
   const { getModuleConfig } = useConfig();
-  const moduleConfig = getModuleConfig(moduleId);
+  const moduleConfig = getModuleConfig(moduleName);
 
   if (!moduleConfig) {
-    console.error(`Модуль с viewname '${moduleId}' не найден в конфигурации`);
+    console.error(`Модуль с viewname '${moduleName}' не найден в конфигурации`);
     return null;
   }
 

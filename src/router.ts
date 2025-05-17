@@ -1,5 +1,11 @@
 // src/router.ts
-import { createRouter, createWebHistory, RouteRecordRaw, RouteLocationNormalized, NavigationGuardNext } from 'vue-router';
+import {
+  createRouter,
+  createWebHistory,
+  RouteRecordRaw,
+  RouteLocationNormalized,
+  NavigationGuardNext,
+} from 'vue-router';
 import { useConfig } from './config-loader';
 import { useAuthStore } from './stores/authStore';
 import { useModuleStore } from './stores/module-factory';
@@ -37,53 +43,57 @@ const routes: RouteRecordRaw[] = [
   },
 ];
 
-// Функция для проверки существования модуля с указанным moduleId
-const validateModuleId = (to: RouteLocationNormalized, _from: RouteLocationNormalized, next: NavigationGuardNext) => {
-  // Проверяем, что moduleId соответствует viewname одного из модулей
-  const moduleId = to.params.moduleId as string;
-  const module = config.value.modules.find((m) => m.viewname === moduleId);
+// Функция для проверки существования модуля с указанным moduleName
+const validateModuleName = (
+  to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
+  next: NavigationGuardNext,
+) => {
+  // Проверяем, что moduleName соответствует viewname одного из модулей
+  const moduleName = to.params.moduleName as string;
+  const module = config.value.modules.find((m) => m.viewname === moduleName);
   if (module) {
     next();
   } else {
-    console.error(`Модуль с viewname=${moduleId} не найден`);
+    console.error(`Модуль с viewname=${moduleName} не найден`);
     next('/');
   }
 };
 
-// Добавляем общие маршруты с динамическим сегментом :moduleId
+// Добавляем общие маршруты с динамическим сегментом :moduleName
 
 // Страница 1 - Отображение списка справочников
 routes.push({
-  path: '/:moduleId',
+  path: '/:moduleName',
   name: 'CatalogList',
   component: () => import('./pages/Page1CatalogList/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
-  beforeEnter: validateModuleId,
+  beforeEnter: validateModuleName,
 });
 
 // Страница 2 - Отображение деталей элемента каталога
 routes.push({
-  path: '/:moduleId/:viewname',
+  path: '/:moduleName/:viewname',
   name: 'CatalogDetails',
   component: () => import('./pages/Page2CatalogDetails/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
-  beforeEnter: validateModuleId,
+  beforeEnter: validateModuleName,
 });
 
 // Страница 3 - Редактирование записи
 routes.push({
-  path: '/:moduleId/:viewname/edit/:id',
+  path: '/:moduleName/:viewname/edit/:id',
   name: 'EditRecord',
   component: () => import('./pages/Page3EditRecord/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
-  beforeEnter: validateModuleId,
+  beforeEnter: validateModuleName,
 });
 
 // Добавляем дополнительные маршруты для модулей, если необходимо
 try {
   config.value.modules.forEach((module) => {
     console.log(`Добавление дополнительных маршрутов для модуля: ${module.viewname}`);
-    
+
     // Здесь можно добавить специфичные маршруты для конкретных модулей, если необходимо
   });
 } catch (error) {
@@ -124,14 +134,14 @@ router.beforeEach((to, _, next) => {
 
 // Координирующая функция для загрузки данных каталога
 export const findAndLoadCatalogDetails = async (
-  moduleId: string,
+  moduleName: string,
   viewname: string,
   next: (error?: any) => void,
   forceReload: boolean = false,
 ): Promise<boolean> => {
-  const moduleStore = useModuleStore(moduleId);
+  const moduleStore = useModuleStore(moduleName);
   if (!moduleStore) {
-    const error = new Error(`Не удалось получить стор для модуля ${moduleId}`);
+    const error = new Error(`Не удалось получить стор для модуля ${moduleName}`);
     console.error(error);
     next(error);
     return false;
@@ -146,7 +156,7 @@ export const findAndLoadCatalogDetails = async (
 
     // Загружаем каталог, если он еще не загружен
     if (!moduleStore.catalog || moduleStore.catalog.length === 0) {
-      console.log(`Загрузка каталога для модуля ${moduleId}`);
+      console.log(`Загрузка каталога для модуля ${moduleName}`);
       await moduleStore.loadCatalog();
     }
 
@@ -173,24 +183,24 @@ export const findAndLoadCatalogDetails = async (
 // Точка входа для загрузки данных любого маршрута
 // Добавляем хук для предварительной загрузки данных
 router.beforeResolve(async (to, _from, next) => {
-  // Получаем moduleId из параметров маршрута
-  // Теперь мы всегда можем получить moduleId из параметров маршрута,
-  // так как все маршруты теперь имеют динамический сегмент :moduleId
-  const moduleId = to.params.moduleId as string;
+  // Получаем moduleName из параметров маршрута
+  // Теперь мы всегда можем получить moduleName из параметров маршрута,
+  // так как все маршруты теперь имеют динамический сегмент :moduleName
+  const moduleName = to.params.moduleName as string;
 
-  if (moduleId) {
+  if (moduleName) {
     try {
       // 1. Получаем стор модуля
-      const moduleStore = useModuleStore(moduleId);
+      const moduleStore = useModuleStore(moduleName);
       if (!moduleStore) {
-        console.error(`Не удалось получить стор для модуля ${moduleId}`);
+        console.error(`Не удалось получить стор для модуля ${moduleName}`);
         next();
         return;
       }
 
       // 2. Проверяем, загружен ли каталог, и загружаем его если нет
       if (!moduleStore.catalog || moduleStore.catalog.length === 0) {
-        console.log(`Загрузка данных каталога для модуля ${moduleId}`);
+        console.log(`Загрузка данных каталога для модуля ${moduleName}`);
         await moduleStore.loadCatalog();
       }
 
@@ -220,7 +230,7 @@ router.beforeResolve(async (to, _from, next) => {
         if (moduleStore.catalog && moduleStore.catalog.length > 0) {
           const groupExists = moduleStore.catalog.some((group: any) => group.name === groupName);
           if (!groupExists) {
-            console.warn(`Группа ${groupName} не найдена в данных каталога модуля ${moduleId}`);
+            console.warn(`Группа ${groupName} не найдена в данных каталога модуля ${moduleName}`);
           }
         }
       }

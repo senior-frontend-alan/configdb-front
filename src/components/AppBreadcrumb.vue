@@ -7,11 +7,11 @@
   const route = useRoute();
   const router = useRouter();
 
-  const moduleId = computed(() => {
-    return route.meta.moduleId || '';
+  const moduleName = computed(() => {
+    return route.meta.moduleName || '';
   });
 
-  const moduleStore = moduleId.value ? useModuleStore(moduleId.value) : null;
+  const moduleStore = moduleName.value ? useModuleStore(moduleName.value) : null;
 
   const catalogData = computed(() => moduleStore?.catalog || []);
 

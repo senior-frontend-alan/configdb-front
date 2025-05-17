@@ -91,7 +91,7 @@ export interface FieldDefinition {
 }
 
 export type FormattingOptions = {
-  moduleId?: string;
+  moduleName?: string;
   jsItemRepr?: string;
   emptyArrayValue?: string;
   nullValue?: string;

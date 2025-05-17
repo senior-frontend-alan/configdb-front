@@ -15,7 +15,7 @@
         />
       </div>
       <div class="table-controls">
-        <!-- <AddNewDataDialog :moduleId="moduleId" @data-added="refreshData" /> -->
+        <!-- <AddNewDataDialog :moduleName="moduleName" @data-added="refreshData" /> -->
         <Button
           icon="pi pi-plus"
           class="p-button-sm"
@@ -148,18 +148,18 @@
   const columnsOrder = ref<string[]>([]);
   const isTableScrollable = ref(false);
 
-  // Получаем moduleId и viewname из props
+  // Получаем moduleName и viewname из props
   const props = defineProps<{
-    moduleId: string; // Обязательный параметр
+    moduleName: string; // Обязательный параметр
     viewname: string; // Обязательный параметр
   }>();
-  
+
   // Используем значения из props
-  const moduleId = computed(() => props.moduleId);
+  const moduleName = computed(() => props.moduleName);
   const viewname = computed(() => props.viewname);
 
   // Получаем ссылку на хранилище модуля
-  const moduleStore = computed(() => useModuleStore(moduleId.value));
+  const moduleStore = computed(() => useModuleStore(moduleName.value));
 
   // Создаем реактивную ссылку на текущие данные из стора
   const currentStoreDetails = computed(() => {
@@ -262,7 +262,7 @@
       }
 
       const dataLoaded = await findAndLoadCatalogDetails(
-        moduleId.value,
+        moduleName.value,
         viewname.value,
         (err) => {
           if (err) {
@@ -345,8 +345,8 @@
     const rowData = event.data;
 
     if (rowData && rowData.id) {
-      // Формируем URL для страницы редактирования, используя moduleId и viewname из props
-      const editUrl = `/${moduleId.value}/${viewname.value}/edit/${rowData.id}`;
+      // Формируем URL для страницы редактирования, используя moduleName и viewname из props
+      const editUrl = `/${moduleName.value}/${viewname.value}/edit/${rowData.id}`;
 
       router.push(editUrl);
     } else {
@@ -358,15 +358,15 @@
 
   // Переход на страницу добавления новой записи
   const goToAddRecord = () => {
-    // Формируем URL для страницы добавления, используя moduleId и viewname из props
-    const addUrl = `/${moduleId.value}/${viewname.value}/add`;
+    // Формируем URL для страницы добавления, используя moduleName и viewname из props
+    const addUrl = `/${moduleName.value}/${viewname.value}/add`;
 
     router.push(addUrl);
   };
 
   onMounted(async () => {
     if (!moduleStore.value) {
-      error.value = `Модуль с ID ${moduleId.value} не найден`;
+      error.value = `Модуль с ID ${moduleName.value} не найден`;
       loading.value = false;
       return;
     }

@@ -7,14 +7,17 @@ import { FieldDefinition, FormattingOptions } from '../../../../services/fieldTy
  * @param options Опции форматирования
  * @returns Отформатированное значение
  */
-export function formatComputedValue(value: FieldDefinition, options: FormattingOptions = {}): string {
+export function formatComputedValue(
+  value: FieldDefinition,
+  options: FormattingOptions = {},
+): string {
   try {
     // Проверяем, есть ли jsItemRepr в опциях
     if (options.jsItemRepr) {
-      // Если указан moduleId, пытаемся получить JS-функции модуля
-      if (options.moduleId && typeof options.moduleId === 'string') {
+      // Если указан moduleName, пытаемся получить JS-функции модуля
+      if (options.moduleName && typeof options.moduleName === 'string') {
         // Получаем стор модуля напрямую
-        const moduleStore = useModuleStore(options.moduleId);
+        const moduleStore = useModuleStore(options.moduleName);
 
         // Получаем доступ к JS-функциям модуля
         const jsi = moduleStore.getJSIFunctions();
@@ -29,7 +32,7 @@ export function formatComputedValue(value: FieldDefinition, options: FormattingO
           return `<Ошибка: ${innerError.message}>`;
         }
       } else {
-        // Если moduleId не указан, выполняем jsItemRepr без доступа к функциям модуля
+        // Если moduleName не указан, выполняем jsItemRepr без доступа к функциям модуля
         try {
           const innerFn = new Function('value', 'obj', options.jsItemRepr);
           const result = innerFn(value, value);
@@ -41,7 +44,7 @@ export function formatComputedValue(value: FieldDefinition, options: FormattingO
       }
     }
 
-    // Если нет ни moduleId, ни jsItemRepr, просто преобразуем значение в строку
+    // Если нет ни moduleName, ни jsItemRepr, просто преобразуем значение в строку
     return value !== null && value !== undefined ? String(value) : '';
   } catch (e: any) {
     console.error(`Ошибка в formatComputedValue:`, e);

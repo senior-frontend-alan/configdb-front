@@ -42,12 +42,12 @@
       // Получаем модуль из пути
       const pathParts = newPath.split('/');
       if (pathParts.length >= 2) {
-        const moduleId = pathParts[1];
+        const moduleName = pathParts[1];
         // Проверяем, что модуль существует в конфигурации
-        const moduleExists = config.value.modules.some((m) => m.viewname === moduleId);
+        const moduleExists = config.value.modules.some((m) => m.viewname === moduleName);
         if (moduleExists) {
           // Открываем меню для активного модуля
-          openMenuItems.value[moduleId] = true;
+          openMenuItems.value[moduleName] = true;
         }
       }
     },
@@ -67,8 +67,8 @@
     router.push(path);
   };
 
-  const moduleId = computed(() => {
-    return (route.params.moduleId as string) || '';
+  const moduleName = computed(() => {
+    return (route.params.moduleName as string) || '';
   });
 
   const isRouteActive = (path: string) => {
@@ -82,7 +82,7 @@
     const pathModuleId = basePath.split('/')[1];
 
     // Проверяем совпадение модуля
-    if (pathModuleId !== moduleId.value) {
+    if (pathModuleId !== moduleName.value) {
       return false;
     }
 
