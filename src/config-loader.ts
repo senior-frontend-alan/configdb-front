@@ -8,7 +8,6 @@ export interface ModuleRoutes {
 }
 
 export interface ModuleConfig {
-  viewname: string;
   label: string;
   icon?: string;
   routes: ModuleRoutes;
@@ -42,6 +41,28 @@ export interface Config {
   modules: ModuleConfig[];
 }
 
+// Функция для извлечения имени модуля из URL getCatalog
+export function extractModuleNameFromUrl(url: string): string {
+  const urlParts = url.split('/');
+  let extractedModuleName = '';
+  
+  // Если URL начинается с http:// или https:// (абсолютный путь)
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    // Берем первую часть пути после домена
+    // Для http://localhost:5173/catalog/api/v1/-catalog/ -> catalog
+    extractedModuleName = urlParts[3];
+  } else if (url.startsWith('/')) {
+    // Если URL начинается с / (относительный путь)
+    // Для /catalog/api/v1/-catalog/ -> catalog
+    extractedModuleName = urlParts[1];
+  } else {
+    // Для других случаев выбрасываем ошибку
+    throw new Error(`Некорректный формат URL: ${url}. URL должен начинаться с http://, https:// или /`);
+  }
+  
+  return extractedModuleName;
+}
+
 // Создаем реактивную ссылку на конфигурацию
 const config = ref<Config>(configData as Config);
 
@@ -50,16 +71,6 @@ export function useConfig() {
   return {
     // Возвращаем только для чтения версию конфигурации
     config: readonly(config),
-
-    // Получение конфигурации модуля по viewname
-    getModuleConfig: (moduleName: string) => {
-      const module = config.value.modules.find((m) => m.viewname === moduleName);
-      if (!module) {
-        console.error(`Модуль с viewname ${moduleName} не найден в конфигурации`);
-        return null;
-      }
-      return module;
-    },
   };
 }
 

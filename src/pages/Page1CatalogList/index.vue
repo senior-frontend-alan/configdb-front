@@ -69,7 +69,7 @@
   // computed кэширует результат и пересчитывает его только при изменении зависимостей
   const loading = computed(() => moduleStore.value?.loading ?? true);
   const error = computed(() => (moduleStore.value?.error ? String(moduleStore.value.error) : null));
-  const catalogData = computed(() => moduleStore.value?.catalog ?? []);
+  const catalogData = computed(() => moduleStore.value?.catalogGroups ?? []);
   const moduleTitle = computed(() => moduleStore.value?.moduleName || 'Каталог элементов');
 
   // Используем настройки из хранилища

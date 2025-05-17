@@ -163,7 +163,7 @@
 
   // Создаем реактивную ссылку на текущие данные из стора
   const currentStoreDetails = computed(() => {
-    return moduleStore.value?.catalogDetails[viewname.value];
+    return moduleStore.value?.catalogsByName[viewname.value];
   });
 
   // Вычисляемые свойства для статус-бара

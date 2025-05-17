@@ -149,14 +149,14 @@
       const moduleStore = getModuleStore();
 
       // Получаем метаданные из OPTIONS
-      const options = moduleStore.catalogDetails?.[viewname.value]?.OPTIONS;
+      const options = moduleStore.catalogsByName?.[viewname.value]?.OPTIONS;
 
       if (!options || !options.layout) {
         throw new Error(`Метаданные для представления ${viewname.value} не найдены`);
       }
 
       // Получаем данные записи из GET
-      const recordData = moduleStore.catalogDetails?.[viewname.value]?.GET?.results?.find(
+      const recordData = moduleStore.catalogsByName?.[viewname.value]?.GET?.results?.find(
         (item: any) => item.id == recordId.value,
       );
 

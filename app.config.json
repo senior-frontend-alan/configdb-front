@@ -30,7 +30,6 @@
   },
   "modules": [
     {
-      "viewname": "catalog",
       "label": "Catalog",
       "routes": {
         "getCatalog": "http://localhost:5173/catalog/api/v1/-catalog/",
@@ -38,7 +37,6 @@
       }
     },
     {
-      "viewname": "inventory",
       "label": "Inventory",
       "routes": {
         "getCatalog": "http://localhost:5173/inventory/api/v1/-catalog/",
@@ -46,7 +44,6 @@
       }
     },
     {
-      "viewname": "ocsmanage",
       "label": "OCS Manage",
       "routes": {
         "getCatalog": "http://localhost:5173/ocsmanage/api/v1/-catalog/",

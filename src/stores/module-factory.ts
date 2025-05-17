@@ -3,7 +3,7 @@ import { defineStore, getActivePinia } from 'pinia';
 import { ref, reactive } from 'vue';
 import api from '../api';
 import { FieldTypeService } from '../services/fieldTypeService';
-import { useConfig } from '../config-loader';
+import { useConfig, extractModuleNameFromUrl } from '../config-loader';
 import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseGET } from './types/catalogDetailsAPIResponseGET.type';
@@ -90,7 +90,11 @@ const baseJSInterface: ModuleJSInterface = {
   },
 };
 
-// Функция для получения стора модуля по viewname
+// Модуль-фабрика отвечает за создание и управление сторами
+// Сторы используют результат функции, но не должны отвечать за извлечение имени модуля из URL
+// Сторы должны получать moduleName от роутера через параметры или композабл useModuleName
+
+// Функция для получения стора модуля по moduleName
 export function useModuleStore(moduleName: string) {
   // Проверка на пустое значение moduleName
   if (!moduleName || moduleName.trim() === '') {
@@ -98,11 +102,16 @@ export function useModuleStore(moduleName: string) {
     return null;
   }
 
-  const { getModuleConfig } = useConfig();
-  const moduleConfig = getModuleConfig(moduleName);
+  const { config } = useConfig();
+
+  // Находим модуль напрямую в конфигурации
+  const moduleConfig = config.value.modules.find((m) => {
+    const extractedModuleName = extractModuleNameFromUrl(m.routes.getCatalog);
+    return extractedModuleName === moduleName;
+  });
 
   if (!moduleConfig) {
-    console.error(`Модуль с viewname '${moduleName}' не найден в конфигурации`);
+    console.error(`Модуль с moduleName '${moduleName}' не найден в конфигурации`);
     return null;
   }
 
@@ -114,8 +123,9 @@ export function useModuleStore(moduleName: string) {
     return null;
   }
 
-  // ID стора формируется как `${moduleConfig.viewname}Store`
-  const storeId = `${moduleConfig.viewname}`;
+  // ID стора формируется на основе имени модуля
+  // МодульНейм уже является идентификатором стора
+  const storeId = `${moduleName}`;
 
   try {
     // Используем стандартную функцию Pinia для получения стора по ID
@@ -128,11 +138,14 @@ export function useModuleStore(moduleName: string) {
 }
 
 export function createModuleStore(moduleConfig: ModuleConfig) {
-  return defineStore(`${moduleConfig.viewname}`, () => {
+  // Извлекаем moduleName из URL getCatalog для использования в качестве идентификатора стора
+  // Это нужно для инициализации сторов при запуске приложения
+  const moduleNameFromUrl = extractModuleNameFromUrl(moduleConfig.routes.getCatalog);
+  return defineStore(`${moduleNameFromUrl}`, () => {
     // состояние
     const moduleName = ref<string>(moduleConfig.label);
     const url = ref<string>(moduleConfig.routes['getCatalog']);
-    const catalog = ref<CatalogsAPIResponseGET>([]);
+    const catalogGroups = ref<CatalogsAPIResponseGET>([]);
 
     // JS функции которые специфичны для конкретного модуля
     // Используем ref для видимости в Vue DevTools
@@ -147,17 +160,18 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     const loading = ref<boolean>(false);
     const error = ref<any | null>(null);
 
-    // Сохраненные данные по различным viewname - используем reactive вместо ref
-    const catalogDetails = reactive<Record<string, any>>({});
+    // Сохраненные данные по различным moduleName - используем reactive вместо ref
+    const catalogsByName = reactive<Record<string, any>>({});
 
     // (ШАГ 1) получаем список каталогов
     const loadCatalog = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
-      if (catalog.value && catalog.value.length > 0) {
+      if (catalogGroups.value && catalogGroups.value.length > 0) {
+        const moduleNameFromUrl = extractModuleNameFromUrl(moduleConfig.routes.getCatalog);
         console.log(
-          `Данные для модуля ${moduleConfig.viewname} уже загружены, используем кэшированные данные`,
+          `Данные для модуля ${moduleNameFromUrl} уже загружены, используем кэшированные данные`,
         );
-        return catalog.value;
+        return catalogGroups.value;
       }
 
       loading.value = true;
@@ -165,7 +179,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       try {
         console.log(`Отправка запроса на ${url.value}`);
         const response = await api.get<CatalogsAPIResponseGET>(url.value);
-        catalog.value = response.data;
+        catalogGroups.value = response.data;
         error.value = null;
         return response.data;
       } catch (err) {
@@ -177,8 +191,8 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
 
-    // (ШАГ 2) Загрузка конкретного каталога и сохранение их в соответствующее поле catalogDetails
-    const loadCatalogDetails = async (viewname: string, url: string): Promise<any> => {
+    // (ШАГ 2) Загрузка конкретного каталога и сохранение их в соответствующее поле catalogsByName
+    const loadCatalogDetails = async (moduleName: string, url: string): Promise<any> => {
       loading.value = true;
       error.value = null;
 
@@ -218,20 +232,23 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         const detailsData = {
           GET: getResponseData,
           OPTIONS: optionsResponseData,
-          viewname: viewname,
+          moduleName: moduleName,
           url: url,
         };
 
         // Напрямую обновляем реактивный объект
-        catalogDetails[viewname] = detailsData;
+        catalogsByName[moduleName] = detailsData;
 
-        console.log(`Данные для ${viewname} успешно загружены в стор:`, catalogDetails[viewname]);
+        console.log(
+          `Данные для ${moduleName} успешно загружены в стор:`,
+          catalogsByName[moduleName],
+        );
 
         error.value = null;
         return detailsData;
       } catch (err) {
         error.value = err;
-        console.error(`Ошибка при загрузке данных для ${viewname}:`, err);
+        console.error(`Ошибка при загрузке данных для ${moduleName}:`, err);
         return null;
       } finally {
         loading.value = false;
@@ -371,58 +388,69 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       return elementsMap;
     };
 
-    // Функция для поиска URL каталога по viewname в уже загруженном каталоге (на шаге 1)
+    // Функция для поиска URL каталога по имени модуля в уже загруженном каталоге (на шаге 1)
     // Предполагается, что каталог уже загружен до вызова этой функции
-    const findUrlInCatalog = (viewname: string): string | null => {
+    const findUrlInCatalog = (moduleName: string): string | null => {
       // Проверяем, что каталог загружен
-      if (!catalog.value || catalog.value.length === 0) {
+      if (!catalogGroups.value || catalogGroups.value.length === 0) {
+        const moduleNameFromUrl = extractModuleNameFromUrl(moduleConfig.routes.getCatalog);
         console.warn(
-          `Каталог для модуля ${moduleConfig.viewname} не загружен. Сначала нужно вызвать loadCatalog()`,
+          `Каталог для модуля ${moduleNameFromUrl} не загружен. Сначала нужно вызвать loadCatalog()`,
         );
         return null;
       }
 
-      // Ищем элемент каталога с нужным viewname
-      if (catalog.value && catalog.value.length > 0) {
-        const catalogItem = catalog.value
+      // Ищем элемент каталога с нужным moduleName
+      if (catalogGroups.value && catalogGroups.value.length > 0) {
+        // Предполагаем, что в каталоге теперь будет поле moduleName вместо viewname
+        const catalogItem = catalogGroups.value
           .flatMap((group: { items?: any[] }) => group.items || [])
-          .find((item: { viewname: string; href?: string }) => item.viewname === viewname);
+          .find((item: any) => {
+            // Проверяем наличие поля viewname или moduleName
+            if (item.moduleName) {
+              return item.moduleName === moduleName;
+            } else if (item.viewname) {
+              // Для обратной совместимости проверяем и viewname
+              return item.viewname === moduleName;
+            }
+            return false;
+          });
 
         if (catalogItem?.href) {
-          console.log(`Найден URL в каталоге для ${viewname}: ${catalogItem.href}`);
+          console.log(`Найден URL в каталоге для ${moduleName}: ${catalogItem.href}`);
           return catalogItem.href;
         }
       }
 
-      console.log(`URL для ${viewname} не найден в каталоге`);
+      console.log(`URL для ${moduleName} не найден в каталоге`);
       return null;
     };
 
-    // Проверка наличия данных в кэше для конкретного viewname
-    const hasCachedData = (viewname: string): boolean => {
-      return !!catalogDetails[viewname];
+    // Проверка наличия данных в кэше для конкретного moduleName
+    const hasCachedData = (moduleName: string): boolean => {
+      return !!catalogsByName[moduleName];
     };
 
     // Метод для обновления записи в сторе после PATCH-запроса
     const updateRecordInStore = (
-      viewname: string,
+      moduleName: string,
       recordId: string | number,
       updatedData: any,
     ): boolean => {
       try {
         // Проверяем, что данные для этого представления загружены
-        if (!catalogDetails[viewname] || !catalogDetails[viewname].GET) {
-          console.warn(`Невозможно обновить запись в сторе: данные для ${viewname} не загружены`);
+        if (!catalogsByName[moduleName] || !catalogsByName[moduleName].GET) {
+          console.warn(`Невозможно обновить запись в сторе: данные для ${moduleName} не загружены`);
           return false;
         }
 
         // Получаем текущие данные
-        const currentData = catalogDetails[viewname].GET;
+        const currentData = catalogsByName[moduleName].GET;
 
         // Проверяем, что есть массив results
         if (!currentData.results || !Array.isArray(currentData.results)) {
           console.warn(
-            `Невозможно обновить запись в сторе: нет массива results в данных ${viewname}`,
+            `Невозможно обновить запись в сторе: нет массива results в данных ${moduleName}`,
           );
           return false;
         }
@@ -432,7 +460,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
         if (recordIndex === -1) {
           console.warn(
-            `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${viewname}`,
+            `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${moduleName}`,
           );
           return false;
         }
@@ -440,7 +468,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         // Обновляем запись, сохраняя существующие поля и добавляя новые
         currentData.results[recordIndex] = { ...currentData.results[recordIndex], ...updatedData };
 
-        console.log(`Запись с ID ${recordId} успешно обновлена в сторе для ${viewname}`);
+        console.log(`Запись с ID ${recordId} успешно обновлена в сторе для ${moduleName}`);
         return true;
       } catch (error) {
         console.error(`Ошибка при обновлении записи в сторе:`, error);
@@ -454,7 +482,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
     // try {
     // Все базовые функции теперь находятся в baseJSInterface
-    // console.log(`JS-функции для модуля ${moduleConfig.viewname} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
+    // console.log(`JS-функции для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
 
     // return jsInterface;
 
@@ -498,7 +526,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     //     (key) => !Object.keys(baseJSFunctions).includes(key),
     //   );
     //   console.log(
-    //     `JS-функции для модуля ${moduleConfig.viewname} успешно загружены: ${loadedFunctions.join(
+    //     `JS-функции для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)} успешно загружены: ${loadedFunctions.join(
     //       ', ',
     //     )}`,
     //   );
@@ -508,7 +536,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
     // return JSIFunctions;
     // } catch (err) {
-    //   console.error(`Ошибка при получении JS-функций для модуля ${moduleConfig.viewname}:`, err);
+    //   console.error(`Ошибка при получении JS-функций для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, err);
     //   return JSIFunctions;
     // } finally {
     //   loading.value = false;
@@ -524,7 +552,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     //       await getJSInterface();
     //     }
     //   } catch (error: any) {
-    //     console.error(`Ошибка при инициализации стора модуля ${moduleConfig.viewname}:`, error);
+    //     console.error(`Ошибка при инициализации стора модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, error);
     //   }
     // };
 
@@ -533,13 +561,13 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 
     return {
       // состояние
-      catalog,
+      catalogGroups,
       jsInterface,
       loading,
       error,
       moduleName,
       url,
-      catalogDetails,
+      catalogsByName,
 
       // действия
       loadCatalog,

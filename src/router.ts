@@ -6,18 +6,21 @@ import {
   RouteLocationNormalized,
   NavigationGuardNext,
 } from 'vue-router';
-import { useConfig } from './config-loader';
+import { useConfig, extractModuleNameFromUrl } from './config-loader';
 import { useAuthStore } from './stores/authStore';
 import { useModuleStore } from './stores/module-factory';
 
 const { config } = useConfig();
 
 // маршрутизатор автоматически загружает данные каталога, а компоненты Page1CatalogList и Page2CatalogDetails просто отображают их
-
+// роутер является источником информации о текущем moduleName
 // В роутере координирующая функция, а в сторе оставить более атомарные методы для работы с данными.
 // Защита маршрутов - проверка прав доступа
 // Предзагрузка данных - координация загрузки данных перед отображением компонентов
 // Обработка ошибок навигации - перенаправления при ошибках
+
+// Роутер не должен отвечать за извлечение имени модуля из URL (это делает config-loader)
+// Роутер должен быть источником текущего moduleName, но не логики его извлечения из конфигурации
 
 // Базовые маршруты
 const routes: RouteRecordRaw[] = [
@@ -49,13 +52,25 @@ const validateModuleName = (
   _from: RouteLocationNormalized,
   next: NavigationGuardNext,
 ) => {
-  // Проверяем, что moduleName соответствует viewname одного из модулей
+  // Получаем moduleName напрямую из параметров маршрута
   const moduleName = to.params.moduleName as string;
-  const module = config.value.modules.find((m) => m.viewname === moduleName);
+
+  if (!moduleName) {
+    console.error('Параметр moduleName не указан в маршруте');
+    next('/');
+    return;
+  }
+
+  // Проверяем, что moduleName соответствует имени модуля из URL getCatalog
+  const module = config.value.modules.find((m) => {
+    const extractedModuleName = extractModuleNameFromUrl(m.routes.getCatalog);
+    return extractedModuleName === moduleName;
+  });
+
   if (module) {
     next();
   } else {
-    console.error(`Модуль с viewname=${moduleName} не найден`);
+    console.error(`Модуль с moduleName=${moduleName} не найден`);
     next('/');
   }
 };
@@ -92,7 +107,8 @@ routes.push({
 // Добавляем дополнительные маршруты для модулей, если необходимо
 try {
   config.value.modules.forEach((module) => {
-    console.log(`Добавление дополнительных маршрутов для модуля: ${module.viewname}`);
+    const moduleName = extractModuleNameFromUrl(module.routes.getCatalog);
+    console.log(`Добавление дополнительных маршрутов для модуля: ${moduleName}`);
 
     // Здесь можно добавить специфичные маршруты для конкретных модулей, если необходимо
   });
@@ -132,13 +148,23 @@ router.beforeEach((to, _, next) => {
   }
 });
 
-// Координирующая функция для загрузки данных каталога
+/**
+ * Координирующая функция для загрузки данных каталога
+ *
+ * Процесс загрузки данных состоит из следующих шагов:
+ * 1. Получение стора модуля по имени модуля
+ * 2. Проверка наличия данных в кэше
+ * 3. Загрузка каталога модуля, если он еще не загружен
+ * 4. Поиск URL для загрузки деталей каталога
+ * 5. Загрузка деталей каталога
+ */
 export const findAndLoadCatalogDetails = async (
   moduleName: string,
   viewname: string,
   next: (error?: any) => void,
   forceReload: boolean = false,
 ): Promise<boolean> => {
+  // ШАГ 1: Получение стора модуля по имени модуля
   const moduleStore = useModuleStore(moduleName);
   if (!moduleStore) {
     const error = new Error(`Не удалось получить стор для модуля ${moduleName}`);
@@ -148,21 +174,20 @@ export const findAndLoadCatalogDetails = async (
   }
 
   try {
-    // Проверяем кэш, если не требуется принудительное обновление
+    // ШАГ 2: Проверка наличия данных в кэше
     if (!forceReload && moduleStore.hasCachedData(viewname)) {
       console.log(`Данные для ${viewname} уже загружены, используем кэш`);
       return true;
     }
 
-    // Загружаем каталог, если он еще не загружен
-    if (!moduleStore.catalog || moduleStore.catalog.length === 0) {
-      console.log(`Загрузка каталога для модуля ${moduleName}`);
+    // ШАГ 3: Загрузка каталога модуля, если он еще не загружен
+    if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
+      console.log(`Загрузка каталога для модуля ${moduleName}...`);
       await moduleStore.loadCatalog();
     }
 
-    // Ищем URL в каталоге
+    // ШАГ 4: Поиск URL для загрузки деталей каталога
     const href = moduleStore.findUrlInCatalog(viewname);
-
     if (!href) {
       const error = new Error(`URL для каталога ${viewname} не найден`);
       console.error(error);
@@ -170,8 +195,10 @@ export const findAndLoadCatalogDetails = async (
       return false;
     }
 
-    // Загружаем данные каталога
+    // ШАГ 5: Загрузка деталей каталога
     await moduleStore.loadCatalogDetails(viewname, href);
+    console.log(`Детали каталога ${viewname} успешно загружены`);
+
     return true;
   } catch (error) {
     console.error('Ошибка загрузки данных:', error);
@@ -199,7 +226,7 @@ router.beforeResolve(async (to, _from, next) => {
       }
 
       // 2. Проверяем, загружен ли каталог, и загружаем его если нет
-      if (!moduleStore.catalog || moduleStore.catalog.length === 0) {
+      if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
         console.log(`Загрузка данных каталога для модуля ${moduleName}`);
         await moduleStore.loadCatalog();
       }
@@ -227,8 +254,10 @@ router.beforeResolve(async (to, _from, next) => {
       } else if (to.query.group) {
         // Проверка группы, если она указана
         const groupName = to.query.group as string;
-        if (moduleStore.catalog && moduleStore.catalog.length > 0) {
-          const groupExists = moduleStore.catalog.some((group: any) => group.name === groupName);
+        if (moduleStore.catalogGroups && moduleStore.catalogGroups.length > 0) {
+          const groupExists = moduleStore.catalogGroups.some(
+            (group: any) => group.name === groupName,
+          );
           if (!groupExists) {
             console.warn(`Группа ${groupName} не найдена в данных каталога модуля ${moduleName}`);
           }

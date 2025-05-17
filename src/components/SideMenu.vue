@@ -12,12 +12,13 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue';
-  import { useConfig } from '../config-loader';
+  import { computed } from 'vue';
+  import { useConfig, extractModuleNameFromUrl } from '../config-loader';
   import PanelMenu from 'primevue/panelmenu';
   import { useModuleStore } from '../stores/module-factory';
   import type { CatalogGroup } from '../stores/types/moduleStore.type';
   import { useRouter, useRoute } from 'vue-router';
+  import { useModuleName } from '../composables/useModuleName';
 
   // Определяем пропсы компонента
   defineProps({
@@ -29,30 +30,30 @@
 
   const router = useRouter();
   const route = useRoute();
+  const { moduleName: currentModuleName } = useModuleName();
 
   const { config } = useConfig();
 
-  // Сохраняем открытые пункты меню
-  const openMenuItems = ref<Record<string, boolean>>({});
+  // Автоматическое управление открытыми пунктами меню на основе текущего moduleName
+  const openMenuItems = computed(() => {
+    const result: Record<string, boolean> = {};
 
-  // Автоматическое обновление состояния меню на основе URL
-  watch(
-    () => route.path,
-    (newPath) => {
-      // Получаем модуль из пути
-      const pathParts = newPath.split('/');
-      if (pathParts.length >= 2) {
-        const moduleName = pathParts[1];
-        // Проверяем, что модуль существует в конфигурации
-        const moduleExists = config.value.modules.some((m) => m.viewname === moduleName);
-        if (moduleExists) {
-          // Открываем меню для активного модуля
-          openMenuItems.value[moduleName] = true;
-        }
+    // Проверяем, что есть текущий moduleName
+    if (currentModuleName.value) {
+      // Проверяем, что модуль существует в конфигурации
+      const moduleExists = config.value.modules.some((m) => {
+        const extractedModuleName = extractModuleNameFromUrl(m.routes.getCatalog);
+        return extractedModuleName === currentModuleName.value;
+      });
+
+      // Если модуль существует, открываем его меню
+      if (moduleExists) {
+        result[currentModuleName.value] = true;
       }
-    },
-    { immediate: true }, // Запускаем сразу при монтировании компонента
-  );
+    }
+
+    return result;
+  });
 
   const handleMenuItemClick = async (event: any, path: string) => {
     console.log('Клик по пункту меню:', path);
@@ -130,12 +131,14 @@
 
     // Пункты меню модулей из конфигурации
     const moduleItems = config.value.modules.map((module) => {
-      const path = `/${module.viewname}`;
+      // Получаем имя модуля из URL getCatalog
+      const moduleName = extractModuleNameFromUrl(module.routes.getCatalog);
+      const path = `/${moduleName}`;
       const moduleItem: any = {
         label: module.label,
         icon: module.icon || 'pi pi-folder',
         command: (event: any) => handleMenuItemClick(event, path),
-        key: module.viewname, // Уникальный ключ для пункта меню
+        key: moduleName, // Уникальный ключ для пункта меню
         style: isRouteActive(path)
           ? {
               backgroundColor: 'var(--primary-color-lighter, #e3f2fd)',
@@ -143,23 +146,22 @@
             }
           : undefined,
       };
-
       // Подменю строится на данных стора каждого модуля
-      const moduleStore = useModuleStore(module.viewname);
+      const moduleStore = useModuleStore(moduleName);
 
       // Всегда используем данные из стора, Данные будут загружены при клике на пункт меню в функции handleMenuItemClick
       if (moduleStore) {
         // Если в сторе есть данные, формируем подменю
-        if (moduleStore.catalog && moduleStore.catalog.length > 0) {
-          moduleItem.items = moduleStore.catalog.map((group: CatalogGroup) => {
+        if (moduleStore.catalogGroups && moduleStore.catalogGroups.length > 0) {
+          moduleItem.items = moduleStore.catalogGroups.map((group: CatalogGroup) => {
             // Формируем путь с параметром group
-            const path = `/${module.viewname}?group=${group.name}`;
+            const path = `/${moduleName}?group=${group.name}`;
             return {
               label: group.verbose_name,
               command: (event: any) => {
                 handleMenuItemClick(event, path);
               },
-              key: `${module.viewname}_${group.name}`, // Уникальный ключ для элемента подменю
+              key: `${moduleName}_${group.name}`, // Уникальный ключ для элемента подменю
               style: isRouteActive(path)
                 ? {
                     backgroundColor: 'var(--primary-color-lighter, #e3f2fd)',

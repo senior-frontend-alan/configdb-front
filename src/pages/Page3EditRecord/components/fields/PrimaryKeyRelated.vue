@@ -11,12 +11,7 @@
           :placeholder="placeholder || 'Выберите значение'"
           class="w-full"
         />
-        <Button
-          icon="pi pi-search"
-          :disabled="disabled"
-          @click="openDialog"
-          aria-label="Выбрать"
-        />
+        <Button icon="pi pi-search" :disabled="disabled" @click="openDialog" aria-label="Выбрать" />
       </div>
       <label :for="id">{{ label }}</label>
     </FloatLabel>
@@ -121,14 +116,26 @@
 
   // Определяем интерфейс для объекта options
   interface FieldOptions {
-    name: string;
-    label?: string;
-    placeholder?: string;
-    readonly?: boolean;
-    required?: boolean;
-    related_url?: string;
-    help_text?: string;
-    moduleName?: string;
+    // Основные свойства
+    class_name: string;        // Класс поля на бэкенде
+    element_id: string;        // Уникальный идентификатор элемента
+    name: string;              // Имя поля
+    label: string;             // Отображаемая метка
+    help_text?: string;        // Текст подсказки
+    field_class: string;      // Класс поля
+    
+    // Специфичные свойства для PrimaryKeyRelated
+    allow_null?: boolean;      // Разрешать пустое значение
+    input_type?: string;       // Тип ввода
+    filterable?: boolean;      // Можно ли фильтровать
+    list_url?: string;         // URL для получения списка значений
+    view_name?: string;        // Имя представления
+    appl_name?: string;        // Имя приложения
+    lookup?: boolean;          // Является ли поле поисковым
+    FRONTEND_CLASS?: string;   // Класс поля на фронтенде
+    
+
+    
     // Другие возможные свойства
     [key: string]: any;
   }
@@ -137,16 +144,17 @@
     modelValue?: RelatedItem | number | string | null;
     options: FieldOptions;
   }>();
-  
+
   // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);
-  const placeholder = computed(() => props.options.placeholder || '');
-  const disabled = computed(() => props.options.readonly || false);
-  const required = computed(() => props.options.required || false);
-  const apiEndpoint = computed(() => props.options.related_url);
+  const placeholder = computed(() => '');
+  const disabled = computed(() => false);
+  const required = computed(() => !props.options.allow_null);
+  const apiEndpoint = computed(() => props.options.list_url);
   const help_text = computed(() => props.options.help_text);
-  const moduleName = computed(() => props.options.moduleName);
+  const view_name = computed(() => props.options.view_name);
+  const appl_name = computed(() => props.options.appl_name);
 
   const emit = defineEmits<{
     (e: 'update:modelValue', value: RelatedItem | number | string | null): void;

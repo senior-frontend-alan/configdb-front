@@ -13,7 +13,7 @@
 
   const moduleStore = moduleName.value ? useModuleStore(moduleName.value) : null;
 
-  const catalogData = computed(() => moduleStore?.catalog || []);
+  const catalogData = computed(() => moduleStore?.catalogGroups || []);
 
   // Функция для получения названия группы по её идентификатору
   const getGroupVerboseName = (groupName) => {

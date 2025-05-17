@@ -153,11 +153,11 @@
         const moduleStore = getModuleStore();
 
         // Проверяем, загружены ли данные каталога
-        if (moduleStore.catalogDetails?.OPTIONS?.layout) {
+        if (moduleStore.catalogsByName?.OPTIONS?.layout) {
           console.log('Данные каталога загружены, пытаемся получить поля...');
 
           // Получаем данные о колонках из store модуля
-          const storeDetails = moduleStore.catalogDetails.OPTIONS;
+          const storeDetails = moduleStore.catalogsByName.OPTIONS;
 
           // Используем доступные поля из данных
           let fields: string[] = [];
