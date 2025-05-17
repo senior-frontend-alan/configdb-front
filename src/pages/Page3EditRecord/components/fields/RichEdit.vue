@@ -1,11 +1,11 @@
 <template>
   <div class="field-rich-edit">
-    <label :for="props.id" class="block mb-1">{{ props.label }}</label>
+    <label :for="id" class="block mb-1">{{ label }}</label>
     <!-- <Editor
-      :id="props.id"
+      :id="id"
       v-model="value"
-      :disabled="props.disabled"
-      :readonly="props.readonly"
+      :disabled="disabled"
+      :readonly="readonly"
       :style="{ height: '250px' }"
       class="w-full"
     /> -->
@@ -13,16 +13,28 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, watch } from 'vue';
+  import { ref, watch, computed } from 'vue';
   // import Editor from 'primevue/editor';
+
+  // Определяем интерфейс для объекта options
+  interface FieldOptions {
+    name: string;
+    label?: string;
+    readonly?: boolean;
+    // Другие возможные свойства
+    [key: string]: any;
+  }
 
   const props = defineProps<{
     modelValue?: string;
-    id: string;
-    label: string;
-    disabled?: boolean;
-    readonly?: boolean;
+    options: FieldOptions;
   }>();
+  
+  // Извлекаем свойства из объекта options для удобства использования
+  const id = computed(() => props.options.name);
+  const label = computed(() => props.options.label || props.options.name);
+  const disabled = computed(() => props.options.readonly || false);
+  const readonly = computed(() => props.options.readonly || false);
 
   const emit = defineEmits<{
     (e: 'update:modelValue', value: string): void;

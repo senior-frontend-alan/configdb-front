@@ -4,33 +4,33 @@
     <FloatLabel variant="in">
       <div class="p-inputgroup">
         <InputText
-          :id="props.id"
+          :id="id"
           v-model="displayValue"
           :disabled="true"
-          :required="props.required"
-          :placeholder="props.placeholder || 'Выберите значение'"
+          :required="required"
+          :placeholder="placeholder || 'Выберите значение'"
           class="w-full"
         />
         <Button
           icon="pi pi-search"
-          :disabled="props.disabled"
+          :disabled="disabled"
           @click="openDialog"
           aria-label="Выбрать"
         />
       </div>
-      <label :for="props.id">{{ props.label }}</label>
+      <label :for="id">{{ label }}</label>
     </FloatLabel>
 
-    <div v-if="props.help_text" class="flex align-items-center justify-content-between mt-1">
+    <div v-if="help_text" class="flex align-items-center justify-content-between mt-1">
       <Message size="small" severity="secondary" variant="simple" class="flex-grow-1">
-        {{ props.help_text }}
+        {{ help_text }}
       </Message>
     </div>
 
     <!-- Модальное окно для выбора связанной записи -->
     <Dialog
       v-model:visible="dialogVisible"
-      :header="`Выберите ${props.label}`"
+      :header="`Выберите ${label}`"
       :style="{ width: '80vw' }"
       :modal="true"
       :closable="true"
@@ -67,12 +67,11 @@
 
           <!-- Динамически создаем колонки на основе первого элемента данных -->
           <Column
-            v-for="(_, key) in Object.keys(relatedData[0] || {})"
-            :key="key"
-            :field="String(key)"
-            :header="String(key)"
+            v-for="columnKey in columnKeys"
+            :key="columnKey"
+            :field="columnKey"
+            :header="columnKey"
             :sortable="true"
-            v-if="key !== 'id' && !String(key).startsWith('_')"
           >
             <template #filter="{ filterModel, filterCallback }">
               <InputText
@@ -120,17 +119,34 @@
     [key: string]: any;
   }
 
+  // Определяем интерфейс для объекта options
+  interface FieldOptions {
+    name: string;
+    label?: string;
+    placeholder?: string;
+    readonly?: boolean;
+    required?: boolean;
+    related_url?: string;
+    help_text?: string;
+    moduleName?: string;
+    // Другие возможные свойства
+    [key: string]: any;
+  }
+
   const props = defineProps<{
     modelValue?: RelatedItem | number | string | null;
-    id: string;
-    label: string;
-    placeholder?: string;
-    disabled?: boolean;
-    required?: boolean;
-    apiEndpoint?: string;
-    help_text?: string;
-    moduleId?: string;
+    options: FieldOptions;
   }>();
+  
+  // Извлекаем свойства из объекта options для удобства использования
+  const id = computed(() => props.options.name);
+  const label = computed(() => props.options.label || props.options.name);
+  const placeholder = computed(() => props.options.placeholder || '');
+  const disabled = computed(() => props.options.readonly || false);
+  const required = computed(() => props.options.required || false);
+  const apiEndpoint = computed(() => props.options.related_url);
+  const help_text = computed(() => props.options.help_text);
+  const moduleName = computed(() => props.options.moduleName);
 
   const emit = defineEmits<{
     (e: 'update:modelValue', value: RelatedItem | number | string | null): void;
@@ -173,9 +189,40 @@
     return null;
   };
 
+  // Загрузка связанных данных из API
+  const loadRelatedData = async () => {
+    loading.value = true;
+    error.value = null;
+    relatedData.value = [];
+
+    try {
+      // Используем вычисляемое свойство apiEndpoint вместо props.apiEndpoint
+      if (!apiEndpoint.value) {
+        throw new Error('Не указан URL для загрузки связанных данных');
+      }
+
+      // Запрос к API для получения данных
+      const response = await api.get(apiEndpoint.value);
+      relatedData.value = response.data;
+    } catch (err) {
+      console.error('Ошибка при загрузке связанных данных:', err);
+      error.value = текстОшибки(err);
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  // Получение текста ошибки
+  const текстОшибки = (err: any): string => {
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return err.message;
+    return 'Неизвестная ошибка при загрузке данных';
+  };
+
   // Открытие диалога и загрузка данных
   const openDialog = async () => {
-    if (props.disabled) return;
+    // Используем вычисляемое свойство disabled вместо props.disabled
+    if (disabled.value) return;
 
     dialogVisible.value = true;
     await loadRelatedData();
@@ -192,17 +239,6 @@
     dialogVisible.value = false;
   };
 
-  // Загрузка данных для выбора
-  const loadRelatedData = async () => {
-    if (!props.apiEndpoint && !props.moduleId) {
-      error.value = 'Не указан apiEndpoint или moduleId';
-      return;
-    }
-
-    loading.value = true;
-    error.value = null;
-  };
-
   // Обработка выбора строки в таблице
   const onRowSelect = (event: any) => {
     selectedItem.value = event.data;
@@ -215,6 +251,15 @@
       closeDialog();
     }
   };
+
+  // Вычисляемое свойство для ключей колонок
+  const columnKeys = computed(() => {
+    if (!relatedData.value || relatedData.value.length === 0) return [];
+
+    return Object.keys(relatedData.value[0] || {}).filter(
+      (key) => key !== 'id' && !key.startsWith('_'),
+    );
+  });
 
   // При изменении modelValue обновляем отображаемое значение
   onMounted(() => {

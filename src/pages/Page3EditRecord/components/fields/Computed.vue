@@ -1,26 +1,38 @@
 <template>
   <div class="field-computed">
-    <label :for="props.id" class="block">{{ props.label }}</label>
-    <div :id="props.id" class="computed-value">{{ formattedValue }}</div>
+    <label :for="id" class="block">{{ label }}</label>
+    <div :id="id" class="computed-value">{{ formattedValue }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 
+// Определяем интерфейс для объекта options
+interface FieldOptions {
+  name: string;
+  label?: string;
+  formatter?: (value: any) => string;
+  // Другие возможные свойства
+  [key: string]: any;
+}
+
 const props = defineProps<{
   modelValue?: any;
-  id: string;
-  label: string;
-  formatter?: (value: any) => string;
+  options: FieldOptions;
 }>();
+
+// Извлекаем свойства из объекта options для удобства использования
+const id = computed(() => props.options.name);
+const label = computed(() => props.options.label || props.options.name);
+const formatter = computed(() => props.options.formatter);
 
 // Форматирование значения с использованием пользовательского форматтера или по умолчанию
 const formattedValue = computed(() => {
   if (!props.modelValue) return '';
   
-  if (props.formatter) {
-    return props.formatter(props.modelValue);
+  if (formatter.value) {
+    return formatter.value(props.modelValue);
   }
   
   // Форматирование по умолчанию в зависимости от типа данных

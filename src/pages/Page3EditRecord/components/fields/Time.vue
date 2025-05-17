@@ -1,33 +1,47 @@
 <template>
   <FloatLabel variant="in">
     <Calendar 
-      :id="props.id" 
+      :id="id" 
       v-model="value" 
       variant="filled"
-      :disabled="props.disabled"
-      :required="props.required"
-      :placeholder="props.placeholder"
+      :disabled="disabled"
+      :required="required"
+      :placeholder="placeholder"
       timeOnly
       hourFormat="24"
       class="w-full"
     />
-    <label :for="props.id">{{ props.label }}</label>
+    <label :for="id">{{ label }}</label>
   </FloatLabel>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import Calendar from 'primevue/calendar';
 import FloatLabel from 'primevue/floatlabel';
 
+// Определяем интерфейс для объекта options
+interface FieldOptions {
+  name: string;
+  label?: string;
+  placeholder?: string;
+  readonly?: boolean;
+  required?: boolean;
+  // Другие возможные свойства
+  [key: string]: any;
+}
+
 const props = defineProps<{
   modelValue?: Date | string;
-  id: string;
-  label: string;
-  placeholder?: string;
-  disabled?: boolean;
-  required?: boolean;
+  options: FieldOptions;
 }>();
+
+// Извлекаем свойства из объекта options для удобства использования
+const id = computed(() => props.options.name);
+const label = computed(() => props.options.label || props.options.name);
+const placeholder = computed(() => props.options.placeholder || '');
+const disabled = computed(() => props.options.readonly || false);
+const required = computed(() => props.options.required || false);
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: Date | null): void;

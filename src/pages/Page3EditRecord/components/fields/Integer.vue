@@ -1,19 +1,19 @@
 <template>
   <FloatLabel variant="in">
     <InputNumber 
-      :id="props.id" 
+      :id="id" 
       v-model="value" 
       variant="filled"
-      :disabled="props.disabled"
-      :required="props.required"
-      :placeholder="props.placeholder"
-      :min="props.min"
-      :max="props.max"
+      :disabled="disabled"
+      :required="required"
+      :placeholder="placeholder"
+      :min="min"
+      :max="max"
       :step="1"
       class="w-full"
       integerOnly
     />
-    <label :for="props.id">{{ props.label }}</label>
+    <label :for="id">{{ label }}</label>
   </FloatLabel>
 </template>
 
@@ -22,16 +22,32 @@ import { computed } from 'vue';
 import InputNumber from 'primevue/inputnumber';
 import FloatLabel from 'primevue/floatlabel';
 
-const props = defineProps<{
-  modelValue?: number;
-  id: string;
-  label: string;
+// Определяем интерфейс для объекта options
+interface FieldOptions {
+  name: string;
+  label?: string;
   placeholder?: string;
-  disabled?: boolean;
+  readonly?: boolean;
   required?: boolean;
   min?: number;
   max?: number;
+  // Другие возможные свойства
+  [key: string]: any;
+}
+
+const props = defineProps<{
+  modelValue?: number;
+  options: FieldOptions;
 }>();
+
+// Извлекаем свойства из объекта options для удобства использования
+const id = computed(() => props.options.name);
+const label = computed(() => props.options.label || props.options.name);
+const placeholder = computed(() => props.options.placeholder || '');
+const disabled = computed(() => props.options.readonly || false);
+const required = computed(() => props.options.required || false);
+const min = computed(() => props.options.min);
+const max = computed(() => props.options.max);
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: number | null | undefined): void;

@@ -1,12 +1,12 @@
 <template>
   <div class="field-boolean">
     <Checkbox 
-      :id="props.id" 
+      :id="id" 
       v-model="value" 
       :binary="true"
-      :disabled="props.disabled"
+      :disabled="disabled"
     />
-    <label :for="props.id" class="ml-2">{{ props.label }}</label>
+    <label :for="id" class="ml-2">{{ label }}</label>
   </div>
 </template>
 
@@ -14,12 +14,24 @@
 import { computed } from 'vue';
 import Checkbox from 'primevue/checkbox';
 
+// Определяем интерфейс для объекта options
+interface FieldOptions {
+  name: string;
+  label?: string;
+  readonly?: boolean;
+  // Другие возможные свойства
+  [key: string]: any;
+}
+
 const props = defineProps<{
   modelValue?: boolean;
-  id: string;
-  label: string;
-  disabled?: boolean;
+  options: FieldOptions;
 }>();
+
+// Извлекаем свойства из объекта options для удобства использования
+const id = computed(() => props.options.name);
+const label = computed(() => props.options.label || props.options.name);
+const disabled = computed(() => props.options.readonly || false);
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;

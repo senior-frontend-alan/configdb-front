@@ -2,21 +2,21 @@
   <div class="w-full">
     <FloatLabel variant="in">
       <Select
-        :id="props.id"
+        :id="id"
         v-model="value"
-        :options="props.options"
+        :options="choiceOptions"
         optionLabel="display_name"
         optionValue="value"
-        :disabled="props.disabled"
-        :required="props.required"
+        :disabled="disabled"
+        :required="required"
         class="w-full"
       />
-      <label :for="props.id">{{ props.label }}</label>
+      <label :for="id">{{ label }}</label>
     </FloatLabel>
 
-    <div v-if="props.help_text" class="flex align-items-center justify-content-between mt-1 px-2">
+    <div v-if="help_text" class="flex align-items-center justify-content-between mt-1 px-2">
       <Message size="small" severity="secondary" variant="simple" class="flex-grow-1">
-        {{ props.help_text }}
+        {{ help_text }}
       </Message>
     </div>
   </div>
@@ -33,16 +33,32 @@
     display_name: string;
   }
 
+  // Определяем интерфейс для объекта options
+  interface FieldOptions {
+    name: string;
+    label?: string;
+    placeholder?: string;
+    readonly?: boolean;
+    required?: boolean;
+    help_text?: string;
+    choices?: ChoiceOption[];
+    // Другие возможные свойства
+    [key: string]: any;
+  }
+
   const props = defineProps<{
     modelValue?: string | number;
-    id: string;
-    label: string;
-    placeholder?: string;
-    disabled?: boolean;
-    required?: boolean;
-    options: ChoiceOption[];
-    help_text?: string;
+    options: FieldOptions;
   }>();
+  
+  // Извлекаем свойства из объекта options для удобства использования
+  const id = computed(() => props.options.name);
+  const label = computed(() => props.options.label || props.options.name);
+  const placeholder = computed(() => props.options.placeholder || '');
+  const disabled = computed(() => props.options.readonly || false);
+  const required = computed(() => props.options.required || false);
+  const help_text = computed(() => props.options.help_text);
+  const choiceOptions = computed(() => props.options.choices || []);
 
   const emit = defineEmits<{
     (e: 'update:modelValue', value: string | number | null): void;

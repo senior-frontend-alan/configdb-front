@@ -1,15 +1,15 @@
 <template>
   <FloatLabel variant="in">
     <DatePicker 
-      :id="props.id" 
+      :id="id" 
       v-model="value" 
-      :disabled="props.disabled"
-      :required="props.required"
-      :placeholder="props.placeholder"
+      :disabled="disabled"
+      :required="required"
+      :placeholder="placeholder"
       dateFormat="dd.mm.yy"
       class="w-full"
     />
-    <label :for="props.id">{{ props.label }}</label>
+    <label :for="id">{{ label }}</label>
   </FloatLabel>
 </template>
 
@@ -18,14 +18,28 @@ import { computed } from 'vue';
 import DatePicker from 'primevue/datepicker';
 import FloatLabel from 'primevue/floatlabel';
 
+// Определяем интерфейс для объекта options
+interface FieldOptions {
+  name: string;
+  label?: string;
+  placeholder?: string;
+  readonly?: boolean;
+  required?: boolean;
+  // Другие возможные свойства
+  [key: string]: any;
+}
+
 const props = defineProps<{
   modelValue?: Date | string;
-  id: string;
-  label: string;
-  placeholder?: string;
-  disabled?: boolean;
-  required?: boolean;
+  options: FieldOptions;
 }>();
+
+// Извлекаем свойства из объекта options для удобства использования
+const id = computed(() => props.options.name);
+const label = computed(() => props.options.label || props.options.name);
+const placeholder = computed(() => props.options.placeholder || '');
+const disabled = computed(() => props.options.readonly || false);
+const required = computed(() => props.options.required || false);
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: Date | null): void;

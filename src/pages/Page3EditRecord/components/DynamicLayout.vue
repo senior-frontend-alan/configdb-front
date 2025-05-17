@@ -36,19 +36,9 @@ DynamicLayout: чисто презентационный компонент
         <div v-else :class="{ 'form-field': true }">
           <component
             :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
-            :id="element.name"
-            :label="element.label || element.name"
+            :options="element"
             :model-value="modelValue[element.name]"
             @update:model-value="updateFieldValue(element.name, $event)"
-            :placeholder="element.placeholder || ''"
-            :disabled="element.readonly"
-            :required="element.required"
-            :min="element.min"
-            :max="element.max"
-            :max_length="element.max_length"
-            :options="element.choices"
-            :apiEndpoint="element.related_url"
-            :help_text="element.help_text"
           />
         </div>
       </template>
