@@ -1,5 +1,5 @@
 <template>
-  <div class="field-rich-edit">
+  <div class="field-rich-edit" :class="{ 'field-modified': props.isModified }">
     <label :for="id" class="block mb-1">{{ label }}</label>
     <!-- <Editor
       :id="id"
@@ -28,13 +28,12 @@
   const props = defineProps<{
     modelValue?: string;
     options: FieldOptions;
+    isModified?: boolean;
   }>();
-  
+
   // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);
-  const disabled = computed(() => props.options.readonly || false);
-  const readonly = computed(() => props.options.readonly || false);
 
   const emit = defineEmits<{
     (e: 'update:modelValue', value: string): void;

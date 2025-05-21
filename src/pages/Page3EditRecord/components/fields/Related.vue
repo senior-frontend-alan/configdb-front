@@ -11,6 +11,7 @@
         :disabled="disabled"
         :required="required"
         class="w-full"
+        :class="{ 'input-modified': props.isModified }"
       />
       <label :for="id">{{ label }}</label>
     </FloatLabel>
@@ -55,12 +56,14 @@
     defineProps<{
       modelValue?: RelatedItem | number | string | null;
       options: FieldOptions;
+      isModified?: boolean;
     }>(),
     {
       modelValue: null,
+      isModified: false,
     },
   );
-  
+
   // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);

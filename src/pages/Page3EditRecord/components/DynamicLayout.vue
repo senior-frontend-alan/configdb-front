@@ -6,46 +6,47 @@ DynamicLayout: чисто презентационный компонент
 -->
 
 <template>
-  <div class="dynamic-layout">
-    <template v-if="elementsArray.length > 0">
-      <template v-for="(element, index) in elementsArray" :key="element.name || index">
-        <!-- Если это секция (LayoutSection) -->
-        <div v-if="element.class_name === 'LayoutSection'" class="layout-section">
-          <h3 v-if="element.label" class="section-title">{{ element.label }}</h3>
-          <!-- Рекурсивно обрабатываем вложенные элементы -->
-          <DynamicLayout
-            v-if="element.elements && element.elements.length > 0"
-            :layout-elements="element.ELEMENTS"
-            :model-value="modelValue"
-            @update:model-value="(newValue) => emit('update:modelValue', newValue)"
-          />
-        </div>
+  <template v-if="elementsArray.length > 0">
+    <template v-for="(element, index) in elementsArray" :key="element.name || index">
+      <!-- Если это секция (LayoutSection) -->
+      <div v-if="element.FRONTEND_CLASS === FRONTEND.SECTION" class="layout-section">
+        <h3 v-if="element.label" class="section-title">{{ element.label }}</h3>
+        <!-- Рекурсивно обрабатываем вложенные элементы -->
+        <DynamicLayout
+          v-if="element.elements && element.elements.length > 0"
+          :layout-elements="element.ELEMENTS"
+          :model-value="modelValue"
+          :patch-data="patchData"
+          @update:model-value="(newValue) => emit('update:modelValue', newValue)"
+        />
+      </div>
 
-        <!-- Если это строка (LayoutRow) -->
-        <div v-else-if="element.class_name === 'LayoutRow'" class="layout-row">
-          <!-- Рекурсивно обрабатываем вложенные элементы строки -->
-          <DynamicLayout
-            v-if="element.elements && element.elements.length > 0"
-            :layout-elements="element.ELEMENTS"
-            :model-value="modelValue"
-            @update:model-value="(newValue) => emit('update:modelValue', newValue)"
-          />
-        </div>
+      <!-- Если это строка (LayoutRow) -->
+      <div v-else-if="element.FRONTEND_CLASS === FRONTEND.ROW" class="layout-row">
+        <!-- Рекурсивно обрабатываем вложенные элементы строки -->
+        <DynamicLayout
+          v-if="element.elements && element.elements.length > 0"
+          :layout-elements="element.ELEMENTS"
+          :model-value="modelValue"
+          :patch-data="patchData"
+          @update:model-value="(newValue) => emit('update:modelValue', newValue)"
+        />
+      </div>
 
-        <!-- Если это обычное поле -->
-        <div v-else :class="{ 'form-field': true }">
-          <component
-            :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
-            :options="element"
-            :model-value="modelValue[element.name]"
-            @update:model-value="updateFieldValue(element.name, $event)"
-          />
-        </div>
-      </template>
+      <!-- Если это обычное поле -->
+      <div v-else :class="{ 'form-field': true }">
+        <component
+          :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
+          :options="element"
+          :model-value="modelValue[element.name]"
+          :is-modified="isFieldModified(element.name)"
+          @update:model-value="updateFieldValue(element.name, $event)"
+        />
+      </div>
     </template>
-    <div v-else class="no-fields-message">
-      <Message severity="info">Нет полей для отображения</Message>
-    </div>
+  </template>
+  <div v-else class="no-fields-message">
+    <Message severity="info">Нет полей для отображения</Message>
   </div>
 </template>
 
@@ -86,6 +87,7 @@ DynamicLayout: чисто презентационный компонент
     layoutElements: Map<string, FormElement>;
     modelValue: Record<string, any>;
     recordId?: string;
+    patchData?: Record<string, any>; // Данные о измененных полях (PATCH)
   }>();
 
   // В шаблоне Vue директива v-for работает с массивами
@@ -97,40 +99,37 @@ DynamicLayout: чисто презентационный компонент
     'update:modelValue': [value: Record<string, any>];
   }>();
 
+  const isFieldModified = (fieldName: string) => {
+    return props.patchData && fieldName in props.patchData;
+  };
+
   const updateFieldValue = (name: string, value: any) => {
-    // Получаем элемент напрямую из Map - O(1) а если использовать оригинальный props.layoutElements то будет O(n)
-    // Валидация каждого поля перед сохранением
-    const element = props.layoutElements.get(name);
+    // Создаем копию текущего объекта modelValue
+    const updatedData = { ...props.modelValue };
 
+    // Обновляем значение поля
+    updatedData[name] = value;
     // НЕ Удалять, в будущем тут будет валидация
-    let processedValue = value;
 
-    // if (element?.type === 'number' && typeof value === 'number') {
-    //   if (element.min !== undefined && value < element.min) {
-    //     processedValue = element.min;
-    //   } else if (element.max !== undefined && value > element.max) {
-    //     processedValue = element.max;
-    //   }
-    // }
-
-    // Обновляем данные формы
-    const newData = { ...props.modelValue, [name]: processedValue };
-    emit('update:modelValue', newData);
+    // Отправляем обновленные данные родительскому компоненту
+    emit('update:modelValue', updatedData);
   };
 </script>
 
 <style scoped>
   .section-title {
     color: var(--text-color-secondary);
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
   }
 
   .layout-section {
     margin-bottom: 1.5rem;
-    padding: 1rem;
-    background-color: #fff;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
     border-radius: 4px;
-    border: 1px solid var(--p-surface-200);
+    border: 1px solid var(--p-surface-300);
   }
 
   .dynamic-form-layout {
@@ -141,6 +140,7 @@ DynamicLayout: чисто презентационный компонент
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
+    width: 100%;
   }
 
   .row-label {
@@ -151,9 +151,10 @@ DynamicLayout: чисто презентационный компонент
 
   .form-field {
     display: flex;
-    flex-grow: 1;
+    flex: 1 1 0;
     flex-direction: column;
     margin-bottom: 1rem;
+    min-width: 0; /* Предотвращает переполнение контента */
   }
 
   .form-field.p-col {

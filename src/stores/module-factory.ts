@@ -230,6 +230,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         const detailsData = {
           GET: getResponseData,
           OPTIONS: optionsResponseData,
+          PATCH: {}, // Поле для отслеживания изменений
           moduleName: moduleName,
           url: url,
         };

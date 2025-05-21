@@ -4,7 +4,7 @@
       <InputText
         :id="id"
         v-model="value"
-        :class="{ 'p-invalid': hasTypeError }"
+        :class="{ 'p-invalid': hasTypeError, 'input-modified': props.isModified }"
         :disabled="disabled"
         :required="required"
         :placeholder="placeholder"
@@ -14,7 +14,11 @@
       <label :for="id">{{ label }}</label>
     </FloatLabel>
 
-    <div class="flex align-items-center justify-content-between mt-1">
+    <small v-if="hasTypeError"
+      >{{ label }}: Неверный тип данных (получен {{ typeof props.modelValue }}:
+      {{ JSON.stringify(props.modelValue) }})</small
+    >
+    <div class="flex align-items-center justify-content-end mt-1">
       <Message
         v-if="help_text"
         size="small"
@@ -27,10 +31,6 @@
       <small v-if="max_length" class="text-secondary ml-2">
         {{ value ? value.length : 0 }}/{{ max_length }}
       </small>
-    </div>
-
-    <div v-if="hasTypeError" class="p-error w-full">
-      <small>{{ label }}: Неверный тип данных</small>
     </div>
   </div>
 </template>
@@ -56,8 +56,9 @@
   const props = defineProps<{
     modelValue?: any; // !!!Вообще должно быть String но Vue проверяет типы пропсов перед отрисовкой и выводит ошибку в консоль если там не String
     options: FieldOptions;
+    isModified?: boolean;
   }>();
-  
+
   // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);
@@ -92,6 +93,7 @@
           typeof props.modelValue,
           props.modelValue,
         );
+        // Сохраняем информацию об ошибке для отображения в интерфейсе
         hasTypeError.value = true;
         return '';
       }
@@ -104,5 +106,5 @@
 </script>
 
 <style scoped>
-  /* Используются общие стили из utility.css */
+  /* Используются общие стили из Page3EditRecord/index.vue */
 </style>

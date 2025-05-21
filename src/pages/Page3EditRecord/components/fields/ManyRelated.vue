@@ -7,14 +7,17 @@
       :style="!disabled ? { cursor: 'pointer' } : {}"
     >
       <FloatLabel variant="in">
-        <Select
+        <MultiSelect
           :id="id"
-          v-model="selectedItem"
-          :options="[selectedItem].filter(Boolean)"
-          optionLabel="name"
           :disabled="disabled"
           :required="required"
-          :class="{ 'input-modified': props.isModified }"
+          display="chip"
+          :filter="true"
+          option-label="name"
+          :modelValue="modelValue || []"
+          :options="modelValue || []"
+          :class="{ 'p-invalid': props.options.errors, 'input-modified': props.isModified }"
+          @click="openDialog"
         />
         <label :for="id">{{ label }}</label>
       </FloatLabel>
@@ -74,7 +77,7 @@
           v-if="currentModuleName && currentCatalogName"
           :moduleName="currentModuleName"
           :viewname="currentCatalogName"
-          :onRowClick="customRowClick"
+          :onRowClick="handleRowClick"
           @record-selected="onRecordSelected"
         />
       </div>
@@ -84,8 +87,8 @@
         <Button
           label="Выбрать"
           icon="pi pi-check"
-          @click="selectItem"
-          :disabled="!selectedItem"
+          @click="saveSelection"
+          :disabled="isSelectionEmpty"
           autofocus
         />
       </template>
@@ -99,7 +102,7 @@
   import { parseBackendApiUrl } from '../../../../config-loader';
   import CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
-  import Select from 'primevue/select';
+  import MultiSelect from 'primevue/multiselect';
   import FloatLabel from 'primevue/floatlabel';
   import InputGroup from 'primevue/inputgroup';
   import InputGroupAddon from 'primevue/inputgroupaddon';
@@ -140,18 +143,18 @@
     help_text?: string; // Текст подсказки
 
     // Специфичные свойства для LayoutRelatedField
-    list_url?: string; // URL для получения списка значений
+    list_url: string; // URL для получения списка значений
     view_name?: string; // Имя представления
     appl_name?: string; // Имя приложения
     lookup?: boolean; // Является ли поле поисковым
-    FRONTEND_CLASS?: string; // Класс поля на фронтенде
+    FRONTEND_CLASS: string; // Класс поля на фронтенде
 
     // Другие возможные свойства
     [key: string]: any;
   }
 
   const props = defineProps<{
-    modelValue?: RelatedItem | number | string | null;
+    modelValue?: RelatedItem[] | null;
     options: FieldOptions;
     isModified?: boolean;
   }>();
@@ -165,15 +168,21 @@
   const help_text = computed(() => props.options.help_text);
 
   const emit = defineEmits<{
-    (e: 'update:modelValue', value: RelatedItem | number | string | null): void;
+    (e: 'update:modelValue', value: RelatedItem[] | null): void;
   }>();
 
   // Состояние компонента
   const dialogVisible = ref(false);
   const loading = ref(false);
   const error = ref<string | null>(null);
-  const selectedItem = ref<RelatedItem | null>(null);
+  // Используем ref для хранения временного состояния выбранных элементов
+  const tempSelectedItems = ref<RelatedItem[]>([]);
   const isFullscreen = ref(false);
+
+  // Вычисляемые свойства для использования в шаблоне
+  const isSelectionEmpty = computed(() => {
+    return !tempSelectedItems.value || tempSelectedItems.value.length === 0;
+  });
 
   const currentModuleName = ref('');
   const currentCatalogName = ref('');
@@ -192,21 +201,41 @@
     isFullscreen.value = !isFullscreen.value;
   };
 
-  const customRowClick = (event: any) => {
-    const rowData = event.data;
-
-    // Выбираем запись и вызываем onRecordSelected
-    if (rowData) {
-      onRecordSelected(rowData);
-    }
+  // Инициализируем временное состояние при открытии диалога
+  const initTempSelectedItems = () => {
+    tempSelectedItems.value =
+      props.modelValue && Array.isArray(props.modelValue) ? [...props.modelValue] : [];
   };
 
-  // Открытие диалога и загрузка данных
+  const handleRowClick = (event: any) => {
+    const rowData = event.data;
+
+    if (rowData) {
+      // Проверяем, есть ли уже такой элемент в списке
+      const existingIndex = tempSelectedItems.value.findIndex((item) => item.id === rowData.id);
+
+      if (existingIndex === -1) {
+        // Добавляем новый элемент в список
+        tempSelectedItems.value = [...tempSelectedItems.value, rowData];
+      } else {
+        // Удаляем элемент из списка (снимаем выделение)
+        tempSelectedItems.value = tempSelectedItems.value.filter((item) => item.id !== rowData.id);
+      }
+
+      // Изменения будут отправлены в PATCH только после нажатия на кнопку "Выбрать"
+    }
+    console.log('Выбранные элементы:', tempSelectedItems.value);
+  };
+
   const openDialog = async () => {
     if (disabled.value) return;
 
+    dialogVisible.value = true;
     loading.value = true;
     error.value = null;
+
+    // Инициализируем временное состояние при открытии диалога
+    initTempSelectedItems();
 
     // Если есть URL для загрузки связанных данных
     if (relatedTableUrl.value) {
@@ -226,9 +255,6 @@
         // Загружаем данные в соответствующий стор
         await catalogLoader.loadCatalogByUrl(relatedTableUrl.value);
         console.log('Данные каталога загружены успешно');
-
-        // Открываем диалог после успешной загрузки данных
-        dialogVisible.value = true;
       } catch (err) {
         console.error('Ошибка при загрузке данных каталога:', err);
         error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';
@@ -241,42 +267,38 @@
     }
   };
 
-  // Обработка выбора записи из компонента CatalogDetails
   const onRecordSelected = (record: any) => {
     console.log('Выбрана запись:', record);
-    selectedItem.value = record;
+    handleRowClick({ data: record });
   };
 
+  // Закрытие диалога с отменой изменений
   const closeDialog = () => {
     dialogVisible.value = false;
   };
 
-  // Выбор элемента и закрытие диалога
-  const selectItem = () => {
-    if (selectedItem.value) {
-      emit('update:modelValue', selectedItem.value);
-      closeDialog();
-    }
+  const saveSelection = () => {
+    // Отправляем выбранные элементы в родительский компонент
+    const selectedItems = tempSelectedItems.value.length > 0 ? tempSelectedItems.value : null;
+    emit('update:modelValue', selectedItems);
+    closeDialog();
   };
 
-  // Инициализация selectedItem на основе modelValue
-  if (props.modelValue) {
-    if (typeof props.modelValue === 'object' && props.modelValue !== null) {
-      // Если передан объект, используем его как есть
-      selectedItem.value = props.modelValue as RelatedItem;
-    } else {
-      // Если передан ID, создаем объект с этим ID
-      selectedItem.value = {
-        id: props.modelValue,
-        name: String(props.modelValue),
-      };
-    }
-  }
+  const resetTempSelectedItems = () => {
+    tempSelectedItems.value =
+      props.modelValue && Array.isArray(props.modelValue) ? [...props.modelValue] : [];
+  };
 
-  // Наблюдение за изменениями modelValue происходит автоматически через v-model
+  // Инициализируем при монтировании компонента
+  resetTempSelectedItems();
 </script>
 
 <style scoped>
+  /* Стили для корректной работы MultiSelect с FloatLabel */
+  :deep(.p-multiselect-label:has(.p-chip)) {
+    padding-top: 20px;
+  }
+
   .dialog-header-container {
     display: flex;
     align-items: center;
@@ -288,7 +310,4 @@
     font-size: 1.25rem;
     font-weight: 600;
   }
-
-  /* Используются общие стили из tailwind.css */
-  /* При необходимости можно добавить дополнительные стили */
 </style>

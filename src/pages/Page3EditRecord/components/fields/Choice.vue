@@ -10,6 +10,7 @@
         :disabled="disabled"
         :required="required"
         class="w-full"
+        :class="{ 'input-modified': props.isModified }"
       />
       <label :for="id">{{ label }}</label>
     </FloatLabel>
@@ -49,12 +50,12 @@
   const props = defineProps<{
     modelValue?: string | number;
     options: FieldOptions;
+    isModified?: boolean;
   }>();
-  
+
   // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);
-  const placeholder = computed(() => props.options.placeholder || '');
   const disabled = computed(() => props.options.readonly || false);
   const required = computed(() => props.options.required || false);
   const help_text = computed(() => props.options.help_text);

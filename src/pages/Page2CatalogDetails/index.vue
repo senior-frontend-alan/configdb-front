@@ -2,7 +2,7 @@
   <div class="catalog-details-page">
     <div class="header-container">
       <div class="title-container">
-        <h3>{{ currentStoreDetails?.OPTIONS?.verbose_name || 'Каталог без названия' }}</h3>
+        <h3>{{ currentCatalog?.OPTIONS?.verbose_name || 'Каталог без названия' }}</h3>
         <Button
           id="refresh-button"
           icon="pi pi-refresh"
@@ -23,7 +23,7 @@
           @click="goToAddRecord"
         />
         <ColumnVisibilitySelector
-          :tableColumns="currentStoreDetails?.OPTIONS?.layout?.TABLE_COLUMNS"
+          :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
           :is-table-scrollable="isTableScrollable"
           @update-column-visibility="updateColumnVisibility"
           @toggle-table-scrollable="isTableScrollable = !isTableScrollable"
@@ -62,7 +62,7 @@
           :resizableColumns="true"
           columnResizeMode="fit"
           :tableStyle="isTableScrollable ? 'min-width: 1000px' : 'width: 100%'"
-          @row-click="onRowClick"
+          @row-click="handleRowClick"
         >
           <!-- Колонка с чекбоксами для массового выделения, если разрешены batch операции -->
           <Column v-if="hasBatchPermission" selectionMode="multiple" headerStyle="width: 3rem" />
@@ -148,21 +148,21 @@
   const columnsOrder = ref<string[]>([]);
   const isTableScrollable = ref(false);
 
-  // Получаем moduleName и viewname из props
+  // Получаем moduleName, viewname и пользовательскую функцию onRowClick из props
   const props = defineProps<{
     moduleName: string; // Обязательный параметр
     viewname: string; // Обязательный параметр
+    onRowClick?: (event: any) => void; // Опциональная пользовательская функция для обработки клика по строке
   }>();
 
   // Используем значения из props
   const moduleName = computed(() => props.moduleName);
   const viewname = computed(() => props.viewname);
 
-  // Получаем ссылку на хранилище модуля
   const moduleStore = computed(() => useModuleStore(moduleName.value));
 
   // Создаем реактивную ссылку на текущие данные из стора
-  const currentStoreDetails = computed(() => {
+  const currentCatalog = computed(() => {
     return moduleStore.value?.catalogsByName[viewname.value];
   });
 
@@ -201,7 +201,7 @@
 
   // Функция для обновления видимости колонок
   const updateColumnVisibility = (fieldName: string, isVisible: boolean) => {
-    const TABLE_COLUMNS = currentStoreDetails.value?.OPTIONS?.layout?.TABLE_COLUMNS;
+    const TABLE_COLUMNS = currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS;
     if (!TABLE_COLUMNS) return;
 
     const column = TABLE_COLUMNS.get(fieldName);
@@ -274,7 +274,7 @@
       );
 
       if (dataLoaded) {
-        const storeDetails = currentStoreDetails.value;
+        const storeDetails = currentCatalog.value;
 
         if (storeDetails) {
           // Обрабатываем полученные данные
@@ -301,21 +301,21 @@
 
   // Функция для получения FRONTEND_CLASS поля
   const getColumnFrontendClass = (fieldName: string): string => {
-    const TABLE_COLUMNS = currentStoreDetails.value?.OPTIONS?.layout?.TABLE_COLUMNS;
+    const TABLE_COLUMNS = currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS;
     if (!TABLE_COLUMNS || !TABLE_COLUMNS.has(fieldName)) return '';
     return TABLE_COLUMNS.get(fieldName)?.FRONTEND_CLASS || '';
   };
 
   // Функция для получения метаданных поля
   const getFieldMetadata = (fieldName: string): any => {
-    const TABLE_COLUMNS = currentStoreDetails.value?.OPTIONS?.layout?.TABLE_COLUMNS;
+    const TABLE_COLUMNS = currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS;
     if (!TABLE_COLUMNS || !TABLE_COLUMNS.has(fieldName)) return null;
     return TABLE_COLUMNS.get(fieldName);
   };
 
   // Обработка перетаскивания столбцов
   const onColumnReorder = (event: any) => {
-    const storeDetails = currentStoreDetails.value;
+    const storeDetails = currentCatalog.value;
     if (!storeDetails) return;
 
     // Получаем новый порядок столбцов
@@ -341,7 +341,15 @@
   };
 
   // Обработка клика по строке таблицы - переход на страницу редактирования
-  const onRowClick = (event: any) => {
+  // Обработчик клика по строке таблицы
+  const handleRowClick = (event: any) => {
+    // Если передана пользовательская функция, используем её
+    if (typeof props.onRowClick === 'function') {
+      props.onRowClick(event);
+      return;
+    }
+
+    // Стандартное поведение - переход на страницу редактирования
     const rowData = event.data;
 
     if (rowData && rowData.id) {
@@ -372,7 +380,7 @@
     }
 
     // Если данные уже загружены роутером, просто используем их
-    const storeDetails = currentStoreDetails.value;
+    const storeDetails = currentCatalog.value;
     if (storeDetails && storeDetails.GET && storeDetails.GET.results) {
       console.log('Используем данные, предварительно загруженные роутером');
 

@@ -14,6 +14,9 @@ export const BACKEND = {
     LAYOUT_COMPUTED_FIELD: 'LayoutComputedField',
     LAYOUT_RELATED_FIELD: 'LayoutRelatedField',
     LAYOUT_CHOICE_FIELD: 'LayoutChoiceField',
+
+    LAYOUT_SECTION: 'LayoutSection',
+    LAYOUT_ROW: 'LayoutRow',
     // LAYOUT_REVERSE_REFERENCE_FIELD: 'LayoutReverseReferenceField',
   },
   field_class: {
@@ -61,9 +64,13 @@ export const FRONTEND = {
   TIME: 'time',
   CHOICE: 'choice',
   RICH_EDIT: 'rich_edit',
-  PRIMARY_KEY_RELATED: 'primary_key_related',
   COMPUTED: 'computed',
-  RELATED: 'related',
+  RELATED: 'related', // простой дропдаун (как choice)
+  PRIMARY_KEY_RELATED: 'primary_key_related', // модальное окно с новой таблицей
+  MANY_RELATED: 'many_related', // модальное окно с новой таблицей и возможность добавления нескольких записей (chips)
+
+  SECTION: 'section',
+  ROW: 'row',
 } as const;
 
 // Теперь используем только BACKEND и FRONTEND константы
@@ -130,7 +137,8 @@ export class FieldTypeService {
             return FRONTEND.RELATED; // Если есть choices, то это обычный Related (отображаем как выпадающий список),
           }
           return FRONTEND.PRIMARY_KEY_RELATED; // иначе - PrimaryKeyRelated (отображаем как модальное окно с новой таблицей)
-        // case BACKEND.field_class.MANY_RELATED_FIELD:
+        case BACKEND.field_class.MANY_RELATED_FIELD:
+          return FRONTEND.MANY_RELATED;
         // case BACKEND.field_class.WEAK_RELATED_FIELD:
         case BACKEND.field_class.COMPUTED_FIELD:
           return FRONTEND.COMPUTED;
@@ -158,6 +166,12 @@ export class FieldTypeService {
           return FRONTEND.COMPUTED;
         case BACKEND.class_name.LAYOUT_RELATED_FIELD:
           return FRONTEND.RELATED;
+
+        case BACKEND.class_name.LAYOUT_SECTION:
+          return FRONTEND.SECTION;
+        case BACKEND.class_name.LAYOUT_ROW:
+          return FRONTEND.ROW;
+
         default:
           return FRONTEND.CHAR;
       }
