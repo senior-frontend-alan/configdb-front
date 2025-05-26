@@ -4,7 +4,7 @@
 Упрощается повторное использование дочерних компонентов -->
 
 <template>
-  <div>
+  <div class="edit-record-page">
     <div class="flex justify-content-between align-items-center mb-4">
       <h1 class="text-2xl font-bold">{{ pageTitle }}</h1>
       <Button
@@ -44,24 +44,24 @@
           hasUnsavedChanges && !isAtBottom ? 'sticky-form-actions' : '',
         ]"
       >
-        <Button
-          label="Отменить изменения"
-          icon="pi pi-undo"
-          class="p-button-secondary"
-          :disabled="!hasUnsavedChanges"
-          @click="resetChanges"
-        />
-        <div class="flex gap-2">
-          <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
           <Button
-            label="Сохранить"
-            icon="pi pi-check"
-            class="p-button-primary"
-            :loading="saving"
+            :label="`Отменить изменения: ${modifiedFieldsCount}`"
+            icon="pi pi-undo"
+            class="p-button-secondary"
             :disabled="!hasUnsavedChanges"
-            @click="saveData"
+            @click="resetChanges"
           />
-        </div>
+          <div class="flex gap-2">
+            <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
+            <Button
+              label="Сохранить"
+              icon="pi pi-check"
+              class="p-button-primary"
+              :loading="saving"
+              :disabled="!hasUnsavedChanges"
+              @click="saveData"
+            />
+          </div>
       </div>
     </div>
   </div>
@@ -231,6 +231,16 @@
       return hasChanges;
     } catch {
       return false;
+    }
+  });
+  
+  // Подсчитываем количество измененных полей
+  const modifiedFieldsCount = computed(() => {
+    try {
+      const patchData = getPatchData();
+      return Object.keys(patchData).length;
+    } catch {
+      return 0;
     }
   });
 
@@ -492,12 +502,18 @@
   .sticky-form-actions {
     position: fixed;
     bottom: 0;
-    left: 0;
+    left: 18rem; /* Отступ слева равен ширине бокового меню */
     right: 0;
-    z-index: 1;
+    z-index: 10;
     background-color: white;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease;
+    transition: all 0.3s ease;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Корректировка отступа при скрытом меню */
+  .layout-container:not(.layout-sidebar-active) .sticky-form-actions {
+    left: 0;
   }
 
   /* Существующие стили */
@@ -511,8 +527,7 @@
   }
 
   .edit-record-page {
-    padding: 1rem;
-    padding-bottom: 3rem;
+    padding-bottom: 5rem; /* Добавляем место для панели действий */
   }
 
   .header-container {

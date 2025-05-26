@@ -392,26 +392,31 @@
 .border {
   border-width: 1px;
   border-style: solid;
+  border-color: var(--p-form-field-border-color);
 }
 
 .border-t {
   border-top-width: 1px;
   border-top-style: solid;
+  border-color: var(--p-form-field-border-color);
 }
 
 .border-r {
   border-right-width: 1px;
   border-right-style: solid;
+  border-color: var(--p-form-field-border-color);
 }
 
 .border-b {
   border-bottom-width: 1px;
   border-bottom-style: solid;
+  border-color: var(--p-form-field-border-color);
 }
 
 .border-l {
   border-left-width: 1px;
   border-left-style: solid;
+  border-color: var(--p-form-field-border-color);
 }
 
 /* Переполнение */

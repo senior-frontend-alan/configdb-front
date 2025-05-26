@@ -61,7 +61,7 @@
 
   // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
-  const label = computed(() => props.options.label || props.options.name);
+  const label = computed(() => (props.options.label || props.options.name) + (required.value ? ' *' : ''));
   const placeholder = computed(() => props.options.placeholder || '');
   const disabled = computed(() => props.options.readonly || false);
   const required = computed(() => props.options.required || false);

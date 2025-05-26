@@ -55,7 +55,7 @@
           removableSort
           @column-reorder="onColumnReorder"
           class="p-datatable-sm transparent-header inner-shadow"
-          v-model:selection="selectedItems"
+          v-model:selection="tableSelection"
           :selection-mode="hasBatchPermission ? 'multiple' : undefined"
           dataKey="id"
           :scrollable="isTableScrollable"
@@ -113,14 +113,14 @@
       </div>
       <div class="status-item">
         <span class="status-label">Выбрано:</span>
-        <span class="status-value">{{ selectedItems.length }}</span>
+        <span class="status-value">{{ tableSelection.length }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted } from 'vue';
+  import { ref, computed, onMounted, watch } from 'vue';
   import { useRouter } from 'vue-router';
   import { resolveComponent, dynamicField } from './components/fields';
   import { useModuleStore } from '../../stores/module-factory';
@@ -136,8 +136,17 @@
   // Получаем параметры маршрута только для навигации
   const router = useRouter();
 
+  // Получаем moduleName, viewname и пользовательскую функцию onRowClick из props
+  const props = defineProps<{
+    moduleName: string; // Обязательный параметр
+    viewname: string; // Обязательный параметр
+    onRowClick?: (event: any) => void; // Опциональная пользовательская функция для обработки клика по строке
+    selectedItems?: any[]; // Опциональный массив выделенных строк
+  }>();
+
   // Состояние компонента
-  const selectedItems = ref<any[]>([]);
+  // Состояние выделенных строк в таблице
+  const tableSelection = ref<any[]>([]);
   const columns = ref<any[]>([]);
   const tableRows = ref<any[]>([]);
   const loading = ref(true);
@@ -147,13 +156,6 @@
   const visibleColumns = ref<string[]>([]);
   const columnsOrder = ref<string[]>([]);
   const isTableScrollable = ref(false);
-
-  // Получаем moduleName, viewname и пользовательскую функцию onRowClick из props
-  const props = defineProps<{
-    moduleName: string; // Обязательный параметр
-    viewname: string; // Обязательный параметр
-    onRowClick?: (event: any) => void; // Опциональная пользовательская функция для обработки клика по строке
-  }>();
 
   // Используем значения из props
   const moduleName = computed(() => props.moduleName);
@@ -216,8 +218,8 @@
   // Функция для обработки полученных данных
   const processData = (storeDetails: any) => {
     if (!storeDetails) {
-      console.error('Ошибка: Данные не найдены');
-      error.value = 'Данные не найдены';
+      error.value = 'Нет данных каталога';
+      loading.value = false;
       return;
     }
 
@@ -243,11 +245,11 @@
     // Формируем колонки таблицы
     generateTableColumns(storeDetails.OPTIONS?.layout?.TABLE_COLUMNS);
 
-    // Обновляем общее количество элементов
-    totalItems.value = storeDetails.GET.count || tableRows.value.length;
+    // Устанавливаем общее количество элементов
+    totalItems.value = storeDetails.GET?.count || 0;
 
-    // Сбрасываем выбранные элементы
-    selectedItems.value = [];
+    // Не сбрасываем выбранные элементы, если они уже установлены
+    // Выделенные элементы устанавливаются выше в коде
   };
 
   // Функция для обновления данных
@@ -281,7 +283,7 @@
           processData(storeDetails);
 
           // Сбрасываем выбранные элементы
-          selectedItems.value = [];
+          tableSelection.value = [];
         }
       }
     } finally {
@@ -372,7 +374,35 @@
     router.push(addUrl);
   };
 
+  // Создаем эмиттер для оповещения ManyRelated Field (в модельном окне) о изменении выделенных строк
+  const emit = defineEmits<{
+    (e: 'update:selectedItems', value: any[]): void;
+  }>();
+
+  // Мы следим за изменениями в таблице и отправляем их родителю
+  // Без первого наблюдателя выбор строк в таблице не будет отражаться в ManyRelated.vue
+  watch(tableSelection, (newValue) => {
+    console.log('tableSelection изменился:', newValue);
+    emit('update:selectedItems', newValue);
+  });
+
+  // Мы следим за изменениями от родителя и обновляем таблицу
+  // Без второго наблюдателя начальные выбранные строки из ManyRelated.vue не будут отображаться в таблице
+  watch(
+    () => props.selectedItems,
+    (newValue) => {
+      console.log('props.selectedItems изменился:', newValue);
+      if (newValue && JSON.stringify(tableSelection.value) !== JSON.stringify(newValue)) {
+        tableSelection.value = [...newValue];
+      }
+    },
+    { immediate: true },
+  );
+
   onMounted(async () => {
+    // Проверяем, есть ли выделенные строки в props
+    console.log('Page2CatalogDetails - onMounted - props.selectedItems:', props.selectedItems);
+
     if (!moduleStore.value) {
       error.value = `Модуль с ID ${moduleName.value} не найден`;
       loading.value = false;

@@ -18,6 +18,8 @@
           :options="modelValue || []"
           :class="{ 'p-invalid': props.options.errors, 'input-modified': props.isModified }"
           @click="openDialog"
+          @remove="handleChipRemove"
+          @update:modelValue="handleModelValueChange"
         />
         <label :for="id">{{ label }}</label>
       </FloatLabel>
@@ -73,12 +75,23 @@
       </div>
       <div v-else class="catalog-details-container">
         <!-- Встраиваем компонент CatalogDetails с передачей необходимых параметров -->
+        <!-- Добавляем отладочную информацию -->
+        <!-- <div class="p-2 bg-gray-100 mb-2">
+          <div><strong>Выбранные строки:</strong> {{ tempSelectedItems.length }}</div>
+          <div v-if="tempSelectedItems.length > 0">
+            <div v-for="(item, index) in tempSelectedItems" :key="index">
+              ID: {{ item.id }}, {{ item.name || item.title || JSON.stringify(item).substring(0, 50) }}
+            </div>
+          </div>
+        </div> -->
+
         <CatalogDetails
           v-if="currentModuleName && currentCatalogName"
           :moduleName="currentModuleName"
           :viewname="currentCatalogName"
           :onRowClick="handleRowClick"
           @record-selected="onRecordSelected"
+          v-model:selectedItems="tempSelectedItems"
         />
       </div>
 
@@ -203,8 +216,10 @@
 
   // Инициализируем временное состояние при открытии диалога
   const initTempSelectedItems = () => {
+    console.log('initTempSelectedItems - modelValue:', props.modelValue);
     tempSelectedItems.value =
       props.modelValue && Array.isArray(props.modelValue) ? [...props.modelValue] : [];
+    console.log('initTempSelectedItems - tempSelectedItems:', tempSelectedItems.value);
   };
 
   const handleRowClick = (event: any) => {
@@ -282,6 +297,33 @@
     const selectedItems = tempSelectedItems.value.length > 0 ? tempSelectedItems.value : null;
     emit('update:modelValue', selectedItems);
     closeDialog();
+  };
+
+  // Обработка удаления чипса (элемента) из MultiSelect
+  const handleChipRemove = (event: any) => {
+    console.log('Удален элемент:', event.value);
+    
+    // Обновляем modelValue, удаляя выбранный элемент
+    const updatedValue = props.modelValue ? 
+      props.modelValue.filter((item: any) => item.id !== event.value.id) : 
+      [];
+    
+    // Отправляем обновленное значение в родительский компонент
+    emit('update:modelValue', updatedValue.length > 0 ? updatedValue : null);
+    
+    // Обновляем временное состояние выбранных элементов
+    tempSelectedItems.value = [...updatedValue];
+  };
+
+  // Обработка изменения modelValue в MultiSelect
+  const handleModelValueChange = (newValue: any[]) => {
+    console.log('Изменено значение modelValue:', newValue);
+    
+    // Если изменение произошло не через диалог, а напрямую в MultiSelect
+    if (!dialogVisible.value) {
+      emit('update:modelValue', newValue && newValue.length > 0 ? newValue : null);
+      tempSelectedItems.value = newValue || [];
+    }
   };
 
   const resetTempSelectedItems = () => {

@@ -123,6 +123,10 @@ export class FieldTypeService {
         case BACKEND.field_class.DECIMAL_FIELD:
           return FRONTEND.DECIMAL;
         case BACKEND.field_class.CHAR_FIELD:
+          // Проверяем, является ли поле редактором кода (LAYOUT_RICH_EDIT_FIELD)
+          if (fieldDef.class_name === BACKEND.class_name.LAYOUT_RICH_EDIT_FIELD) {
+            return FRONTEND.RICH_EDIT;
+          }
           return FRONTEND.CHAR;
         case BACKEND.field_class.DATE_TIME_FIELD:
           return FRONTEND.DATE_TIME;
