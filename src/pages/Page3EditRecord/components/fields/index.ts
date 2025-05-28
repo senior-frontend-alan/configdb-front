@@ -23,6 +23,7 @@ import Computed from './Computed.vue';
 import Related from './Related.vue';
 import PrimaryKeyRelated from './PrimaryKeyRelated.vue';
 import ManyRelated from './ManyRelated.vue';
+import ViewSetInlineLayout from './ViewSetInlineLayout.vue';
 
 /**
  * Объект-отображение для компонентов полей с доступом O(1)
@@ -42,6 +43,7 @@ export const dynamicField: Record<string, Component> = {
   [FRONTEND.RELATED]: Related,
   [FRONTEND.PRIMARY_KEY_RELATED]: PrimaryKeyRelated,
   [FRONTEND.MANY_RELATED]: ManyRelated,
+  [FRONTEND.VIEW_SET_INLINE_LAYOUT]: ViewSetInlineLayout,
 };
 
 /**
@@ -67,4 +69,5 @@ export {
   PrimaryKeyRelated,
   Computed,
   Related,
+  ViewSetInlineLayout,
 };

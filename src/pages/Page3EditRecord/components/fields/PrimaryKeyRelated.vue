@@ -73,7 +73,7 @@
         <CatalogDetails
           v-if="currentModuleName && currentCatalogName"
           :moduleName="currentModuleName"
-          :viewname="currentCatalogName"
+          :catalogName="currentCatalogName"
           :onRowClick="customRowClick"
           @record-selected="onRecordSelected"
         />

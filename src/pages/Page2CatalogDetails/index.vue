@@ -1,3 +1,9 @@
+<!-- 
+Маршрутизатор отвечает за загрузку данных при переходе на страницу
+Page2CatalogDetails отвечает за получение данных из стора
+CatalogDataTable отвечает только за отображение данных
+-->
+
 <template>
   <div class="catalog-details-page">
     <div class="header-container">
@@ -23,13 +29,13 @@
           @click="goToAddRecord"
         />
         <ColumnVisibilitySelector
-          :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
+          :table-columns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
           :is-table-scrollable="isTableScrollable"
-          @update-column-visibility="updateColumnVisibility"
           @toggle-table-scrollable="isTableScrollable = !isTableScrollable"
         />
       </div>
     </div>
+
     <div v-if="loading" class="loading-container">
       <ProgressSpinner />
       <p>Загрузка данных...</p>
@@ -39,77 +45,29 @@
       <Message severity="error">{{ error }}</Message>
     </div>
 
-    <div v-else-if="!tableRows.length" class="empty-container">
-      <Message severity="info">Данные каталога отсутствуют</Message>
-    </div>
-
     <div v-else class="catalog-details">
-      <!-- Отображение в виде таблицы -->
-
-      <div class="table-wrapper" :class="{ 'table-scrollable': isTableScrollable }">
-        <DataTable
-          :value="tableRows"
-          stripedRows
-          responsiveLayout="scroll"
-          reorderableColumns
-          removableSort
-          @column-reorder="onColumnReorder"
-          class="p-datatable-sm transparent-header inner-shadow"
-          v-model:selection="tableSelection"
-          :selection-mode="hasBatchPermission ? 'multiple' : undefined"
-          dataKey="id"
-          :scrollable="isTableScrollable"
-          :resizableColumns="true"
-          columnResizeMode="fit"
-          :tableStyle="isTableScrollable ? 'min-width: 1000px' : 'width: 100%'"
-          @row-click="handleRowClick"
-        >
-          <!-- Колонка с чекбоксами для массового выделения, если разрешены batch операции -->
-          <Column v-if="hasBatchPermission" selectionMode="multiple" headerStyle="width: 3rem" />
-
-          <!-- Динамические колонки -->
-          <Column
-            v-for="col in columns"
-            :key="col.field"
-            :field="col.field"
-            :header="col.header"
-            :sortable="true"
-            :style="getColumnStyle(col.field)"
-          >
-            <template #body="slotProps">
-              <!-- Используем динамический рендеринг на основе FRONTEND_CLASS -->
-              <template v-if="slotProps.field && typeof slotProps.field === 'string'">
-                <!-- 
-                  Динамический компонент на основе FRONTEND_CLASS поля
-                  Фабрика компонентов возвращает нужный компонент в зависимости от типа поля
-                  Для полей типа CHAR возвращается CharWithButton
-                  Для полей типа RICH_EDIT возвращается RichEdit
-                -->
-                <component
-                  :is="
-                    resolveComponent(
-                      dynamicField[getColumnFrontendClass(slotProps.field)],
-                      slotProps.data[slotProps.field], // значение поля
-                      getFieldMetadata(slotProps.field), // метаданные поля
-                    )
-                  "
-                />
-              </template>
-              <span v-else>Компонент не определен</span>
-            </template>
-          </Column>
-        </DataTable>
-      </div>
+      <!-- Используем новый компонент DataTable -->
+      <CatalogDataTable
+        :tableRows="currentCatalog?.GET?.results || []"
+        :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
+        :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
+        :hasBatchPermission="!!currentCatalog?.OPTIONS?.permitted_actions?.batch"
+        :selectedItems="tableSelection"
+        :onRowClick="handleRowClick"
+        :onColumnReorder="onColumnReorder"
+        @update:selectedItems="tableSelection = $event"
+        :isTableScrollable="isTableScrollable"
+      />
     </div>
     <!-- Статус-бар с информацией о количестве элементов -->
     <div class="status-bar">
       <div class="status-item">
         <span class="status-label">Всего:</span>
-        <span class="status-value">{{ totalItems }}</span>
+        <span class="status-value">{{ currentCatalog?.GET?.count || 0 }}</span>
       </div>
       <div class="status-item">
         <span class="status-label">Загружено:</span>
-        <span class="status-value">{{ fetchedItems }}</span>
+        <span class="status-value">{{ currentCatalog?.GET?.results?.length || 0 }}</span>
       </div>
       <div class="status-item">
         <span class="status-label">Выбрано:</span>
@@ -122,24 +80,21 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, watch } from 'vue';
   import { useRouter } from 'vue-router';
-  import { resolveComponent, dynamicField } from './components/fields';
   import { useModuleStore } from '../../stores/module-factory';
   import { loadCatalogByNameFromGroups } from '../../router';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
-  // Компонент AddNewDataDialog закомментирован в шаблоне, поэтому удаляем его импорт
+  import CatalogDataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
-  import DataTable from 'primevue/datatable';
-  import Column from 'primevue/column';
   import Button from 'primevue/button';
 
   // Получаем параметры маршрута только для навигации
   const router = useRouter();
 
-  // Получаем moduleName, viewname и пользовательскую функцию onRowClick из props
+  // Получаем moduleName, catalogName и пользовательскую функцию onRowClick из props
   const props = defineProps<{
     moduleName: string; // Обязательный параметр
-    viewname: string; // Обязательный параметр
+    catalogName: string; // Обязательный параметр
     onRowClick?: (event: any) => void; // Опциональная пользовательская функция для обработки клика по строке
     selectedItems?: any[]; // Опциональный массив выделенных строк
   }>();
@@ -147,125 +102,50 @@
   // Состояние компонента
   // Состояние выделенных строк в таблице
   const tableSelection = ref<any[]>([]);
-  const columns = ref<any[]>([]);
-  const tableRows = ref<any[]>([]);
   const loading = ref(true);
   const error = ref<string | null>(null);
-  const primaryKey = ref<string>('id');
-  const hasBatchPermission = ref(true);
-  const visibleColumns = ref<string[]>([]);
-  const columnsOrder = ref<string[]>([]);
   const isTableScrollable = ref(false);
 
-  // Используем значения из props
+  // Из props
   const moduleName = computed(() => props.moduleName);
-  const viewname = computed(() => props.viewname);
+  const catalogName = computed(() => props.catalogName);
 
   const moduleStore = computed(() => useModuleStore(moduleName.value));
-
-  // Создаем реактивную ссылку на текущие данные из стора
   const currentCatalog = computed(() => {
-    return moduleStore.value?.catalogsByName[viewname.value];
+    return moduleStore.value?.catalogsByName[catalogName.value];
   });
 
-  // Вычисляемые свойства для статус-бара
-  const totalItems = ref(0);
-  const fetchedItems = computed(() => tableRows.value.length);
-
-  // Функция для формирования колонок таблицы из TABLE_COLUMNS
-  const generateTableColumns = (TABLE_COLUMNS: Map<string, any>) => {
-    if (!TABLE_COLUMNS) return;
-
-    // Создаем массивы для колонок таблицы и селектора
-    const tableColumnsList: Array<{ field: string; header: string; frontendClass?: string }> = [];
-    const allFields: string[] = [];
-
-    // Обрабатываем TABLE_COLUMNS напрямую
-    TABLE_COLUMNS.forEach((column: any, fieldName: string) => {
-      // Добавляем поле в список всех полей
-      allFields.push(fieldName);
-
-      // Если поле видимое, добавляем его в список колонок таблицы
-      if (column.VISIBLE) {
-        tableColumnsList.push({
-          field: fieldName,
-          header: `${column.label || fieldName} [${column.FRONTEND_CLASS}]`,
-          frontendClass: column.FRONTEND_CLASS || '',
-        });
-      }
-    });
-
-    // Устанавливаем значения
-    columnsOrder.value = allFields;
-    visibleColumns.value = tableColumnsList.map((col) => col.field);
-    columns.value = tableColumnsList;
-  };
-
-  // Функция для обновления видимости колонок
-  const updateColumnVisibility = (fieldName: string, isVisible: boolean) => {
-    const TABLE_COLUMNS = currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS;
-    if (!TABLE_COLUMNS) return;
-
-    const column = TABLE_COLUMNS.get(fieldName);
-    if (column) {
-      column.VISIBLE = isVisible; // Используем VISIBLE вместо visible
-
-      // Перегенерируем колонки таблицы
-      generateTableColumns(TABLE_COLUMNS);
-    }
-  };
-
-  // Функция для обработки полученных данных
-  const processData = (storeDetails: any) => {
-    if (!storeDetails) {
+  // Проверка наличия данных и метаданных
+  const checkDataValidity = () => {
+    if (!currentCatalog.value) {
       error.value = 'Нет данных каталога';
-      loading.value = false;
-      return;
+      return false;
     }
 
-    console.log('Обработка данных для:', storeDetails.viewname);
-
-    // Определяем первичный ключ
-    if (storeDetails.OPTIONS && storeDetails.OPTIONS.layout) {
-      primaryKey.value = storeDetails.OPTIONS.layout.pk || 'id';
-    }
-
-    // Проверяем разрешения для batch операций
     if (
-      storeDetails.OPTIONS &&
-      storeDetails.OPTIONS.permitted_actions &&
-      storeDetails.OPTIONS.permitted_actions.batch
+      !currentCatalog.value.OPTIONS ||
+      !currentCatalog.value.OPTIONS.layout ||
+      !currentCatalog.value.OPTIONS.layout.TABLE_COLUMNS
     ) {
-      hasBatchPermission.value = true;
+      error.value = 'Не удалось получить метаданные для отображения каталога';
+      return false;
     }
 
-    // Обновляем данные таблицы
-    tableRows.value = createRows(storeDetails);
-
-    // Формируем колонки таблицы
-    generateTableColumns(storeDetails.OPTIONS?.layout?.TABLE_COLUMNS);
-
-    // Устанавливаем общее количество элементов
-    totalItems.value = storeDetails.GET?.count || 0;
-
-    // Не сбрасываем выбранные элементы, если они уже установлены
-    // Выделенные элементы устанавливаются выше в коде
+    return true;
   };
 
-  // Функция для обновления данных
   const refreshData = async () => {
     loading.value = true;
     error.value = null;
 
     try {
-      // Используем вычисляемое свойство viewname
-      if (!viewname.value) {
-        throw new Error('Не удалось определить viewname для загрузки данных');
+      if (!catalogName.value) {
+        throw new Error('Не удалось определить catalogName для загрузки данных');
       }
 
       const dataLoaded = await loadCatalogByNameFromGroups(
         moduleName.value,
-        viewname.value,
+        catalogName.value,
         (err) => {
           if (err) {
             error.value = err.message || 'Ошибка загрузки данных';
@@ -275,47 +155,16 @@
         true, // Принудительное обновление данных, игнорируя кэш
       );
 
-      if (dataLoaded) {
-        const storeDetails = currentCatalog.value;
-
-        if (storeDetails) {
-          // Обрабатываем полученные данные
-          processData(storeDetails);
-
-          // Сбрасываем выбранные элементы
-          tableSelection.value = [];
-        }
+      if (dataLoaded && currentCatalog.value) {
+        // Сбрасываем выбранные элементы
+        tableSelection.value = [];
       }
     } finally {
       loading.value = false;
     }
   };
 
-  function createRows(storeDetails: any): any[] {
-    if (!storeDetails || !storeDetails.GET || !storeDetails.GET.results) {
-      console.error('Ошибка: GET не содержит results');
-      return [];
-    }
-
-    // Теперь просто возвращаем исходные данные, форматирование будет выполняться в компонентах
-    return storeDetails.GET.results;
-  }
-
-  // Функция для получения FRONTEND_CLASS поля
-  const getColumnFrontendClass = (fieldName: string): string => {
-    const TABLE_COLUMNS = currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS;
-    if (!TABLE_COLUMNS || !TABLE_COLUMNS.has(fieldName)) return '';
-    return TABLE_COLUMNS.get(fieldName)?.FRONTEND_CLASS || '';
-  };
-
-  // Функция для получения метаданных поля
-  const getFieldMetadata = (fieldName: string): any => {
-    const TABLE_COLUMNS = currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS;
-    if (!TABLE_COLUMNS || !TABLE_COLUMNS.has(fieldName)) return null;
-    return TABLE_COLUMNS.get(fieldName);
-  };
-
-  // Обработка перетаскивания столбцов
+  // Обработка изменения порядка колонок
   const onColumnReorder = (event: any) => {
     const storeDetails = currentCatalog.value;
     if (!storeDetails) return;
@@ -329,21 +178,7 @@
     console.log('Порядок столбцов изменен:', newColumns);
   };
 
-  const getColumnStyle = (field: string) => {
-    // Используем field для определения стиля колонки
-    if (isTableScrollable.value) {
-      // Для ID колонки можно задать меньшую ширину
-      if (field === 'id') {
-        return 'min-width: 100px';
-      }
-      return 'min-width: 150px';
-    } else {
-      return '';
-    }
-  };
-
-  // Обработка клика по строке таблицы - переход на страницу редактирования
-  // Обработчик клика по строке таблицы
+  // Клик - переход на страницу редактирования
   const handleRowClick = (event: any) => {
     // Если передана пользовательская функция, используем её
     if (typeof props.onRowClick === 'function') {
@@ -355,8 +190,7 @@
     const rowData = event.data;
 
     if (rowData && rowData.id) {
-      // Формируем URL для страницы редактирования, используя moduleName и viewname из props
-      const editUrl = `/${moduleName.value}/${viewname.value}/edit/${rowData.id}`;
+      const editUrl = `/${moduleName.value}/${catalogName.value}/edit/${rowData.id}`;
 
       router.push(editUrl);
     } else {
@@ -368,8 +202,7 @@
 
   // Переход на страницу добавления новой записи
   const goToAddRecord = () => {
-    // Формируем URL для страницы добавления, используя moduleName и viewname из props
-    const addUrl = `/${moduleName.value}/${viewname.value}/add`;
+    const addUrl = `/${moduleName.value}/${catalogName.value}/add`;
 
     router.push(addUrl);
   };
@@ -399,28 +232,19 @@
     { immediate: true },
   );
 
-  onMounted(async () => {
-    // Проверяем, есть ли выделенные строки в props
-    console.log('Page2CatalogDetails - onMounted - props.selectedItems:', props.selectedItems);
-
+  onMounted(() => {
+    // Проверяем наличие модуля
     if (!moduleStore.value) {
       error.value = `Модуль с ID ${moduleName.value} не найден`;
       loading.value = false;
       return;
     }
 
-    // Если данные уже загружены роутером, просто используем их
-    const storeDetails = currentCatalog.value;
-    if (storeDetails && storeDetails.GET && storeDetails.GET.results) {
-      console.log('Используем данные, предварительно загруженные роутером');
+    // Проверяем наличие данных и метаданных
+    checkDataValidity();
 
-      processData(storeDetails);
-
-      loading.value = false;
-    } else {
-      // Если данные не загружены роутером, запускаем обновление
-      await refreshData();
-    }
+    // Данные должны быть загружены роутером
+    loading.value = false;
   });
 </script>
 

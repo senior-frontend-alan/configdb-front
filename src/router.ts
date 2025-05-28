@@ -88,7 +88,7 @@ routes.push({
 
 // Страница 2 - Отображение деталей элемента каталога
 routes.push({
-  path: '/:moduleName/:viewname',
+  path: '/:moduleName/:catalogName',
   name: 'CatalogDetails',
   component: () => import('./pages/Page2CatalogDetails/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
@@ -97,7 +97,7 @@ routes.push({
 
 // Страница 3 - Редактирование записи
 routes.push({
-  path: '/:moduleName/:viewname/edit/:id',
+  path: '/:moduleName/:catalogName/edit/:id',
   name: 'EditRecord',
   component: () => import('./pages/Page3EditRecord/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
@@ -188,7 +188,7 @@ export const loadCatalogByNameFromGroups = async (
     }
 
     // ШАГ 4: Поиск URL для загрузки конкретного справочника
-    const url = moduleStore.findUrlInCatalog(catalogName);
+    const url = moduleStore.findUrlInCatalogGroups(catalogName);
     if (!url) {
       const error = new Error(`URL для справочника ${catalogName} не найден`);
       console.error(error);
@@ -233,23 +233,23 @@ router.beforeResolve(async (to, _from, next) => {
       }
 
       // 3. Проверяем тип запроса
-      if (to.params.viewname) {
-        // Загрузка деталей каталога (viewname)
-        const viewname = to.params.viewname as string;
+      if (to.params.catalogName) {
+        // Загрузка деталей каталога (catalogName)
+        const catalogName = to.params.catalogName as string;
 
         // Если данные не в кэше, загружаем их
-        if (!moduleStore.hasCachedData(viewname)) {
+        if (!moduleStore.hasCachedData(catalogName)) {
           try {
             // Ищем URL в каталоге
-            const href = moduleStore.findUrlInCatalog(viewname);
+            const href = moduleStore.findUrlInCatalogGroups(catalogName);
             if (href) {
               // Загружаем данные каталога
-              await moduleStore.loadCatalogDetails(viewname, href);
+              await moduleStore.loadCatalogDetails(catalogName, href);
             } else {
-              console.error(`URL для каталога ${viewname} не найден`);
+              console.error(`URL для каталога ${catalogName} не найден`);
             }
           } catch (error) {
-            console.error(`Ошибка при загрузке деталей каталога ${viewname}:`, error);
+            console.error(`Ошибка при загрузке деталей каталога ${catalogName}:`, error);
           }
         }
       } else if (to.query.group) {

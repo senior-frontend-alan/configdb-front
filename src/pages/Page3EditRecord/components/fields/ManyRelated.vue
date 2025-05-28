@@ -88,7 +88,7 @@
         <CatalogDetails
           v-if="currentModuleName && currentCatalogName"
           :moduleName="currentModuleName"
-          :viewname="currentCatalogName"
+          :catalogName="currentCatalogName"
           :onRowClick="handleRowClick"
           @record-selected="onRecordSelected"
           v-model:selectedItems="tempSelectedItems"
@@ -302,15 +302,15 @@
   // Обработка удаления чипса (элемента) из MultiSelect
   const handleChipRemove = (event: any) => {
     console.log('Удален элемент:', event.value);
-    
+
     // Обновляем modelValue, удаляя выбранный элемент
-    const updatedValue = props.modelValue ? 
-      props.modelValue.filter((item: any) => item.id !== event.value.id) : 
-      [];
-    
+    const updatedValue = props.modelValue
+      ? props.modelValue.filter((item: any) => item.id !== event.value.id)
+      : [];
+
     // Отправляем обновленное значение в родительский компонент
     emit('update:modelValue', updatedValue.length > 0 ? updatedValue : null);
-    
+
     // Обновляем временное состояние выбранных элементов
     tempSelectedItems.value = [...updatedValue];
   };
@@ -318,7 +318,7 @@
   // Обработка изменения modelValue в MultiSelect
   const handleModelValueChange = (newValue: any[]) => {
     console.log('Изменено значение modelValue:', newValue);
-    
+
     // Если изменение произошло не через диалог, а напрямую в MultiSelect
     if (!dialogVisible.value) {
       emit('update:modelValue', newValue && newValue.length > 0 ? newValue : null);

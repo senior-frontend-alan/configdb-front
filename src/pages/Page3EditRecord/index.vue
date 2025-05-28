@@ -44,24 +44,24 @@
           hasUnsavedChanges && !isAtBottom ? 'sticky-form-actions' : '',
         ]"
       >
+        <Button
+          :label="`Отменить изменения: ${modifiedFieldsCount}`"
+          icon="pi pi-undo"
+          class="p-button-secondary"
+          :disabled="!hasUnsavedChanges"
+          @click="resetChanges"
+        />
+        <div class="flex gap-2">
+          <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
           <Button
-            :label="`Отменить изменения: ${modifiedFieldsCount}`"
-            icon="pi pi-undo"
-            class="p-button-secondary"
+            label="Сохранить"
+            icon="pi pi-check"
+            class="p-button-primary"
+            :loading="saving"
             :disabled="!hasUnsavedChanges"
-            @click="resetChanges"
+            @click="saveData"
           />
-          <div class="flex gap-2">
-            <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
-            <Button
-              label="Сохранить"
-              icon="pi pi-check"
-              class="p-button-primary"
-              :loading="saving"
-              :disabled="!hasUnsavedChanges"
-              @click="saveData"
-            />
-          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -82,7 +82,7 @@
   // Определяем props компонента
   const props = defineProps<{
     moduleName?: string;
-    viewname?: string;
+    catalogName?: string;
     id?: string;
   }>();
 
@@ -93,7 +93,7 @@
 
   // Используем props с фолбэком на параметры маршрута
   const moduleName = computed(() => props.moduleName || (route.meta.moduleName as string));
-  const viewname = computed(() => props.viewname || (route.params.viewname as string));
+  const catalogName = computed(() => props.catalogName || (route.params.catalogName as string));
   const recordId = computed(() => props.id || (route.params.id as string));
 
   // Состояние компонента
@@ -105,7 +105,7 @@
 
   // Заголовок страницы
   const pageTitle = computed(() => {
-    return `Редактирование записи: ${viewname.value} (ID: ${recordId.value})`;
+    return `Редактирование записи: ${catalogName.value} (ID: ${recordId.value})`;
   });
 
   // Метаданные формы
@@ -116,7 +116,7 @@
     try {
       const moduleStore = getModuleStore();
       return (
-        moduleStore.catalogsByName?.[viewname.value]?.GET?.results?.find(
+        moduleStore.catalogsByName?.[catalogName.value]?.GET?.results?.find(
           (item: any) => item.id == recordId.value,
         ) || {}
       );
@@ -130,7 +130,7 @@
   const patchData = computed(() => {
     try {
       const moduleStore = getModuleStore();
-      return moduleStore.catalogsByName?.[viewname.value]?.PATCH || {};
+      return moduleStore.catalogsByName?.[catalogName.value]?.PATCH || {};
     } catch (error) {
       console.error('Ошибка при получении PATCH данных:', error);
       return {};
@@ -158,7 +158,7 @@
     console.log('handleFieldUpdate updatedData', updatedData);
     try {
       const moduleStore = getModuleStore();
-      const currentPatch = { ...(moduleStore.catalogsByName?.[viewname.value]?.PATCH || {}) };
+      const currentPatch = { ...(moduleStore.catalogsByName?.[catalogName.value]?.PATCH || {}) };
 
       // Обрабатываем каждое поле в обновленных данных
       for (const [key, value] of Object.entries(updatedData)) {
@@ -176,7 +176,7 @@
       }
 
       // Обновляем PATCH в сторе
-      moduleStore.catalogsByName[viewname.value].PATCH = currentPatch;
+      moduleStore.catalogsByName[catalogName.value].PATCH = currentPatch;
       console.log('Обновлены PATCH данные:', currentPatch);
 
       // Проверяем положение прокрутки после изменения данных
@@ -194,9 +194,9 @@
   const resetChanges = () => {
     try {
       const moduleStore = getModuleStore();
-      if (moduleStore.catalogsByName?.[viewname.value]) {
+      if (moduleStore.catalogsByName?.[catalogName.value]) {
         // Очищаем PATCH в сторе
-        moduleStore.catalogsByName[viewname.value].PATCH = {};
+        moduleStore.catalogsByName[catalogName.value].PATCH = {};
 
         // Показываем сообщение об успешной отмене изменений
         toast.add({
@@ -215,7 +215,7 @@
   const getPatchData = () => {
     try {
       const moduleStore = getModuleStore();
-      return moduleStore.catalogsByName?.[viewname.value]?.PATCH || {};
+      return moduleStore.catalogsByName?.[catalogName.value]?.PATCH || {};
     } catch {
       return {};
     }
@@ -233,7 +233,7 @@
       return false;
     }
   });
-  
+
   // Подсчитываем количество измененных полей
   const modifiedFieldsCount = computed(() => {
     try {
@@ -280,20 +280,20 @@
     error.value = null;
 
     try {
-      console.log('Загрузка данных записи:', moduleName.value, viewname.value, recordId.value);
+      console.log('Загрузка данных записи:', moduleName.value, catalogName.value, recordId.value);
 
       // Проверяем, загружены ли данные модуля
       const moduleStore = getModuleStore();
 
       // Получаем метаданные из OPTIONS
-      const options = moduleStore.catalogsByName?.[viewname.value]?.OPTIONS;
+      const options = moduleStore.catalogsByName?.[catalogName.value]?.OPTIONS;
 
       if (!options || !options.layout) {
-        throw new Error(`Метаданные для представления ${viewname.value} не найдены`);
+        throw new Error(`Метаданные для представления ${catalogName.value} не найдены`);
       }
 
       // Получаем данные записи из GET
-      const recordData = moduleStore.catalogsByName?.[viewname.value]?.GET?.results?.find(
+      const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.results?.find(
         (item: any) => item.id == recordId.value,
       );
 
@@ -311,13 +311,13 @@
 
         // Если создаем новую запись (нет recordData), инициализируем PATCH с ID
         if (!recordData && recordId.value) {
-          moduleStore.catalogsByName[viewname.value].PATCH = { id: recordId.value };
+          moduleStore.catalogsByName[catalogName.value].PATCH = { id: recordId.value };
         } else {
           // Иначе начинаем с пустого PATCH
-          moduleStore.catalogsByName[viewname.value].PATCH = {};
+          moduleStore.catalogsByName[catalogName.value].PATCH = {};
         }
       } else {
-        throw new Error(`Метаданные ELEMENTS для представления ${viewname.value} не найдены`);
+        throw new Error(`Метаданные ELEMENTS для представления ${catalogName.value} не найдены`);
       }
     } catch (e) {
       console.error('Ошибка загрузки данных записи:', e);
@@ -379,7 +379,7 @@
     try {
       // Получаем стор модуля
       const moduleStore = getModuleStore();
-      const catalogData = moduleStore.catalogsByName?.[viewname.value];
+      const catalogData = moduleStore.catalogsByName?.[catalogName.value];
 
       // Проверяем наличие изменений в PATCH
       if (!catalogData?.PATCH || Object.keys(catalogData.PATCH).length === 0) {
@@ -391,7 +391,7 @@
         saving.value = true;
 
         // Формируем URL для запроса
-        const url = `/catalog/api/v1/${viewname.value}/${recordId.value}/?mode=short`;
+        const url = `/catalog/api/v1/${catalogName.value}/${recordId.value}/?mode=short`;
         console.log(`Отправка PATCH запроса на: ${url}`);
 
         // Создаем чистый объект данных без реактивности и циклических ссылок
@@ -406,7 +406,7 @@
         const moduleStore = getModuleStore();
         if (moduleStore.updateRecordInStore) {
           const updated = moduleStore.updateRecordInStore(
-            viewname.value,
+            catalogName.value,
             recordId.value,
             response.data,
           );
@@ -477,7 +477,7 @@
   onMounted(async () => {
     console.log('Page3EditRecord mounted, params:', {
       moduleName: moduleName.value,
-      viewname: viewname.value,
+      catalogName: catalogName.value,
       recordId: recordId.value,
       meta: route.meta,
     });
@@ -510,7 +510,7 @@
     transition: all 0.3s ease;
     padding: 0.75rem 1rem;
   }
-  
+
   /* Корректировка отступа при скрытом меню */
   .layout-container:not(.layout-sidebar-active) .sticky-form-actions {
     left: 0;

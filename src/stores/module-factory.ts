@@ -190,6 +190,96 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
 
+    // Интерфейс для описания макета с элементами и списком отображения
+    interface LayoutWithElements {
+      // Массив элементов макета
+      elements: any[];
+      // Опциональный список полей для отображения
+      display_list?: string[];
+    }
+
+    // Функция для создания плоской Map-структуры со всеми полями из elements и их вложенных элементов
+    const createTableColumns = (obj: LayoutWithElements): Map<string, any> => {
+      // Создаем плоскую Map для всех элементов
+      const flatMap = new Map<string, any>();
+
+      if (!obj?.elements || !Array.isArray(obj.elements)) {
+        return flatMap;
+      }
+
+      // Получаем список отображаемых полей, если он есть
+      const displayList = Array.isArray(obj.display_list) ? obj.display_list : [];
+
+      // Рекурсивная функция для обработки элементов и их вложенных элементов
+      const processElements = (elements: any[]): void => {
+        elements.forEach((element: any) => {
+          if (!element.name) return;
+
+          // Для элементов с такими классами не обрабатываем вложенные элементы
+          const isSpecialType =
+            element.class_name === 'ViewSetInlineLayout' ||
+            element.class_name === 'ViewSetInlineDynamicLayout' ||
+            element.class_name === 'ViewSetInlineDynamicModelLayout' ||
+            element.field_class === 'ListSerializer';
+
+          if (isSpecialType) {
+            return;
+          }
+
+          const FRONTEND_CLASS = FieldTypeService.getFieldType(element);
+
+          // Если это поле типа Choice, создаем Map-структуру для быстрого доступа к значениям
+          let CHOICES: Map<string, string> | undefined;
+          if (FRONTEND_CLASS === 'Choice' && element.choices && Array.isArray(element.choices)) {
+            CHOICES = new Map<string, string>();
+            element.choices.forEach((choice: { value: string | number; display_name: string }) => {
+              CHOICES?.set(String(choice.value), choice.display_name);
+            });
+          }
+
+          // Определяем видимость элемента на основе display_list
+          // Если display_list пуст, то все элементы видимы, иначе только те, которые в списке
+          const VISIBLE = displayList.length === 0 || displayList.includes(element.name);
+
+          const elementCopy = {
+            ...element,
+            FRONTEND_CLASS,
+            VISIBLE,
+            ...(CHOICES ? { CHOICES } : {}),
+          };
+
+          flatMap.set(element.name, elementCopy);
+
+          // Рекурсивно обрабатываем вложенные элементы, если они есть
+          if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
+            processElements(element.elements);
+          }
+        });
+      };
+
+      processElements(obj.elements);
+
+      const orderedMap = new Map<string, any>();
+
+      // Если есть displayList, сначала добавляем элементы в порядке из displayList
+      if (displayList.length > 0) {
+        displayList.forEach((fieldName: string) => {
+          if (flatMap.has(fieldName)) {
+            orderedMap.set(fieldName, flatMap.get(fieldName));
+          }
+        });
+      }
+
+      // Добавляем все оставшиеся элементы, которых нет в orderedMap
+      flatMap.forEach((value, key) => {
+        if (!orderedMap.has(key)) {
+          orderedMap.set(key, value);
+        }
+      });
+
+      // Всегда возвращаем упорядоченную Map
+      return orderedMap;
+    };
     const loadCatalogDetails = async (moduleName: string, url: string): Promise<any> => {
       loading.value = true;
       error.value = null;
@@ -219,8 +309,10 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         }
         // Добавляем наши вычисляемые поля в OPTIONS для удобства
         if (optionsResponseData?.layout) {
-          optionsResponseData.layout.TABLE_COLUMNS = getTableColumns(optionsResponseData);
+          // Создаем таблицу колонок с учетом порядка из display_list
+          optionsResponseData.layout.TABLE_COLUMNS = createTableColumns(optionsResponseData.layout);
 
+          // Создаем иерархическую структуру элементов
           optionsResponseData.layout.ELEMENTS = createElementsMap(
             optionsResponseData.layout.elements,
           );
@@ -254,174 +346,69 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       }
     };
 
-    // Map структура нам поможет быстро сопоставлять с GET запросом
-    const getTableColumns = (options: any): Map<string, any> => {
-      if (!options?.layout?.elements || !Array.isArray(options.layout.elements)) {
-        return new Map();
-      }
-
-      const displayList = Array.isArray(options.layout.display_list)
-        ? options.layout.display_list
-        : [];
-
-      // Создаем плоскую Map для всех элементов
-      const elementsMap = new Map<string, any>();
-
-      // Рекурсивная функция для обработки элементов
-      const processElements = (elements: any[]): void => {
-        elements.forEach((element: any) => {
-          if (!element.name) return;
-
-          // Для элементов с такими классами не обрабатываем вложенные элементы
-          const isSpecialType =
-            element.class_name === 'ViewSetInlineLayout' ||
-            element.class_name === 'ViewSetInlineDynamicLayout' ||
-            element.class_name === 'ViewSetInlineDynamicModelLayout' ||
-            element.field_class === 'ListSerializer';
-
-          // Определяем изначальную видимость элемента
-          const VISIBLE = displayList.length === 0 || displayList.includes(element.name);
-
-          // Однозначно определяем FRONTEND тип на основании BACKEND типов
-          const FRONTEND_CLASS = FieldTypeService.getFieldType(element);
-
-          // Если это поле типа Choice, создаем Map-структуру для быстрого доступа к значениям
-          let CHOICES: Map<string, string> | undefined;
-          if (FRONTEND_CLASS === 'Choice' && element.choices && Array.isArray(element.choices)) {
-            CHOICES = new Map<string, string>();
-            element.choices.forEach((choice: { value: string | number; display_name: string }) => {
-              CHOICES?.set(String(choice.value), choice.display_name);
-            });
-          }
-
-          // Добавляем FRONTEND_CLASS и CHOICES в оригинальный элемент
-          element.FRONTEND_CLASS = FRONTEND_CLASS;
-          if (CHOICES) {
-            element.CHOICES = CHOICES;
-          }
-
-          const elementCopy = {
-            ...element,
-            FRONTEND_CLASS,
-            VISIBLE,
-            ...(CHOICES ? { CHOICES } : {}), // Добавляем CHOICES только если она существует
-          };
-
-          // Добавляем элемент в Map
-          elementsMap.set(element.name, elementCopy);
-
-          // Рекурсивно обрабатываем вложенные элементы, если они есть и элемент не является специальным типом
-          if (
-            element.elements &&
-            Array.isArray(element.elements) &&
-            element.elements.length > 0 &&
-            !isSpecialType
-          ) {
-            processElements(element.elements);
-          }
-        });
-      };
-
-      // Запускаем обработку всех элементов
-      processElements(options.layout.elements);
-
-      // Создаем упорядоченную Map на основе displayList
-      const orderedMap = new Map<string, any>();
-
-      // Сначала добавляем элементы в порядке из displayList
-      displayList.forEach((fieldName: string) => {
-        if (elementsMap.has(fieldName)) {
-          orderedMap.set(fieldName, elementsMap.get(fieldName));
-        }
-      });
-
-      // Затем добавляем оставшиеся элементы, которых нет в displayList
-      elementsMap.forEach((value, key) => {
-        if (!orderedMap.has(key)) {
-          orderedMap.set(key, value);
-        }
-      });
-
-      // Всегда возвращаем упорядоченную Map
-      return orderedMap;
-    };
-
-    // Функция для создания Map-структуры элементов макета
+    // Функция для создания иерархической Map-структуры элементов
     const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
-      const elementsMap = new Map<string, any>();
+      const ELEMENTS = new Map<string, any>();
 
       if (!elements || !Array.isArray(elements)) {
-        return elementsMap;
+        return ELEMENTS;
       }
 
-      // Рекурсивная функция для обработки элементов
-      const processElements = (items: any[]) => {
-        items.forEach((element) => {
-          // Если у элемента есть поле name, добавляем его в Map
-          if (element.name) {
-            element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
+      // Обрабатываем элементы текущего уровня
+      elements.forEach((element) => {
+        if (!element.name) return;
 
-            elementsMap.set(element.name, element);
-          }
+        element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
 
-          // Рекурсивно обрабатываем вложенные элементы
-          if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
-            element.ELEMENTS = new Map<string, any>();
+        // Добавляем элемент в Map текущего уровня
+        ELEMENTS.set(element.name, element);
 
-            // Заполняем Map вложенных элементов
-            element.elements.forEach((childElement: any) => {
-              if (childElement.name) {
-                childElement.FRONTEND_CLASS = FieldTypeService.getFieldType(childElement);
-                element.ELEMENTS.set(childElement.name, childElement);
-              }
-            });
+        // Если это ViewSetInlineLayout, создаем TABLE_COLUMNS
+        if (element.class_name === 'ViewSetInlineLayout' && element.elements?.length > 0) {
+          // Создаем плоскую структуру для всех вложенных элементов
+          element.TABLE_COLUMNS = createTableColumns(element);
+        }
 
-            // Рекурсивно обрабатываем все вложенные элементы
-            processElements(element.elements);
-          }
-        });
-      };
+        // Если у элемента есть вложенные элементы, создаем для них свою Map-структуру
+        if (element.elements?.length > 0) {
+          // Создаем Map для вложенных элементов
+          element.ELEMENTS = createElementsMap(element.elements);
+        }
+      });
 
-      processElements(elements);
-
-      return elementsMap;
+      return ELEMENTS;
     };
 
     // Функция для поиска URL каталога по имени модуля в уже загруженном каталоге (на шаге 1)
     // Предполагается, что каталог уже загружен до вызова этой функции
-    const findUrlInCatalog = (moduleName: string): string | null => {
+    const findUrlInCatalogGroups = (catalogName: string): string | null => {
       // Проверяем, что каталог загружен
       if (!catalogGroups.value || catalogGroups.value.length === 0) {
-        const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).moduleName;
+        const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).catalogName;
         console.warn(
           `Каталог для модуля ${moduleNameFromUrl} не загружен. Сначала нужно вызвать loadCatalog()`,
         );
         return null;
       }
 
-      // Ищем элемент каталога с нужным moduleName
+      // Ищем элемент каталога с нужным catalogName
       if (catalogGroups.value && catalogGroups.value.length > 0) {
-        // Предполагаем, что в каталоге теперь будет поле moduleName вместо viewname
         const catalogItem = catalogGroups.value
           .flatMap((group: { items?: any[] }) => group.items || [])
           .find((item: any) => {
-            // Проверяем наличие поля viewname или moduleName
-            if (item.moduleName) {
-              return item.moduleName === moduleName;
-            } else if (item.viewname) {
-              // Для обратной совместимости проверяем и viewname
-              return item.viewname === moduleName;
+            if (item.viewname) {
+              return item.viewname === catalogName;
             }
             return false;
           });
 
         if (catalogItem?.href) {
-          console.log(`Найден URL в каталоге для ${moduleName}: ${catalogItem.href}`);
+          console.log(`Найден URL в каталоге для ${catalogName}: ${catalogItem.href}`);
           return catalogItem.href;
         }
       }
 
-      console.log(`URL для ${moduleName} не найден в каталоге`);
+      console.log(`URL для ${catalogName} не найден в каталоге`);
       return null;
     };
 
@@ -572,7 +559,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       loadCatalog,
       loadCatalogDetails,
       // getJSInterface,
-      findUrlInCatalog,
+      findUrlInCatalogGroups,
       updateRecordInStore,
       hasCachedData,
       // initialize,

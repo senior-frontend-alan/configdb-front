@@ -15,6 +15,9 @@ export const BACKEND = {
     LAYOUT_RELATED_FIELD: 'LayoutRelatedField',
     LAYOUT_CHOICE_FIELD: 'LayoutChoiceField',
 
+    // ! не проваливаемся внутрь на этапе показа колонок таблицы
+    VIEW_SET_INLINE_LAYOUT: 'ViewSetInlineLayout', // подчиненная вложенная таблица/объект
+
     LAYOUT_SECTION: 'LayoutSection',
     LAYOUT_ROW: 'LayoutRow',
     // LAYOUT_REVERSE_REFERENCE_FIELD: 'LayoutReverseReferenceField',
@@ -34,11 +37,9 @@ export const BACKEND = {
     COMPUTED_FIELD: 'ComputedField',
     MANY_RELATED_FIELD: 'ManyRelatedField',
     // WEAK_RELATED_FIELD: 'WeakRelatedLookupField',
-    // LIST_SERIALIZER: 'ListSerializer',
     // SERIALIZER: 'Serializer',
 
     // ! не проваливаемся внутрь на этапе показа колонок таблицы
-    // VIEW_SET_INLINE_LAYOUT: 'ViewSetInlineLayout', // подчиненная вложенная таблица/объект
     // VIEW_SET_INLINE_DYNAMIC_LAYOUT: 'ViewSetInlineDynamicLayout', // подчиненная вложенная таблица/объект
     // VIEW_SET_INLINE_DYNAMIC_MODEL_LAYOUT: 'ViewSetInlineDynamicModelLayout', // подчиненная вложенная таблица/объект
     // или field_class: "ListSerializer"
@@ -68,6 +69,7 @@ export const FRONTEND = {
   RELATED: 'related', // простой дропдаун (как choice)
   PRIMARY_KEY_RELATED: 'primary_key_related', // модальное окно с новой таблицей
   MANY_RELATED: 'many_related', // модальное окно с новой таблицей и возможность добавления нескольких записей (chips)
+  VIEW_SET_INLINE_LAYOUT: 'view_set_inline_layout', // подчиненная вложенная в поле таблица/объект
 
   SECTION: 'section',
   ROW: 'row',
@@ -149,8 +151,6 @@ export class FieldTypeService {
         case BACKEND.field_class.BOOLEAN_FIELD:
         case BACKEND.field_class.NULL_BOOLEAN_FIELD:
           return FRONTEND.BOOLEAN;
-        default:
-          return FRONTEND.CHAR;
       }
     }
 
@@ -170,14 +170,13 @@ export class FieldTypeService {
           return FRONTEND.COMPUTED;
         case BACKEND.class_name.LAYOUT_RELATED_FIELD:
           return FRONTEND.RELATED;
+        case BACKEND.class_name.VIEW_SET_INLINE_LAYOUT:
+          return FRONTEND.VIEW_SET_INLINE_LAYOUT;
 
         case BACKEND.class_name.LAYOUT_SECTION:
           return FRONTEND.SECTION;
         case BACKEND.class_name.LAYOUT_ROW:
           return FRONTEND.ROW;
-
-        default:
-          return FRONTEND.CHAR;
       }
     }
 
