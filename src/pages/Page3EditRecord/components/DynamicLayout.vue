@@ -35,6 +35,9 @@ DynamicLayout: чисто презентационный компонент
 
       <!-- Если это обычное поле -->
       <div v-else :class="{ 'form-field': true }">
+        <div v-if="debugField(element)" class="debug-info">
+          Поле: {{ element.name }}, Значение: {{ modelValue[element.name] }}
+        </div>
         <component
           :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
           :options="element"
@@ -92,7 +95,10 @@ DynamicLayout: чисто презентационный компонент
 
   // В шаблоне Vue директива v-for работает с массивами
   const elementsArray = computed(() => {
-    return Array.from(props.layoutElements.values());
+    const elements = Array.from(props.layoutElements.values());
+    console.log('DynamicLayout - элементы макета:', elements);
+    console.log('DynamicLayout - полученные данные:', props.modelValue);
+    return elements;
   });
 
   const emit = defineEmits<{
@@ -113,6 +119,15 @@ DynamicLayout: чисто презентационный компонент
 
     // Отправляем обновленные данные родительскому компоненту
     emit('update:modelValue', updatedData);
+  };
+
+  // Функция для отладки полей формы
+  const debugField = (element: FormElement) => {
+    console.log(`Поле ${element.name}:`, {
+      значение: props.modelValue[element.name],
+      метаданные: element,
+    });
+    return false; // Отключаем отображение отладочной информации в UI
   };
 </script>
 

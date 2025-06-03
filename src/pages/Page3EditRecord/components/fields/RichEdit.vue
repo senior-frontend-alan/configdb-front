@@ -1,7 +1,23 @@
 <template>
   <div class="mb-1 p-2 border rounded-lg" :class="{ 'field-modified': props.isModified }">
     <div class="flex justify-content-between align-items-center mb-1">
-      <label :for="id">{{ label }}</label>
+      <div class="flex align-items-center gap-2 mb-2">
+        <label :for="id">{{ label }}</label>
+        <Button
+          icon="pi pi-undo"
+          class="p-button-sm p-button-outlined p-button-icon"
+          :disabled="!isValueChanged"
+          @click="resetToOriginal"
+          v-tooltip="'Отменить изменения'"
+        />
+        <Button
+          icon="pi pi-trash"
+          class="p-button-sm p-button-outlined p-button-icon"
+          :disabled="!value.trim()"
+          @click="clearField"
+          v-tooltip="'Очистить поле'"
+        />
+      </div>
       <div class="flex align-items-center">
         <Button
           v-if="editorMode === 'json'"
@@ -168,6 +184,13 @@
     }
   };
 
+  // Для компонента редактора ACE использование computed вместо watch
+  // Проблема с двусторонней привязкой: ACE Editor требует прямой привязки к переменной, которую можно изменять. Если мы используем computed, то:
+  // Мы можем создать getter для чтения значения из props
+  // Но для setter нам всё равно придётся вызывать emit, что не даёт преимуществ перед текущим подходом
+  // Проблема с производительностью: ACE Editor - это сложный компонент, который часто обновляет своё значение. Computed свойство будет пересчитываться при каждом изменении, что может негативно влиять на производительность.
+  // Проблема с синхронизацией: Компонент VAceEditor ожидает ref-переменную для v-model:value, а не computed свойство.
+
   // Обновляем локальное значение при изменении props.modelValue
   watch(
     () => props.modelValue,
@@ -184,6 +207,22 @@
   // Ссылки на экземпляр редактора
   const aceEditorRef = ref<any>(null);
   const aceInstance = ref<any>(null);
+
+  // Сохраняем оригинальное значение для возможности отмены изменений
+  const originalValue = ref(props.modelValue || '');
+
+  const isValueChanged = computed(() => {
+    return value.value !== originalValue.value;
+  });
+
+  const resetToOriginal = () => {
+    value.value = originalValue.value;
+  };
+
+  // Метод для очистки поля
+  const clearField = () => {
+    value.value = '';
+  };
 
   // Настраиваем редактор после монтирования компонента
   onMounted(async () => {

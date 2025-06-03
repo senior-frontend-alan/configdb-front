@@ -1,6 +1,7 @@
 <!-- 
   Компонент для отображения данных в виде таблицы.
   Принимает TABLE_COLUMNS и данные напрямую, не обращаясь к стору.
+  Отображать данные и эмитить события, и не выполнять навигацию.
 
   Маршрутизатор
     ↓ (загружает данные при переходе на страницу)
@@ -31,7 +32,7 @@
           @column-reorder="onColumnReorder"
           class="p-datatable-sm transparent-header inner-shadow"
           v-model:selection="tableSelection"
-          :selection-mode="hasBatchPermission ? 'multiple' : undefined"
+          :selection-mode="hasBatchPermission ? 'multiple' : 'single'"
           :dataKey="primaryKey"
           :scrollable="isTableScrollable"
           :resizableColumns="true"
@@ -84,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-  import { h, ref, computed, watch } from 'vue';
+  import { ref, computed, watch, h } from 'vue';
   import type { Component } from 'vue';
   import PrimeDataTable from 'primevue/datatable';
   import Column from 'primevue/column';
@@ -171,10 +172,9 @@
   };
 
   const handleRowClick = (event: any) => {
-    // Если передана пользовательская функция, используем её
-    if (typeof props.onRowClick === 'function') {
-      props.onRowClick(event);
-    }
+    console.log('Передаем в родительский компонент:', event);
+
+    emit('row-click', event);
   };
 
   const onColumnReorder = (event: any) => {
@@ -183,9 +183,10 @@
     }
   };
 
-  // Создаем эмиттер для оповещения родителя о изменении выделенных строк
+  // Создаем эмиттер для оповещения родителя о изменении выделенных строк и клике по строке
   const emit = defineEmits<{
     (e: 'update:selectedItems', value: any[]): void;
+    (e: 'row-click', event: any): void;
   }>();
 
   // Следим за изменениями в таблице и отправляем их родителю

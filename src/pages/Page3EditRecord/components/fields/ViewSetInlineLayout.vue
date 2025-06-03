@@ -6,7 +6,7 @@
   3. Компонент DataTable отвечает только за отображение данных
 -->
 <template>
-  <div>
+  <div class="mb-1 p-2 border rounded-lg" :class="{ 'field-modified': props.isModified }">
     <label :for="fieldId">{{ fieldLabel }}</label>
     <div v-if="!props.modelValue || !props.options?.TABLE_COLUMNS" class="empty-container">
       <Message severity="info">Нет данных для отображения</Message>

@@ -9,6 +9,9 @@ import { formatChar } from './Char';
 import { formatDateValue, formatTimeValue, formatDateTimeValue } from './DateTime';
 import { formatComputedValue } from './Computed';
 import { formatRelatedValue } from './Related';
+import { formatPrimaryKeyRelatedValue } from './PrimaryKeyRelated';
+import { formatManyRelatedValue } from './ManyRelated';
+import ManyRelated from './ManyRelated.vue';
 
 // Максимальная длина текста для простого отображения
 const MAX_TEXT_LENGTH = 50;
@@ -73,6 +76,24 @@ export const dynamicField: Record<string, Component | FieldComponentFactory> = {
   }),
   [FRONTEND.RELATED]: createFieldFactory((value) => {
     return h('span', {}, formatRelatedValue(value as FieldDefinition));
+  }),
+  [FRONTEND.PRIMARY_KEY_RELATED]: createFieldFactory((value) => {
+    return h('span', {}, formatPrimaryKeyRelatedValue(value as FieldDefinition));
+  }),
+  [FRONTEND.MANY_RELATED]: createFieldFactory((value, metadata) => {
+    // Проверяем, является ли value массивом объектов с id и name
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
+      // Возвращаем компонент с чипсами
+      return () => h(ManyRelated, {
+        value: value,
+        field: {
+          FRONTEND_CLASS: FRONTEND.MANY_RELATED,
+          ...metadata as object
+        }
+      });
+    }
+    // В противном случае возвращаем простой span с отформатированным текстом
+    return h('span', {}, formatManyRelatedValue(value));
   }),
   // Для остальных типов будет использоваться стандартный span
 };

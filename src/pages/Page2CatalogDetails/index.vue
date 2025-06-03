@@ -53,9 +53,9 @@ CatalogDataTable отвечает только за отображение да�
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
         :hasBatchPermission="!!currentCatalog?.OPTIONS?.permitted_actions?.batch"
         :selectedItems="tableSelection"
-        :onRowClick="handleRowClick"
         :onColumnReorder="onColumnReorder"
         @update:selectedItems="tableSelection = $event"
+        @row-click="handleRowClick"
         :isTableScrollable="isTableScrollable"
       />
     </div>
@@ -180,23 +180,24 @@ CatalogDataTable отвечает только за отображение да�
 
   // Клик - переход на страницу редактирования
   const handleRowClick = (event: any) => {
-    // Если передана пользовательская функция, используем её
-    if (typeof props.onRowClick === 'function') {
-      props.onRowClick(event);
-      return;
-    }
+    console.log('Page2CatalogDetails: получено событие row-click', event);
 
-    // Стандартное поведение - переход на страницу редактирования
+    // Данные строки находятся в event.data
     const rowData = event.data;
+    console.log('Данные строки:', rowData);
 
+    // Переход на страницу редактирования
     if (rowData && rowData.id) {
+      // Формируем URL для перехода
       const editUrl = `/${moduleName.value}/${catalogName.value}/edit/${rowData.id}`;
+      console.log('Переход по URL:', editUrl);
 
       router.push(editUrl);
     } else {
       console.warn(
         'Не удалось получить идентификатор строки для перехода на страницу редактирования',
       );
+      console.log('Полученные данные:', event);
     }
   };
 

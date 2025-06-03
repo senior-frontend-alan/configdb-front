@@ -163,7 +163,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
     // Сохраненные данные по различным moduleName - используем reactive вместо ref
     const catalogsByName = reactive<Record<string, any>>({});
 
-    const loadCatalog = async (): Promise<CatalogsAPIResponseGET> => {
+    const loadCatalogGroups = async (): Promise<CatalogsAPIResponseGET> => {
       // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
       if (catalogGroups.value && catalogGroups.value.length > 0) {
         const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).moduleName;
@@ -280,7 +280,14 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       // Всегда возвращаем упорядоченную Map
       return orderedMap;
     };
-    const loadCatalogDetails = async (moduleName: string, url: string): Promise<any> => {
+
+    // loadCatalog это исполнитель, который непосредственно загружает данные по URL
+    // нам точно нужно знать куда сохранять каталог
+    const loadCatalog = async (
+      moduleName: string,
+      catalogName: string,
+      url: string,
+    ): Promise<any> => {
       loading.value = true;
       error.value = null;
 
@@ -318,9 +325,22 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
           );
         }
 
+        // Преобразуем массив результатов в Map с ключами из поля id для быстрого доступа
+        const resultsMap = new Map();
+        if (getResponseData?.results && Array.isArray(getResponseData.results)) {
+          getResponseData.results.forEach((item: any) => {
+            if (item.id !== undefined) {
+              resultsMap.set(String(item.id), item);
+            }
+          });
+        }
+
         // Создаем новый объект с данными (общая логика для моковых и реальных данных)
         const detailsData = {
-          GET: getResponseData,
+          GET: {
+            ...getResponseData,
+            RESULTS: resultsMap,
+          },
           OPTIONS: optionsResponseData,
           PATCH: {}, // Поле для отслеживания изменений
           moduleName: moduleName,
@@ -328,11 +348,11 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
         };
 
         // Напрямую обновляем реактивный объект
-        catalogsByName[moduleName] = detailsData;
+        catalogsByName[catalogName] = detailsData;
 
         console.log(
-          `Данные для ${moduleName} успешно загружены в стор:`,
-          catalogsByName[moduleName],
+          `Данные для каталога ${catalogName} успешно загружены в стор:`,
+          catalogsByName[catalogName],
         );
 
         error.value = null;
@@ -386,7 +406,7 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       if (!catalogGroups.value || catalogGroups.value.length === 0) {
         const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).catalogName;
         console.warn(
-          `Каталог для модуля ${moduleNameFromUrl} не загружен. Сначала нужно вызвать loadCatalog()`,
+          `Каталог для модуля ${moduleNameFromUrl} не загружен. Сначала нужно вызвать loadCatalogGroups()`,
         );
         return null;
       }
@@ -412,49 +432,97 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       return null;
     };
 
-    // Проверка наличия данных в кэше для конкретного moduleName
-    const hasCachedData = (moduleName: string): boolean => {
-      return !!catalogsByName[moduleName];
+    // Проверка наличия данных в кэше для конкретного каталога
+    const hasCachedData = (catalogName: string): boolean => {
+      console.log(`Проверка наличия данных в кэше для каталога ${catalogName}`);
+      console.log(`Доступные каталоги в сторе:`, Object.keys(catalogsByName));
+      return !!catalogsByName[catalogName];
+    };
+
+    // Метод для загрузки отдельной записи по ID
+    const loadRecordById = async (catalogName: string, recordId: string | number): Promise<any> => {
+      loading.value = true;
+      error.value = null;
+
+      try {
+        // Проверяем, что каталог существует в сторе
+        if (!catalogsByName[catalogName]) {
+          throw new Error(`Каталог ${catalogName} не найден в сторе`);
+        }
+
+        // Получаем URL для загрузки записи
+        const baseUrl = catalogsByName[catalogName].url;
+        if (!baseUrl) {
+          throw new Error(`URL для каталога ${catalogName} не найден`);
+        }
+
+        // Формируем URL для загрузки отдельной записи
+        const recordUrl = `${baseUrl}${recordId}/?mode=short`;
+        console.log(`Загрузка записи по URL: ${recordUrl}`);
+
+        // Загружаем данные записи
+        const response = await api.get(recordUrl);
+        const recordData = response.data;
+
+        // Добавляем запись в кэш
+        if (!catalogsByName[catalogName].GET.RESULTS) {
+          catalogsByName[catalogName].GET.RESULTS = new Map();
+        }
+
+        // Сохраняем запись в кэше
+        catalogsByName[catalogName].GET.RESULTS.set(String(recordId), recordData);
+        console.log(`Запись ${recordId} успешно загружена и добавлена в кэш`);
+
+        return recordData;
+      } catch (err) {
+        error.value = err;
+        console.error(`Ошибка при загрузке записи ${recordId} из каталога ${catalogName}:`, err);
+        return null;
+      } finally {
+        loading.value = false;
+      }
     };
 
     // Метод для обновления записи в сторе после PATCH-запроса
     const updateRecordInStore = (
-      moduleName: string,
-      recordId: string | number,
+      catalogName: string,
+      recordId: string,
       updatedData: any,
     ): boolean => {
       try {
         // Проверяем, что данные для этого представления загружены
-        if (!catalogsByName[moduleName] || !catalogsByName[moduleName].GET) {
-          console.warn(`Невозможно обновить запись в сторе: данные для ${moduleName} не загружены`);
+        if (!catalogsByName[catalogName] || !catalogsByName[catalogName].GET) {
+          console.warn(
+            `Невозможно обновить запись в сторе: данные для ${catalogName} не загружены`,
+          );
           return false;
         }
 
         // Получаем текущие данные
-        const currentData = catalogsByName[moduleName].GET;
+        const currentData = catalogsByName[catalogName].GET;
 
-        // Проверяем, что есть массив results
-        if (!currentData.results || !Array.isArray(currentData.results)) {
+        // Проверяем, что есть Map RESULTS
+        if (!currentData.RESULTS || !(currentData.RESULTS instanceof Map)) {
           console.warn(
-            `Невозможно обновить запись в сторе: нет массива results в данных ${moduleName}`,
+            `Невозможно обновить запись в сторе: нет Map RESULTS в данных ${catalogName}`,
           );
           return false;
         }
 
-        // Находим индекс записи в массиве
-        const recordIndex = currentData.results.findIndex((item: any) => item.id == recordId);
-
-        if (recordIndex === -1) {
+        // Проверяем наличие записи в Map
+        if (!currentData.RESULTS.has(String(recordId))) {
           console.warn(
-            `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${moduleName}`,
+            `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${catalogName}`,
           );
           return false;
         }
 
-        // Обновляем запись, сохраняя существующие поля и добавляя новые
-        currentData.results[recordIndex] = { ...currentData.results[recordIndex], ...updatedData };
+        // Обновляем запись в Map
+        const existingRecord = currentData.RESULTS.get(String(recordId));
+        const updatedRecord = { ...existingRecord, ...updatedData };
+        currentData.RESULTS.set(String(recordId), updatedRecord);
 
-        console.log(`Запись с ID ${recordId} успешно обновлена в сторе для ${moduleName}`);
+        console.log(`Запись с ID ${recordId} успешно обновлена в сторе`);
         return true;
       } catch (error) {
         console.error(`Ошибка при обновлении записи в сторе:`, error);
@@ -556,8 +624,9 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
       catalogsByName,
 
       // действия
+      loadCatalogGroups,
       loadCatalog,
-      loadCatalogDetails,
+      loadRecordById,
       // getJSInterface,
       findUrlInCatalogGroups,
       updateRecordInStore,

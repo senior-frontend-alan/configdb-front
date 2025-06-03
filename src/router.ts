@@ -101,7 +101,40 @@ routes.push({
   name: 'EditRecord',
   component: () => import('./pages/Page3EditRecord/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
-  beforeEnter: validateModuleName,
+  beforeEnter: (to, from, next) => {
+    const moduleName = to.params.moduleName as string;
+    const catalogName = to.params.catalogName as string;
+    const recordId = to.params.id as string;
+
+    console.log(
+      `Защитник маршрута для редактирования записи: ${moduleName}, ${catalogName}, ${recordId}`,
+    );
+
+    // Сначала проверяем существование модуля
+    const moduleResult = isModuleExist(moduleName);
+    if (!moduleResult.exists) {
+      console.error('Ошибка валидации модуля:', moduleResult.error);
+      next('/');
+      return;
+    }
+
+    // Загружаем данные записи без предварительной проверки существования записи
+    // Функция loadRecordData сама загрузит данные каталога и проверит существование записи
+    loadRecordData(moduleName, catalogName, recordId, (error) => {
+      if (error) {
+        console.error('Ошибка загрузки данных записи:', error);
+        next(`/${moduleName}/${catalogName}`);
+      } else {
+        // Явно вызываем next() здесь для гарантии перехода
+        console.log('Данные записи успешно загружены, выполняем переход');
+        next();
+      }
+    }).catch((error) => {
+      console.error('Ошибка загрузки данных записи:', error);
+      next(`/${moduleName}/${catalogName}`);
+    });
+    // Не вызываем next() здесь, так как он вызывается в колбэке
+  },
 });
 
 // Добавляем дополнительные маршруты для модулей, если необходимо
@@ -184,7 +217,7 @@ export const loadCatalogByNameFromGroups = async (
     // ШАГ 3: Загрузка групп, если они еще не загружены
     if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
       console.log(`Загрузка групп для модуля ${moduleName}...`);
-      await moduleStore.loadCatalog();
+      await moduleStore.loadCatalogGroups();
     }
 
     // ШАГ 4: Поиск URL для загрузки конкретного справочника
@@ -197,7 +230,7 @@ export const loadCatalogByNameFromGroups = async (
     }
 
     // ШАГ 5: Загрузка деталей каталога
-    await moduleStore.loadCatalogDetails(catalogName, url);
+    await moduleStore.loadCatalog(moduleName, catalogName, url);
     console.log(`Детали каталога ${catalogName} успешно загружены`);
 
     return true;
@@ -229,7 +262,7 @@ router.beforeResolve(async (to, _from, next) => {
       // 2. Проверяем, загружен ли каталог, и загружаем его если нет
       if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
         console.log(`Загрузка данных каталога для модуля ${moduleName}`);
-        await moduleStore.loadCatalog();
+        await moduleStore.loadCatalogGroups();
       }
 
       // 3. Проверяем тип запроса
@@ -244,7 +277,7 @@ router.beforeResolve(async (to, _from, next) => {
             const href = moduleStore.findUrlInCatalogGroups(catalogName);
             if (href) {
               // Загружаем данные каталога
-              await moduleStore.loadCatalogDetails(catalogName, href);
+              await moduleStore.loadCatalog(moduleName, catalogName, href);
             } else {
               console.error(`URL для каталога ${catalogName} не найден`);
             }
@@ -274,5 +307,286 @@ router.beforeResolve(async (to, _from, next) => {
   // Разрешаем переход
   next();
 });
+
+// Функция для загрузки данных записи и связанных данных для вложенных компонентов
+export const loadRecordData = async (
+  moduleName: string,
+  catalogName: string,
+  recordId: string | number,
+  next: (error?: any) => void,
+): Promise<boolean> => {
+  try {
+    console.log(`Загрузка данных записи: ${moduleName}, ${catalogName}, ${recordId}`);
+
+    // Проверяем существование модуля
+    const moduleResult = isModuleExist(moduleName);
+    if (!moduleResult.exists) {
+      console.error(`Ошибка при проверке модуля:`, moduleResult.error);
+      next(moduleResult.error);
+      return false;
+    }
+
+    // Получаем стор модуля
+    const moduleStore = useModuleStore(moduleName);
+    if (!moduleStore) {
+      const error = new Error(`Не удалось получить стор для модуля ${moduleName}`);
+      console.error(error);
+      next(error);
+      return false;
+    }
+
+    // Сначала загружаем данные каталога, если они еще не загружены
+    console.log(`Загрузка данных каталога ${catalogName} для модуля ${moduleName}...`);
+    const catalogLoaded = await loadCatalogByNameFromGroups(moduleName, catalogName, next, false);
+    if (!catalogLoaded) {
+      console.error(`Не удалось загрузить данные каталога ${catalogName}`);
+      return false;
+    }
+
+    // Теперь проверяем наличие каталога в сторе
+    if (!moduleStore.catalogsByName?.[catalogName]) {
+      const error = new Error(
+        `Каталог ${catalogName} не найден в модуле ${moduleName} после загрузки`,
+      );
+      console.error(error);
+      next(error);
+      return false;
+    }
+
+    // Получаем метаданные из OPTIONS
+    const options = moduleStore.catalogsByName?.[catalogName]?.OPTIONS;
+    if (!options || !options.layout) {
+      const error = new Error(`Метаданные для представления ${catalogName} не найдены`);
+      next(error);
+      return false;
+    }
+
+    // Проверяем существование записи
+    let recordResult = isRecordExist(moduleName, catalogName, recordId);
+    let recordData = recordResult.exists ? recordResult.record : null;
+
+    console.log(
+      `Запись ${recordId} ${recordData ? 'найдена' : 'не найдена'} в каталоге ${catalogName}`,
+    );
+
+    // Если запись не найдена в сторе, пытаемся загрузить её
+    if (!recordData) {
+      console.log(`Попытка загрузить запись ${recordId}`);
+      try {
+        // Загружаем запись
+        const loadedRecord = await moduleStore.loadRecordById(catalogName, recordId);
+
+        if (loadedRecord) {
+          console.log(`Запись ${recordId} успешно загружена`);
+          // Обновляем данные записи
+          recordData = loadedRecord;
+          // Обновляем результат проверки существования записи
+          recordResult = isRecordExist(moduleName, catalogName, recordId);
+        } else {
+          console.log(`Запись ${recordId} не найдена на сервере`);
+        }
+      } catch (err) {
+        console.error(`Ошибка при загрузке записи ${recordId}:`, err);
+      }
+    }
+
+    // Загрузка связанных данных для вложенных компонентов
+    if (options.layout.ELEMENTS) {
+      // Ищем все поля типа VIEW_SET_INLINE_LAYOUT и загружаем данные для них
+      const findAndLoadInlineLayouts = async (elements: any[]) => {
+        for (const element of elements) {
+          // Если это вложенный макет, загружаем данные для него
+          if (element.FRONTEND_CLASS === 'view_set_inline_layout' && element.view_name) {
+            console.log(`Загрузка данных для вложенного макета: ${element.view_name}`);
+            try {
+              await loadCatalogByNameFromGroups(
+                moduleName,
+                element.view_name,
+                (err) => {
+                  if (err) {
+                    console.warn(
+                      `Ошибка загрузки данных для вложенного макета ${element.view_name}:`,
+                      err,
+                    );
+                  }
+                },
+                false, // Не принудительное обновление
+              );
+            } catch (err) {
+              console.warn(
+                `Ошибка загрузки данных для вложенного макета ${element.view_name}:`,
+                err,
+              );
+            }
+          }
+
+          // Рекурсивно проверяем вложенные элементы
+          if (element.ELEMENTS && Array.isArray(element.ELEMENTS)) {
+            await findAndLoadInlineLayouts(element.ELEMENTS);
+          }
+        }
+      };
+
+      await findAndLoadInlineLayouts(options.layout.ELEMENTS);
+    }
+
+    // Инициализация PATCH данных
+    if (!recordData && recordId) {
+      moduleStore.catalogsByName[catalogName].PATCH = { id: recordId };
+    } else {
+      moduleStore.catalogsByName[catalogName].PATCH = {};
+    }
+
+    // Вызываем next() для продолжения навигации
+    // Функция loadRecordData загружает данные каталога и проверяет существование записи
+    // Если запись существует, она загружается из стора или с сервера
+    // Если запись не существует, создается новая запись с указанным ID
+    if (recordData) {
+      console.log(`Успешно загружены данные существующей записи ${recordId}, вызываем next()`);
+    } else {
+      console.log(`Переход к созданию новой записи с ID ${recordId}, вызываем next()`);
+    }
+    next(); // Явно вызываем next() для продолжения навигации
+    return true;
+  } catch (error) {
+    console.error('Ошибка загрузки данных записи:', error);
+    next(error);
+    return false;
+  }
+};
+
+// Набор функций для проверки существования данных
+// Каждая функция возвращает объект { exists: boolean, error?: Error, ... }
+
+/**
+ * Проверяет существование модуля в конфигурации
+ */
+export const isModuleExist = (moduleName: string): { exists: boolean; error?: Error } => {
+  if (!moduleName) {
+    return {
+      exists: false,
+      error: new Error('Параметр moduleName не указан'),
+    };
+  }
+
+  const module = config.value.modules.find((m) => {
+    const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
+    return extractedModuleName === moduleName;
+  });
+
+  if (!module) {
+    return {
+      exists: false,
+      error: new Error(`Модуль с moduleName=${moduleName} не найден`),
+    };
+  }
+
+  return { exists: true };
+};
+
+/**
+ * Проверяет существование стора модуля и каталога в нем
+ */
+export const isCatalogExist = (
+  moduleName: string,
+  catalogName: string,
+): { exists: boolean; error?: Error; moduleStore?: ReturnType<typeof useModuleStore> } => {
+  // Сначала проверяем модуль
+  const moduleResult = isModuleExist(moduleName);
+  if (!moduleResult.exists) {
+    return { exists: false, error: moduleResult.error };
+  }
+
+  try {
+    const moduleStore = useModuleStore(moduleName);
+
+    // Проверяем, что стор существует
+    if (!moduleStore) {
+      return {
+        exists: false,
+        error: new Error(`Не удалось получить стор для модуля ${moduleName}`),
+      };
+    }
+
+    // Проверяем наличие каталога в сторе
+    if (!moduleStore.catalogsByName?.[catalogName]) {
+      return {
+        exists: false,
+        error: new Error(`Каталог ${catalogName} не найден в модуле ${moduleName}`),
+        moduleStore,
+      };
+    }
+
+    return { exists: true, moduleStore };
+  } catch (error) {
+    return {
+      exists: false,
+      error:
+        error instanceof Error
+          ? error
+          : new Error(`Ошибка при проверке каталога ${catalogName} в модуле ${moduleName}`),
+    };
+  }
+};
+
+/**
+ * Проверяет существование записи в каталоге
+ */
+//Функция isRecordExist проверяет:
+//Существует ли модуль
+//Существует ли каталог
+//Загружены ли данные GET для каталога
+//Инициализирована ли Map RESULTS
+//Существует ли запись с указанным ID в Map RESULTS
+//isRecordExist только проверяет наличие данных, но не загружает их, если их нет.
+// Если данные записи не были предварительно загружены, защитник маршрута не пропускает переход.
+export const isRecordExist = (
+  moduleName: string,
+  catalogName: string,
+  recordId: string | number,
+): {
+  exists: boolean;
+  error?: Error;
+  moduleStore?: ReturnType<typeof useModuleStore>;
+  record?: any;
+} => {
+  // Сначала проверяем каталог
+  const catalogResult = isCatalogExist(moduleName, catalogName);
+  if (!catalogResult.exists) {
+    return { exists: false, error: catalogResult.error, moduleStore: catalogResult.moduleStore };
+  }
+
+  const moduleStore = catalogResult.moduleStore!;
+
+  // Проверяем наличие данных GET в каталоге
+  if (!moduleStore.catalogsByName?.[catalogName]?.GET) {
+    return {
+      exists: false,
+      error: new Error(`Данные GET для каталога ${catalogName} не загружены`),
+      moduleStore,
+    };
+  }
+
+  // Проверяем наличие Map с результатами
+  if (!moduleStore.catalogsByName?.[catalogName]?.GET?.RESULTS) {
+    return {
+      exists: false,
+      error: new Error(`Map RESULTS для каталога ${catalogName} не инициализирована`),
+      moduleStore,
+    };
+  }
+
+  // Проверяем наличие записи в Map
+  const record = moduleStore.catalogsByName[catalogName]?.GET?.RESULTS?.get(String(recordId));
+  if (!record) {
+    return {
+      exists: false,
+      error: new Error(`Запись ${recordId} не найдена в каталоге ${catalogName}`),
+      moduleStore,
+    };
+  }
+
+  return { exists: true, moduleStore, record };
+};
 
 export default router;

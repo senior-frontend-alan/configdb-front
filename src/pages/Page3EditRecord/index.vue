@@ -1,8 +1,10 @@
-<!-- оптимальное место для работы со стором, так как:
-Страница является точкой входа и отвечает за получение и подготовку данных
-Страница знает о контексте использования (ID записи, модуль и т.д.)
-Упрощается повторное использование дочерних компонентов -->
+<!-- URL http://localhost:5173/catalog/characteristicSpec/edit/203:
+characteristicSpec - это имя каталога
+203 - это ID записи
 
+Маршрутизатор отвечает за загрузку данных при переходе на страницу
+Роутер имеет всю необходимую информацию для загрузки данных еще до того, как компонент страницы будет создан.
+-->
 <template>
   <div class="edit-record-page">
     <div class="flex justify-content-between align-items-center mb-4">
@@ -21,8 +23,8 @@
       <ProgressSpinner />
     </div>
 
-    <div v-else-if="error" class="bg-red-100 text-red-700 border-round mb-4">
-      {{ error }}
+    <div v-else-if="error" class="error-container">
+      <Message severity="error">{{ error }}</Message>
     </div>
 
     <div v-else>
@@ -70,14 +72,13 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
+  import { useModuleStore } from '../../stores/module-factory';
   import { useToast } from 'primevue/usetoast';
   import api from '../../api';
-  import { useModuleStore } from '../../stores/module-factory';
-
-  import ProgressSpinner from 'primevue/progressspinner';
-  import Button from 'primevue/button';
-
   import DynamicLayout from './components/DynamicLayout.vue';
+  import Button from 'primevue/button';
+  import ProgressSpinner from 'primevue/progressspinner';
+  import Message from 'primevue/message';
 
   // Определяем props компонента
   const props = defineProps<{
@@ -92,7 +93,7 @@
   const toast = useToast();
 
   // Используем props с фолбэком на параметры маршрута
-  const moduleName = computed(() => props.moduleName || (route.meta.moduleName as string));
+  const moduleName = computed(() => props.moduleName || (route.params.moduleName as string));
   const catalogName = computed(() => props.catalogName || (route.params.catalogName as string));
   const recordId = computed(() => props.id || (route.params.id as string));
 
@@ -103,7 +104,6 @@
   const formActionsRef = ref<HTMLElement | null>(null);
   const isAtBottom = ref(false);
 
-  // Заголовок страницы
   const pageTitle = computed(() => {
     return `Редактирование записи: ${catalogName.value} (ID: ${recordId.value})`;
   });
@@ -113,17 +113,11 @@
 
   // Исходная запись из GET
   const originalRecord = computed(() => {
-    try {
-      const moduleStore = getModuleStore();
-      return (
-        moduleStore.catalogsByName?.[catalogName.value]?.GET?.results?.find(
-          (item: any) => item.id == recordId.value,
-        ) || {}
-      );
-    } catch (error) {
-      console.error('Ошибка при получении исходной записи:', error);
-      return {};
-    }
+    const moduleStore = getModuleStore();
+    return (
+      moduleStore.catalogsByName?.[catalogName.value]?.GET?.RESULTS?.get(String(recordId.value)) ||
+      {}
+    );
   });
 
   // PATCH данные из стора
@@ -274,63 +268,51 @@
     router.push(basePath);
   };
 
-  // Загрузка данных записи
-  const loadRecordData = async () => {
+  // Инициализация данных из стора (данные уже загружены в роутере)
+  const initializeFromStore = () => {
     loading.value = true;
     error.value = null;
 
     try {
-      console.log('Загрузка данных записи:', moduleName.value, catalogName.value, recordId.value);
-
-      // Проверяем, загружены ли данные модуля
       const moduleStore = getModuleStore();
 
-      // Получаем метаданные из OPTIONS
-      const options = moduleStore.catalogsByName?.[catalogName.value]?.OPTIONS;
+      // Проверяем, загружены ли данные каталога
+      if (!moduleStore.catalogsByName?.[catalogName.value]?.GET?.RESULTS) {
+        throw new Error(`Данные для каталога ${catalogName.value} не загружены. Проверьте роутер.`);
+      }
 
+      const options = moduleStore.catalogsByName?.[catalogName.value]?.OPTIONS;
       if (!options || !options.layout) {
         throw new Error(`Метаданные для представления ${catalogName.value} не найдены`);
       }
 
-      // Получаем данные записи из GET
-      const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.results?.find(
-        (item: any) => item.id == recordId.value,
+      // Сохраняем метаданные для передачи в DynamicLayout
+      storeOptions.value = options;
+
+      // Получаем данные записи из GET.RESULTS для быстрого доступа по id
+      const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.RESULTS?.get(
+        String(recordId.value),
       );
 
-      console.log('Найденная запись:', recordData);
-
-      // Сохраняем метаданные для передачи в DynamicLayout
-      if (options.layout.ELEMENTS) {
-        storeOptions.value = options;
-
-        console.log('Загруженные метаданные:', storeOptions.value);
-        console.log('Данные записи:', recordData);
-
-        // Инициализируем PATCH в сторе
-        const moduleStore = getModuleStore();
-
-        // Если создаем новую запись (нет recordData), инициализируем PATCH с ID
-        if (!recordData && recordId.value) {
-          moduleStore.catalogsByName[catalogName.value].PATCH = { id: recordId.value };
-        } else {
-          // Иначе начинаем с пустого PATCH
-          moduleStore.catalogsByName[catalogName.value].PATCH = {};
-        }
-      } else {
-        throw new Error(`Метаданные ELEMENTS для представления ${catalogName.value} не найдены`);
+      // Проверяем, найдена ли запись
+      if (!recordData) {
+        throw new Error(`Запись с ID ${recordId.value} не найдена в каталоге ${catalogName.value}`);
       }
+
+      console.log('Запись из стора:', 'найдена');
+      console.log('Загруженные метаданные:', storeOptions.value);
     } catch (e) {
-      console.error('Ошибка загрузки данных записи:', e);
-      error.value = e instanceof Error ? e.message : 'Ошибка загрузки данных записи';
+      console.error('Ошибка инициализации данных из стора:', e);
+      error.value = e instanceof Error ? e.message : 'Ошибка инициализации данных из стора';
     } finally {
       loading.value = false;
     }
   };
+
   // Функция JSON.parse(JSON.stringify()) не справляется с циклическими ссылками и выбрасывает ошибку
   // Наша функция cleanObject специально обрабатывает такие случаи, пропуская проблемные свойства
   // Она также более безопасна для сложных объектов, содержащих специальные типы данных
   // Теперь при сохранении данных формы не должно возникать ошибок, связанных с циклическими ссылками. Функция cleanObject создает "плоскую" копию объекта, которая безопасно сериализуется в JSON для отправки на сервер.
-  // Функция для очистки объекта от циклических ссылок и реактивных свойств
   const cleanObject = (obj: any) => {
     // Создаем новый объект для результата
     const result: Record<string, any> = {};
@@ -474,22 +456,27 @@
     }, 100);
   };
 
-  onMounted(async () => {
-    console.log('Page3EditRecord mounted, params:', {
-      moduleName: moduleName.value,
-      catalogName: catalogName.value,
-      recordId: recordId.value,
-      meta: route.meta,
-    });
-
+  // Функции для работы с прокруткой
+  const initScrollListener = () => {
     window.addEventListener('scroll', debouncedCheckIfAtBottom);
     checkIfAtBottom();
-    // Загружаем данные записи
-    await loadRecordData();
+  };
+
+  const removeScrollListener = () => {
+    window.removeEventListener('scroll', debouncedCheckIfAtBottom);
+  };
+
+  onMounted(() => {
+    console.log('Компонент смонтирован');
+    // Данные уже загружены в роутере, просто инициализируем компонент
+    initializeFromStore();
+    // Инициализируем слушатель прокрутки
+    initScrollListener();
   });
 
   onUnmounted(() => {
-    window.removeEventListener('scroll', debouncedCheckIfAtBottom);
+    // Удаляем слушатель прокрутки
+    removeScrollListener();
     // Очищаем таймаут, если он еще активен
     if (scrollTimeout) {
       clearTimeout(scrollTimeout);
@@ -550,43 +537,6 @@
     justify-content: center;
     padding: 2rem;
     gap: 1rem;
-  }
-
-  .edit-form-container {
-    position: relative;
-  }
-
-  .saving-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(255, 255, 255, 0.8);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
-  }
-
-  .form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--surface-200);
-  }
-
-  .w-full {
-    width: 100%;
   }
 </style>
 

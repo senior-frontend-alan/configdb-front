@@ -1,31 +1,48 @@
 import { FieldDefinition, FormattingOptions } from '../../../../services/fieldTypeService';
-// Константа для сообщения об ошибке
-const INVALID_DATA_TYPE = 'Неверный тип данных';
 
-// Проверка на целочисленное значение
-function isIntegerFieldValue(value: FieldDefinition): boolean {
-  if (value === null || value === undefined) return false;
-  if (typeof value === 'boolean') return true;
-  if (typeof value === 'number') return true;
-  if (typeof value === 'string') {
-    // Проверяем, что строка может быть преобразована в целое число
-    return /^-?\d+$/.test(value);
-  }
-  return false;
-}
-
+/**
+ * Форматирует значение целочисленного поля
+ * @param value Значение для форматирования
+ * @param options Опции форматирования
+ * @returns Отформатированная строка или сообщение об ошибке
+ */
 export function formatInteger(value: FieldDefinition, options: FormattingOptions = {}): string {
-    if (!isIntegerFieldValue(value)) {
-      console.error('Неправильный тип данных для formatIntegerValue:', value);
-      return INVALID_DATA_TYPE;
+  try {
+    // Проверяем типы от самых ожидаемых
+
+    // 1. Числа - самый ожидаемый тип
+    if (typeof value === 'number') {
+      return String(Number.isInteger(value) ? value : Math.round(value));
     }
-  
+
+    // 2. Строки, которые можно преобразовать в числа
+    if (typeof value === 'string') {
+      if (/^-?\d+$/.test(value)) {
+        const numValue = parseInt(value, 10);
+        return String(numValue);
+      }
+      // Если строка не преобразуется в число
+      console.error('Неправильный тип данных для formatIntegerValue:', value);
+      return `Неверный тип: "${value}"`;
+    }
+
+    // 3. Булевы значения
     if (typeof value === 'boolean') {
       return value ? '1' : '0';
     }
-  
-    // Преобразование в целое число и округление
-    const numValue = typeof value !== 'number' ? parseInt(String(value), 10) : value;
-    return String(Number.isInteger(numValue) ? numValue : Math.round(numValue));
+
+    // 4. null или undefined
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    // 5. Объекты и другие типы
+    const valueAsString = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    console.error('Неправильный тип данных для formatIntegerValue:', value);
+    return `Неверный тип: ${valueAsString}`;
+  } catch (error) {
+    // В случае любой ошибки
+    console.error('Ошибка при форматировании целочисленного значения:', error, value);
+    return `Неверный тип: невозможно преобразовать`;
   }
-  
+}

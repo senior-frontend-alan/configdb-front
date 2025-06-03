@@ -122,6 +122,7 @@
   import Dialog from 'primevue/dialog';
   import ProgressSpinner from 'primevue/progressspinner';
   import Message from 'primevue/message';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   interface RelatedItem {
     id: number | string;
@@ -129,9 +130,8 @@
     [key: string]: any;
   }
 
-  // Определяем интерфейс для объекта options
-  interface FieldOptions {
-    // Основные свойства из LayoutElement
+  interface ManyRelatedFieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.MANY_RELATED; // Класс поля на фронтенде
     class_name: string; // Класс поля на бэкенде
     element_id: string; // Уникальный идентификатор элемента
 
@@ -160,7 +160,6 @@
     view_name?: string; // Имя представления
     appl_name?: string; // Имя приложения
     lookup?: boolean; // Является ли поле поисковым
-    FRONTEND_CLASS: string; // Класс поля на фронтенде
 
     // Другие возможные свойства
     [key: string]: any;
@@ -168,7 +167,7 @@
 
   const props = defineProps<{
     modelValue?: RelatedItem[] | null;
-    options: FieldOptions;
+    options: ManyRelatedFieldOptions;
     isModified?: boolean;
   }>();
 
