@@ -14,7 +14,7 @@ CatalogDataTable отвечает только за отображение да�
           icon="pi pi-refresh"
           class="p-button-rounded p-button-text"
           :disabled="loading"
-          @click="refreshData"
+          @click=""
           :loading="loading"
           aria-label="Обновить данные"
           v-tooltip="'Обновить данные'"
@@ -36,27 +36,26 @@ CatalogDataTable отвечает только за отображение да�
       </div>
     </div>
 
-    <div v-if="loading" class="loading-container">
-      <ProgressSpinner />
-      <p>Загрузка данных...</p>
-    </div>
-
-    <div v-else-if="error" class="error-container">
+    <!-- Показываем сообщение об ошибке, если она есть -->
+    <div v-if="error" class="error-container">
       <Message severity="error">{{ error }}</Message>
     </div>
 
-    <div v-else class="catalog-details">
-      <!-- Используем новый компонент DataTable -->
+    <div class="catalog-details">
+      <!-- Используем компонент DataTable с ленивой загрузкой при скролле -->
       <CatalogDataTable
-        :tableRows="currentCatalog?.GET?.results || []"
+        :tableRows="lazyItems"
         :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
         :hasBatchPermission="!!currentCatalog?.OPTIONS?.permitted_actions?.batch"
         :selectedItems="tableSelection"
         :onColumnReorder="onColumnReorder"
+        :loading="loading"
         @update:selectedItems="tableSelection = $event"
         @row-click="handleRowClick"
         :isTableScrollable="isTableScrollable"
+        :totalRecords="totalRecords"
+        @load-more="loadMoreData"
       />
     </div>
     <!-- Статус-бар с информацией о количестве элементов -->
@@ -81,11 +80,10 @@ CatalogDataTable отвечает только за отображение да�
   import { ref, computed, onMounted, watch } from 'vue';
   import { useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
-  import { loadCatalogByNameFromGroups } from '../../router';
+  import { CatalogService } from '../../services/CatalogService';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import CatalogDataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
-  import ProgressSpinner from 'primevue/progressspinner';
   import Button from 'primevue/button';
 
   // Получаем параметры маршрута только для навигации
@@ -104,6 +102,10 @@ CatalogDataTable отвечает только за отображение да�
   const tableSelection = ref<any[]>([]);
   const loading = ref(true);
   const error = ref<string | null>(null);
+
+  // Данные для ленивой загрузки
+  const lazyItems = ref<any[]>([]);
+  const totalRecords = ref(0);
   const isTableScrollable = ref(false);
 
   // Из props
@@ -115,13 +117,15 @@ CatalogDataTable отвечает только за отображение да�
     return moduleStore.value?.catalogsByName[catalogName.value];
   });
 
-  // Проверка наличия данных и метаданных
-  const checkDataValidity = () => {
+  // Проверка наличия данных и метаданных и инициализация из стора
+  const initializeDataFromStore = () => {
+    // Проверяем наличие каталога в сторе
     if (!currentCatalog.value) {
       error.value = 'Нет данных каталога';
       return false;
     }
 
+    // Проверяем наличие метаданных для отображения
     if (
       !currentCatalog.value.OPTIONS ||
       !currentCatalog.value.OPTIONS.layout ||
@@ -131,38 +135,51 @@ CatalogDataTable отвечает только за отображение да�
       return false;
     }
 
+    // Инициализируем данные из стора, если они есть
+    if (currentCatalog.value?.GET?.results && Array.isArray(currentCatalog.value.GET.results)) {
+      // Если в сторе уже есть данные, используем их
+      lazyItems.value = [...currentCatalog.value.GET.results];
+      console.log('Данные инициализированы из стора:', lazyItems.value);
+
+      // Обновляем также общее количество записей
+      if (currentCatalog.value.GET.count !== undefined) {
+        totalRecords.value = currentCatalog.value.GET.count;
+      }
+    }
+
     return true;
   };
 
-  const refreshData = async () => {
-    loading.value = true;
-    error.value = null;
+  // НЕ удалять!
+  // const refreshData = async () => {
+  //   loading.value = true;
+  //   error.value = null;
 
-    try {
-      if (!catalogName.value) {
-        throw new Error('Не удалось определить catalogName для загрузки данных');
-      }
+  //   try {
+  //     if (!catalogName.value) {
+  //       throw new Error('Не удалось определить catalogName для загрузки данных');
+  //     }
 
-      const dataLoaded = await loadCatalogByNameFromGroups(
-        moduleName.value,
-        catalogName.value,
-        (err) => {
-          if (err) {
-            error.value = err.message || 'Ошибка загрузки данных';
-            console.error('Ошибка при загрузке данных:', err);
-          }
-        },
-        true, // Принудительное обновление данных, игнорируя кэш
-      );
+  //     const dataLoaded = await CacheService.ensureCatalogLoaded(
+  //       moduleName.value,
+  //       catalogName.value,
+  //       (err?: any) => {
+  //         if (err) {
+  //           error.value = err.message || 'Ошибка загрузки данных';
+  //           console.error('Ошибка при загрузке данных:', err);
+  //         }
+  //       },
+  //       true, // Принудительное обновление данных, игнорируя кэш
+  //     );
 
-      if (dataLoaded && currentCatalog.value) {
-        // Сбрасываем выбранные элементы
-        tableSelection.value = [];
-      }
-    } finally {
-      loading.value = false;
-    }
-  };
+  //     if (dataLoaded && currentCatalog.value) {
+  //       // Сбрасываем выбранные элементы
+  //       tableSelection.value = [];
+  //     }
+  //   } finally {
+  //     loading.value = false;
+  //   }
+  // };
 
   // Обработка изменения порядка колонок
   const onColumnReorder = (event: any) => {
@@ -211,6 +228,7 @@ CatalogDataTable отвечает только за отображение да�
   // Создаем эмиттер для оповещения ManyRelated Field (в модельном окне) о изменении выделенных строк
   const emit = defineEmits<{
     (e: 'update:selectedItems', value: any[]): void;
+    (e: 'virtual-scroll', event: any): void;
   }>();
 
   // Мы следим за изменениями в таблице и отправляем их родителю
@@ -233,19 +251,92 @@ CatalogDataTable отвечает только за отображение да�
     { immediate: true },
   );
 
-  onMounted(() => {
-    // Проверяем наличие модуля
-    if (!moduleStore.value) {
-      error.value = `Модуль с ID ${moduleName.value} не найден`;
+  // Функция загрузки данных каталога с пагинацией
+  const loadCatalogData = async (offset: number) => {
+    if (!moduleName.value || !catalogName.value) return;
+
+    loading.value = true;
+
+    // Добавляем задержку в 2 секунды для имитации загрузки
+    // await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    try {
+      console.log('Загружаем данные для:', moduleName.value, catalogName.value, 'offset:', offset);
+
+      const items = await CatalogService.GET(moduleName.value, catalogName.value, offset);
+      console.log('Получены данные:', items);
+
+      // Если это первая загрузка, заменяем все данные
+      if (offset === 0) {
+        lazyItems.value = items;
+      } else {
+        // Если это дозагрузка, добавляем новые данные к существующим
+        // Используем push вместо создания нового массива, чтобы избежать перерисовки всей таблицы
+        items.forEach((item) => lazyItems.value.push(item));
+      }
+
+      console.log('lazyItems после обновления:', lazyItems.value);
+
+      // Получаем общее количество записей
+      totalRecords.value = CatalogService.getTotalCount(moduleName.value, catalogName.value);
+      console.log('totalRecords после обновления:', totalRecords.value);
+    } catch (err) {
+      console.error('Ошибка при загрузке данных:', err);
+      error.value = err instanceof Error ? err.message : 'Ошибка загрузки данных';
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  // Обработчик события load-more для ленивой загрузки при скролле
+  const loadMoreData = async (event: { first: number; rows: number }) => {
+    console.log('loadMoreData event:', event);
+    const { first } = event;
+
+    // Если уже идет загрузка, не запускаем новую
+    if (loading.value) return;
+
+    // Если загружены все данные, не загружаем больше
+    if (totalRecords.value && lazyItems.value.length >= totalRecords.value) {
+      console.log('Все данные уже загружены');
+      return;
+    }
+
+    // Используем first как offset для загрузки данных
+    await loadCatalogData(first);
+  };
+
+  // Первоначальная загрузка данных
+  const onInitialLoad = async () => {
+    await loadCatalogData(0);
+  };
+
+  // Начальная загрузка данных при монтировании компонента
+  onMounted(async () => {
+    // Проверяем наличие необходимых данных и метаданных и инициализируем данные из стора
+    if (!initializeDataFromStore()) {
       loading.value = false;
       return;
     }
 
-    // Проверяем наличие данных и метаданных
-    checkDataValidity();
+    // Если данных нет или их недостаточно, загружаем с сервера
+    if (lazyItems.value.length === 0) {
+      await onInitialLoad();
+    } else {
+      // Если данные уже есть, просто снимаем флаг загрузки
+      loading.value = false;
+    }
 
-    // Данные должны быть загружены роутером
-    loading.value = false;
+    // Отладочные логи для проверки условий рендеринга
+    console.log('После загрузки данных:');
+    console.log('loading =', loading.value);
+    console.log('error =', error.value);
+    console.log('lazyItems.length =', lazyItems.value.length);
+    console.log('totalRecords =', totalRecords.value);
+    console.log(
+      'currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS =',
+      currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS,
+    );
   });
 </script>
 

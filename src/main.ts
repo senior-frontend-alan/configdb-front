@@ -11,7 +11,7 @@ import Material from '@primeuix/themes/material';
 import { definePreset } from '@primeuix/themes';
 import App from './App.vue';
 import router from './router';
-import { useConfig } from './config-loader';
+import { useConfig, parseBackendApiUrl } from './config-loader';
 import { createModuleStore } from './stores/module-factory';
 import { useAuthStore } from './stores/authStore';
 import { useSettingsStore } from './stores/settingsStore';
@@ -74,7 +74,11 @@ const initializeModuleStores = () => {
 
     // Создаем сторы для каждого модуля в конфигурации
     config.value.modules.forEach((moduleConfig) => {
-      console.log(`Создание стора для модуля: ${moduleConfig.id}`);
+      const parsedUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog);
+      const moduleNameFromUrl = parsedUrl.moduleName;
+      const storeId = moduleNameFromUrl;
+
+      console.log(`Создание стора для модуля: ${storeId}`);
       const storeDefinition = createModuleStore(moduleConfig);
 
       // Создание экземпляра стора для регистрации в Pinia и видимости в Vue Devtools

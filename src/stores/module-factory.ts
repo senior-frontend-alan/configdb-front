@@ -1,13 +1,24 @@
 // src/stores/module-factory.ts
 import { defineStore, getActivePinia } from 'pinia';
-import { ref, reactive } from 'vue';
+import { ref, reactive, shallowRef } from 'vue';
 import api from '../api';
-import { FieldTypeService } from '../services/fieldTypeService';
+import { CatalogService } from '../services/CatalogService';
 import { useConfig, parseBackendApiUrl } from '../config-loader';
+import { FieldTypeService } from '../services/fieldTypeService';
 import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
-import type { CatalogDetailsAPIResponseGET } from './types/catalogDetailsAPIResponseGET.type';
-import type { CatalogDetailsAPIResponseOPTIONS } from './types/catalogDetailsAPIResponseOPTIONS.type';
+import type {
+  CatalogDetailsAPIResponseOPTIONS,
+  CatalogDetailsAPIResponseGET,
+  CatalogDetailsAPIResponsePATCH,
+  Layout,
+} from './types/catalogDetailsAPIResponseOPTIONS.type';
+
+// Расширяем интерфейс Layout для включения дополнительных свойств
+interface ExtendedLayout extends Layout {
+  TABLE_COLUMNS?: Map<string, any>; // Соответствует возвращаемому значению createTableColumns
+  ELEMENTS?: Map<string, any>; // Соответствует возвращаемому значению createElementsMap
+}
 
 // Типы для JS-функций модулей
 export interface ModuleJSInterface {
@@ -90,9 +101,16 @@ const baseJSInterface: ModuleJSInterface = {
   },
 };
 
+// Маршрутизатор → Стор → Компоненты
 // Модуль-фабрика отвечает за создание и управление сторами
-// Сторы используют результат функции, но не должны отвечать за извлечение имени модуля из URL
 // Сторы должны получать moduleName от роутера через параметры или композабл useModuleName
+
+// 4. Стор (Pinia)
+// Отвечает за: Хранение данных и состояния приложения
+// Задачи:
+// Предоставление доступа к данным для компонентов
+// Хранение загруженных данных
+// Отслеживание состояния загрузки (loading, error)
 
 // Функция для получения стора модуля по moduleName
 export function useModuleStore(moduleName: string) {
@@ -136,502 +154,644 @@ export function useModuleStore(moduleName: string) {
     return null;
   }
 }
+// подход с иерархическими зависимостями
+// Явно определена последовательность загрузки: модуль → каталог → запись
+// Каждый следующий уровень загружается только если предыдущий успешно загружен
 
-export function createModuleStore(moduleConfig: ModuleConfig) {
-  // Извлекаем moduleName из URL getCatalog для использования в качестве идентификатора стора
-  // Это нужно для инициализации сторов при запуске приложения
-  const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).moduleName;
-  return defineStore(`${moduleNameFromUrl}`, () => {
-    // состояние
-    const moduleName = ref<string>(moduleConfig.label);
-    const url = ref<string>(moduleConfig.routes['getCatalog']);
-    const catalogGroups = ref<CatalogsAPIResponseGET>([]);
+// Гибкость в зависимости от глубины маршрута:
+// Метод принимает опциональные параметры и загружает только необходимые уровни
+// Для маршрута /module загрузит только модуль
+// Для маршрута /module/catalog загрузит модуль и каталог
+// Для маршрута /module/catalog/record загрузит всю иерархию
 
-    // JS функции которые специфичны для конкретного модуля
-    // Используем ref для видимости в Vue DevTools
-    const jsInterface = ref<ModuleJSInterface>({
-      ...baseJSInterface,
-
-      // Специфичные для модуля функции
-      // Можно добавить специфичные для модуля функции здесь
-      // или загрузить их динамически из конфигурации
-    });
-
-    const loading = ref<boolean>(false);
-    const error = ref<any | null>(null);
-
-    // Сохраненные данные по различным moduleName - используем reactive вместо ref
-    const catalogsByName = reactive<Record<string, any>>({});
-
-    const loadCatalogGroups = async (): Promise<CatalogsAPIResponseGET> => {
-      // Если данные уже загружены или запрос уже выполняется, возвращаем текущие данные
-      if (catalogGroups.value && catalogGroups.value.length > 0) {
-        const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).moduleName;
-        console.log(
-          `Данные для модуля ${moduleNameFromUrl} уже загружены, используем кэшированные данные`,
-        );
-        return catalogGroups.value;
-      }
-
-      loading.value = true;
-
-      try {
-        console.log(`Отправка запроса на ${url.value}`);
-        const response = await api.get<CatalogsAPIResponseGET>(url.value);
-        catalogGroups.value = response.data;
-        error.value = null;
-        return response.data;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при получении ${moduleConfig.label}:`, err);
-        return [];
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    // Интерфейс для описания макета с элементами и списком отображения
-    interface LayoutWithElements {
-      // Массив элементов макета
-      elements: any[];
-      // Опциональный список полей для отображения
-      display_list?: string[];
+/**
+ * Обеспечивает загрузку иерархии данных: модуль -> каталог -> запись
+ * @param moduleName Имя модуля
+ * @param catalogName Опционально: имя каталога
+ * @param recordId Опционально: ID записи
+ * @returns Promise<boolean> Успешность загрузки
+ */
+export async function ensureHierarchyLoaded(
+  moduleName: string,
+  catalogName?: string,
+  recordId?: string,
+): Promise<boolean> {
+  try {
+    // Шаг 1: Загрузка модуля (A)
+    const moduleStore = useModuleStore(moduleName);
+    if (!moduleStore) {
+      console.error(`Не удалось получить стор для модуля ${moduleName}`);
+      return false;
     }
 
-    // Функция для создания плоской Map-структуры со всеми полями из elements и их вложенных элементов
-    const createTableColumns = (obj: LayoutWithElements): Map<string, any> => {
-      // Создаем плоскую Map для всех элементов
-      const flatMap = new Map<string, any>();
-
-      if (!obj?.elements || !Array.isArray(obj.elements)) {
-        return flatMap;
-      }
-
-      // Получаем список отображаемых полей, если он есть
-      const displayList = Array.isArray(obj.display_list) ? obj.display_list : [];
-
-      // Рекурсивная функция для обработки элементов и их вложенных элементов
-      const processElements = (elements: any[]): void => {
-        elements.forEach((element: any) => {
-          if (!element.name) return;
-
-          // Для элементов с такими классами не обрабатываем вложенные элементы
-          const isSpecialType =
-            element.class_name === 'ViewSetInlineLayout' ||
-            element.class_name === 'ViewSetInlineDynamicLayout' ||
-            element.class_name === 'ViewSetInlineDynamicModelLayout' ||
-            element.field_class === 'ListSerializer';
-
-          if (isSpecialType) {
-            return;
-          }
-
-          const FRONTEND_CLASS = FieldTypeService.getFieldType(element);
-
-          // Если это поле типа Choice, создаем Map-структуру для быстрого доступа к значениям
-          let CHOICES: Map<string, string> | undefined;
-          if (FRONTEND_CLASS === 'Choice' && element.choices && Array.isArray(element.choices)) {
-            CHOICES = new Map<string, string>();
-            element.choices.forEach((choice: { value: string | number; display_name: string }) => {
-              CHOICES?.set(String(choice.value), choice.display_name);
-            });
-          }
-
-          // Определяем видимость элемента на основе display_list
-          // Если display_list пуст, то все элементы видимы, иначе только те, которые в списке
-          const VISIBLE = displayList.length === 0 || displayList.includes(element.name);
-
-          const elementCopy = {
-            ...element,
-            FRONTEND_CLASS,
-            VISIBLE,
-            ...(CHOICES ? { CHOICES } : {}),
-          };
-
-          flatMap.set(element.name, elementCopy);
-
-          // Рекурсивно обрабатываем вложенные элементы, если они есть
-          if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
-            processElements(element.elements);
-          }
-        });
-      };
-
-      processElements(obj.elements);
-
-      const orderedMap = new Map<string, any>();
-
-      // Если есть displayList, сначала добавляем элементы в порядке из displayList
-      if (displayList.length > 0) {
-        displayList.forEach((fieldName: string) => {
-          if (flatMap.has(fieldName)) {
-            orderedMap.set(fieldName, flatMap.get(fieldName));
-          }
-        });
-      }
-
-      // Добавляем все оставшиеся элементы, которых нет в orderedMap
-      flatMap.forEach((value, key) => {
-        if (!orderedMap.has(key)) {
-          orderedMap.set(key, value);
-        }
-      });
-
-      // Всегда возвращаем упорядоченную Map
-      return orderedMap;
-    };
-
-    // loadCatalog это исполнитель, который непосредственно загружает данные по URL
-    // нам точно нужно знать куда сохранять каталог
-    const loadCatalog = async (
-      moduleName: string,
-      catalogName: string,
-      url: string,
-    ): Promise<any> => {
-      loading.value = true;
-      error.value = null;
-
+    // Проверяем, загружены ли группы каталогов
+    if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
       try {
-        let getResponseData;
-        let optionsResponseData;
+        // Загружаем группы каталогов через специализированную функцию
+        const result = await loadCatalogGroups(moduleName);
 
-        // !УДАЛИТЬ моковый блок if (только для теста!)
-        if (url === 'http://localhost:5173/api/v1/draConfig/diamVendor/') {
-          console.log('Загрузка моковых данных для diamVendor');
-
-          // Импортируем моковые данные
-          const { OPTIONS4 } = await import('../mocks/OPTIONS4.js');
-          const { GET4 } = await import('../mocks/GET4.js');
-
-          getResponseData = GET4;
-          optionsResponseData = OPTIONS4;
+        if (result && result.length > 0) {
+          console.log(`Модуль ${moduleName} успешно загружен`);
         } else {
-          // Добавляем параметр mode=short для получения сокращенных данных
-          const detailsUrl = url.includes('?') ? `${url}&mode=short` : `${url}?mode=short`;
-          const getResponse = await api.get<CatalogDetailsAPIResponseGET>(detailsUrl);
-          const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
-
-          getResponseData = getResponse.data;
-          optionsResponseData = optionsResponse.data;
-        }
-        // Добавляем наши вычисляемые поля в OPTIONS для удобства
-        if (optionsResponseData?.layout) {
-          // Создаем таблицу колонок с учетом порядка из display_list
-          optionsResponseData.layout.TABLE_COLUMNS = createTableColumns(optionsResponseData.layout);
-
-          // Создаем иерархическую структуру элементов
-          optionsResponseData.layout.ELEMENTS = createElementsMap(
-            optionsResponseData.layout.elements,
-          );
-        }
-
-        // Преобразуем массив результатов в Map с ключами из поля id для быстрого доступа
-        const resultsMap = new Map();
-        if (getResponseData?.results && Array.isArray(getResponseData.results)) {
-          getResponseData.results.forEach((item: any) => {
-            if (item.id !== undefined) {
-              resultsMap.set(String(item.id), item);
-            }
-          });
-        }
-
-        // Создаем новый объект с данными (общая логика для моковых и реальных данных)
-        const detailsData = {
-          GET: {
-            ...getResponseData,
-            RESULTS: resultsMap,
-          },
-          OPTIONS: optionsResponseData,
-          PATCH: {}, // Поле для отслеживания изменений
-          moduleName: moduleName,
-          url: url,
-        };
-
-        // Напрямую обновляем реактивный объект
-        catalogsByName[catalogName] = detailsData;
-
-        console.log(
-          `Данные для каталога ${catalogName} успешно загружены в стор:`,
-          catalogsByName[catalogName],
-        );
-
-        error.value = null;
-        return detailsData;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при загрузке данных для ${moduleName}:`, err);
-        return null;
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    // Функция для создания иерархической Map-структуры элементов
-    const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
-      const ELEMENTS = new Map<string, any>();
-
-      if (!elements || !Array.isArray(elements)) {
-        return ELEMENTS;
-      }
-
-      // Обрабатываем элементы текущего уровня
-      elements.forEach((element) => {
-        if (!element.name) return;
-
-        element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
-
-        // Добавляем элемент в Map текущего уровня
-        ELEMENTS.set(element.name, element);
-
-        // Если это ViewSetInlineLayout, создаем TABLE_COLUMNS
-        if (element.class_name === 'ViewSetInlineLayout' && element.elements?.length > 0) {
-          // Создаем плоскую структуру для всех вложенных элементов
-          element.TABLE_COLUMNS = createTableColumns(element);
-        }
-
-        // Если у элемента есть вложенные элементы, создаем для них свою Map-структуру
-        if (element.elements?.length > 0) {
-          // Создаем Map для вложенных элементов
-          element.ELEMENTS = createElementsMap(element.elements);
-        }
-      });
-
-      return ELEMENTS;
-    };
-
-    // Функция для поиска URL каталога по имени модуля в уже загруженном каталоге (на шаге 1)
-    // Предполагается, что каталог уже загружен до вызова этой функции
-    const findUrlInCatalogGroups = (catalogName: string): string | null => {
-      // Проверяем, что каталог загружен
-      if (!catalogGroups.value || catalogGroups.value.length === 0) {
-        const moduleNameFromUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog).catalogName;
-        console.warn(
-          `Каталог для модуля ${moduleNameFromUrl} не загружен. Сначала нужно вызвать loadCatalogGroups()`,
-        );
-        return null;
-      }
-
-      // Ищем элемент каталога с нужным catalogName
-      if (catalogGroups.value && catalogGroups.value.length > 0) {
-        const catalogItem = catalogGroups.value
-          .flatMap((group: { items?: any[] }) => group.items || [])
-          .find((item: any) => {
-            if (item.viewname) {
-              return item.viewname === catalogName;
-            }
-            return false;
-          });
-
-        if (catalogItem?.href) {
-          console.log(`Найден URL в каталоге для ${catalogName}: ${catalogItem.href}`);
-          return catalogItem.href;
-        }
-      }
-
-      console.log(`URL для ${catalogName} не найден в каталоге`);
-      return null;
-    };
-
-    // Проверка наличия данных в кэше для конкретного каталога
-    const hasCachedData = (catalogName: string): boolean => {
-      console.log(`Проверка наличия данных в кэше для каталога ${catalogName}`);
-      console.log(`Доступные каталоги в сторе:`, Object.keys(catalogsByName));
-      return !!catalogsByName[catalogName];
-    };
-
-    // Метод для загрузки отдельной записи по ID
-    const loadRecordById = async (catalogName: string, recordId: string | number): Promise<any> => {
-      loading.value = true;
-      error.value = null;
-
-      try {
-        // Проверяем, что каталог существует в сторе
-        if (!catalogsByName[catalogName]) {
-          throw new Error(`Каталог ${catalogName} не найден в сторе`);
-        }
-
-        // Получаем URL для загрузки записи
-        const baseUrl = catalogsByName[catalogName].url;
-        if (!baseUrl) {
-          throw new Error(`URL для каталога ${catalogName} не найден`);
-        }
-
-        // Формируем URL для загрузки отдельной записи
-        const recordUrl = `${baseUrl}${recordId}/?mode=short`;
-        console.log(`Загрузка записи по URL: ${recordUrl}`);
-
-        // Загружаем данные записи
-        const response = await api.get(recordUrl);
-        const recordData = response.data;
-
-        // Добавляем запись в кэш
-        if (!catalogsByName[catalogName].GET.RESULTS) {
-          catalogsByName[catalogName].GET.RESULTS = new Map();
-        }
-
-        // Сохраняем запись в кэше
-        catalogsByName[catalogName].GET.RESULTS.set(String(recordId), recordData);
-        console.log(`Запись ${recordId} успешно загружена и добавлена в кэш`);
-
-        return recordData;
-      } catch (err) {
-        error.value = err;
-        console.error(`Ошибка при загрузке записи ${recordId} из каталога ${catalogName}:`, err);
-        return null;
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    // Метод для обновления записи в сторе после PATCH-запроса
-    const updateRecordInStore = (
-      catalogName: string,
-      recordId: string,
-      updatedData: any,
-    ): boolean => {
-      try {
-        // Проверяем, что данные для этого представления загружены
-        if (!catalogsByName[catalogName] || !catalogsByName[catalogName].GET) {
-          console.warn(
-            `Невозможно обновить запись в сторе: данные для ${catalogName} не загружены`,
-          );
+          console.error(`Не удалось загрузить данные для модуля ${moduleName}`);
           return false;
         }
-
-        // Получаем текущие данные
-        const currentData = catalogsByName[catalogName].GET;
-
-        // Проверяем, что есть Map RESULTS
-        if (!currentData.RESULTS || !(currentData.RESULTS instanceof Map)) {
-          console.warn(
-            `Невозможно обновить запись в сторе: нет Map RESULTS в данных ${catalogName}`,
-          );
-          return false;
-        }
-
-        // Проверяем наличие записи в Map
-        if (!currentData.RESULTS.has(String(recordId))) {
-          console.warn(
-            `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${catalogName}`,
-          );
-          return false;
-        }
-
-        // Обновляем запись в Map
-        const existingRecord = currentData.RESULTS.get(String(recordId));
-        const updatedRecord = { ...existingRecord, ...updatedData };
-        currentData.RESULTS.set(String(recordId), updatedRecord);
-
-        console.log(`Запись с ID ${recordId} успешно обновлена в сторе`);
-        return true;
       } catch (error) {
-        console.error(`Ошибка при обновлении записи в сторе:`, error);
+        console.error(`Ошибка при загрузке модуля ${moduleName}:`, error);
         return false;
       }
-    };
+    } else {
+      console.log(`Модуль ${moduleName} уже загружен, используем кэш`);
+    }
 
-    // Метод для получения JS-функций модуля
-    // const getJSInterface = async (): Promise<ModuleJSInterface> => {
-    //   loading.value = true;
+    // Если нужно загрузить только модуль, возвращаем успех
+    if (!catalogName) return true;
 
-    // try {
-    // Все базовые функции теперь находятся в baseJSInterface
-    // console.log(`JS-функции для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
+    // Шаг 2: Загрузка каталога (B)
+    // Проверяем, загружен ли каталог
+    if (!moduleStore.catalogsByName?.[catalogName]) {
+      try {
+        // Загружаем каталог через отдельные функции
+        const pageSize = 20; // Стандартный размер страницы
 
-    // return jsInterface;
+        // Загружаем данные через CatalogService и OPTIONS запрос параллельно
+        const [firstPageData] = await Promise.all([
+          CatalogService.GET(moduleName, catalogName, 1, pageSize),
+          loadCatalogOPTIONS(moduleName, catalogName),
+        ]);
 
-    // TODO: Не удалять! в будущем будет использоваться для загрузки JS-функций
-    // Формируем URL для запроса JS-функций
-    // const routes = moduleConfig.routes as unknown as Record<string, string>;
-    // const jsUrl = routes['getJSInterface'];
+        if (firstPageData && firstPageData.length > 0) {
+          console.log(`Каталог ${catalogName} успешно загружен`);
+        } else {
+          console.warn(`Предупреждение: Не удалось загрузить данные для каталога ${catalogName}`);
+        }
+      } catch (error) {
+        console.error(`Ошибка при загрузке каталога ${catalogName}:`, error);
+        return false;
+      }
+    } else {
+      console.log(`Каталог ${catalogName} уже загружен, используем кэш`);
+    }
 
-    // console.log(`Загрузка JS-функций из: ${jsUrl}`);
+    // Если нужно загрузить только каталог, возвращаем успех
+    if (!recordId) return true;
 
-    // // Загружаем JS-код как текст через API-клиент
-    // const response = await api.get(jsUrl, {
-    //   responseType: 'text',
-    //   headers: { 'Content-Type': 'text/plain' },
-    // });
+    // Шаг 3: Загрузка записи (C)
+    try {
+      await moduleStore.loadRecord(moduleName, catalogName, recordId);
+      console.log(`Запись ${recordId} успешно загружена`);
+      return true;
+    } catch (error) {
+      console.error(`Ошибка при загрузке записи ${recordId}:`, error);
+      return false;
+    }
+  } catch (error) {
+    console.error(`Ошибка при загрузке иерархии данных:`, error);
+    return false;
+  }
+}
 
-    // const jsCode = response.data;
+/**
+ * Загружает группы каталогов для модуля и сохраняет их в сторе
+ * @returns Promise<any[]> Загруженные группы каталогов
+ */
+async function loadCatalogGroups(moduleName: string): Promise<any[]> {
+  try {
+    // Получаем стор модуля
+    const moduleStore = useModuleStore(moduleName);
+    if (!moduleStore) {
+      console.error(`Не удалось получить стор для модуля ${moduleName}`);
+      return [];
+    }
 
-    // Выполняем код и получаем функции напрямую
-    // try {
-    //   // Создаем функцию, которая выполнит код модуля и вернет объект с функциями
-    //   const moduleFunction = new Function(`
-    //     // Создаем переменную module для экспорта функций
-    //     const module = { exports: {} };
+    // Формируем URL для запроса к API
+    const { config } = useConfig();
+    const moduleConfig = config.value.modules.find((m) => {
+      const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
+      return extractedModuleName === moduleName;
+    });
 
-    //     // Выполняем код модуля в изолированном контексте
-    //     ${jsCode}
+    if (!moduleConfig) {
+      console.error(`Модуль ${moduleName} не найден в конфигурации`);
+      return [];
+    }
 
-    //     // Возвращаем экспортированные функции
-    //     return module.exports;
-    //   `);
+    const url = moduleConfig.routes.getCatalog;
+    console.log(`Отправка запроса на ${url}`);
 
-    //   // Выполняем функцию и получаем объект с функциями
-    //   const moduleFunctions = moduleFunction();
+    const response = await api.get(url);
 
-    //   // Копируем функции в объект
-    //   Object.assign(JSIFunctions, moduleFunctions);
+    // Создаем плоский индекс для быстрого доступа к элементам каталога по viewname
+    const newcatalogGroupsIndex = new Map();
 
-    //   // Выводим информацию о загруженных функциях
-    //   const loadedFunctions = Object.keys(JSIFunctions).filter(
-    //     (key) => !Object.keys(baseJSFunctions).includes(key),
-    //   );
-    //   console.log(
-    //     `JS-функции для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)} успешно загружены: ${loadedFunctions.join(
-    //       ', ',
-    //     )}`,
-    //   );
-    // } catch (evalError) {
-    //   console.error(`Ошибка выполнения кода JS-функций:`, evalError);
-    // }
+    if (response.data && Array.isArray(response.data)) {
+      response.data.forEach((group: any) => {
+        if (group.items && Array.isArray(group.items)) {
+          group.items.forEach((item: any) => {
+            if (item.viewname) {
+              newcatalogGroupsIndex.set(item.viewname, item);
+            }
+          });
+        }
+      });
+    }
 
-    // return JSIFunctions;
-    // } catch (err) {
-    //   console.error(`Ошибка при получении JS-функций для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, err);
-    //   return JSIFunctions;
-    // } finally {
-    //   loading.value = false;
-    // }
-    // };
+    // Используем преимущества shallowRef для обновления данных
+    // При прямом присваивании нового массива, shallowRef триггерит реактивность
+    // и обновление в DevTools
+    moduleStore.catalogGroups = response.data;
+    moduleStore.catalogGroupsIndex = newcatalogGroupsIndex;
 
-    // // загрузка JS-функций начнётся автоматически при создании стора
-    // const initialize = async (): Promise<void> => {
-    //   try {
-    //     // Проверяем, есть ли маршрут для загрузки JS-функций
-    //     const routes = moduleConfig.routes as unknown as Record<string, string>;
-    //     if (routes['getJSInterface']) {
-    //       await getJSInterface();
-    //     }
-    //   } catch (error: any) {
-    //     console.error(`Ошибка при инициализации стора модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, error);
-    //   }
-    // };
+    console.log('Группы каталогов обновлены:', moduleStore.catalogGroups);
+    console.log(
+      'Индекс каталога обновлен, количество элементов:',
+      moduleStore.catalogGroupsIndex.size,
+    );
 
-    // // Запускаем инициализацию стора (нужна только для загрузки JS функций)
-    // initialize();
+    return response.data;
+  } catch (err) {
+    console.error(`Ошибка при получении групп каталогов для модуля ${moduleName}:`, err);
+    return [];
+  }
+}
 
-    return {
-      // состояние
-      catalogGroups,
-      jsInterface,
-      loading,
-      error,
+// Загрузка метаданных каталога через OPTIONS-запрос и формирование структуры OPTIONS в сторе
+async function loadCatalogOPTIONS(moduleName: string, catalogName: string): Promise<string> {
+  const moduleStore = useModuleStore(moduleName);
+  if (!moduleStore) {
+    throw new Error(`Стор для модуля ${moduleName} не найден`);
+  }
+
+  // ШАГ 1: Поиск URL для загрузки каталога
+  let url = '';
+
+  // Если каталог уже есть в сторе и у него есть URL, используем его
+  if (moduleStore.catalogsByName?.[catalogName]?.url) {
+    url = moduleStore.catalogsByName[catalogName].url;
+    console.log(`Используем сохраненный URL для каталога ${catalogName}: ${url}`);
+  } else {
+    // Иначе ищем URL в индексе элементов каталога
+    const catalogItem = moduleStore.catalogGroupsIndex.get(catalogName);
+
+    if (!catalogItem || !catalogItem.href) {
+      throw new Error(`URL для каталога ${catalogName} не найден в индексе`);
+    }
+
+    url = catalogItem.href;
+    console.log(`Найден URL для каталога ${catalogName} в индексе: ${url}`);
+  }
+
+  // ШАГ 2: Загрузка метаданных через OPTIONS-запрос
+  const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
+  const optionsResponseData = optionsResponse.data;
+
+  // Добавляем наши вычисляемые поля в OPTIONS для удобства
+  if (optionsResponseData?.layout) {
+    // Приводим layout к расширенному типу ExtendedLayout
+    const layout = optionsResponseData.layout as ExtendedLayout;
+
+    // Создаем таблицу колонок с учетом порядка из display_list
+    layout.TABLE_COLUMNS = createTableColumns(layout);
+
+    // Создаем иерархическую структуру элементов
+    layout.ELEMENTS = createElementsMap(layout.elements);
+  }
+
+  // Инициализируем структуру каталога в сторе
+  initCatalogStructure(moduleName, catalogName, url);
+
+  moduleStore.catalogsByName[catalogName].OPTIONS = optionsResponseData;
+
+  console.log(
+    `Метаданные каталога ${catalogName} успешно загружены через OPTIONS и сохранены в сторе`,
+  );
+  return url;
+}
+
+interface Catalog {
+  GET: {
+    RESULTS?: Map<string, any>;
+    loadedRanges?: Array<{ start: number; end: number }>;
+    [key: string]: any;
+  };
+  OPTIONS: any;
+  PATCH: any;
+  moduleName: string;
+  url: string;
+  [key: string]: any;
+}
+
+/**
+ * Инициализирует структуру каталога в сторе
+ * @param moduleName Имя модуля
+ * @param catalogName Имя каталога
+ * @param url URL каталога (опционально)
+ */
+export function initCatalogStructure(
+  moduleName: string,
+  catalogName: string,
+  url: string = '',
+): void {
+  const moduleStore = useModuleStore(moduleName);
+
+  // Инициализируем catalogsByName, если его еще нет
+  if (!moduleStore.catalogsByName) {
+    moduleStore.catalogsByName = {};
+  }
+
+  // Создаем структуру для каталога, если её нет
+  if (!moduleStore.catalogsByName[catalogName]) {
+    moduleStore.catalogsByName[catalogName] = {
+      GET: {
+        RESULTS: new Map<string, any>(),
+        loadedRanges: [],
+      },
+      OPTIONS: {},
+      PATCH: {},
       moduleName,
       url,
-      catalogsByName,
+    } as Catalog;
+  } else {
+    // Если структура существует, но нет GET
+    if (!moduleStore.catalogsByName[catalogName].GET) {
+      moduleStore.catalogsByName[catalogName].GET = {
+        RESULTS: new Map<string, any>(),
+        loadedRanges: [],
+      };
+    } else {
+      // Если есть GET, но нет необходимых полей
+      if (!moduleStore.catalogsByName[catalogName].GET.RESULTS) {
+        moduleStore.catalogsByName[catalogName].GET.RESULTS = new Map<string, any>();
+      }
 
-      // действия
-      loadCatalogGroups,
-      loadCatalog,
-      loadRecordById,
-      // getJSInterface,
-      findUrlInCatalogGroups,
-      updateRecordInStore,
-      hasCachedData,
-      // initialize,
-    };
+      if (!moduleStore.catalogsByName[catalogName].GET.loadedRanges) {
+        moduleStore.catalogsByName[catalogName].GET.loadedRanges = [];
+      }
+    }
+
+    // Обновляем URL, если он не был установлен ранее или передан новый
+    if (!moduleStore.catalogsByName[catalogName].url && url) {
+      moduleStore.catalogsByName[catalogName].url = url;
+    }
+  }
+}
+
+export function createModuleStore(moduleConfig: ModuleConfig) {
+  // moduleName из URL конфига для использования в качестве идентификатора стора
+  const parsedUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog);
+  const moduleNameFromUrl = parsedUrl.moduleName;
+  console.log(
+    'Создание стора для модуля:',
+    moduleNameFromUrl,
+    'из URL:',
+    moduleConfig.routes.getCatalog,
+  );
+
+  // Если не удалось извлечь имя модуля, выбрасываем ошибку
+  if (!moduleNameFromUrl) {
+    throw new Error(`Не удалось извлечь имя модуля из URL: ${moduleConfig.routes.getCatalog}`);
+  }
+
+  const storeId = moduleNameFromUrl;
+
+  // Используем объектный синтаксис для определения стора
+  return defineStore(`${storeId}`, {
+    // Определяем начальное состояние стора
+    state: () => ({
+      url: moduleConfig.routes['getCatalog'],
+      catalogGroups: [] as CatalogsAPIResponseGET,
+      catalogGroupsIndex: new Map<string, any>(),
+      jsInterface: {
+        ...baseJSInterface,
+        // Специфичные для модуля функции можно добавить здесь
+      } as ModuleJSInterface,
+      loading: false,
+      error: null as any | null,
+      catalogsByName: {} as Record<string, Catalog>,
+    }),
+
+    // Добавляем раздел геттеров
+    getters: {
+      // Геттеры могут быть добавлены позже
+    },
+
+    // Добавляем раздел действий
+    actions: {
+      // Действия будут добавлены позже
+    },
   });
 }
+
+// Интерфейс для описания макета с элементами и списком отображения
+interface LayoutWithElements {
+  // Массив элементов макета
+  elements: any[];
+  // Опциональный список полей для отображения
+  display_list?: string[];
+}
+
+// Функция для создания плоской Map-структуры со всеми полями из elements и их вложенных элементов
+const createTableColumns = (obj: LayoutWithElements): Map<string, any> => {
+  // Создаем плоскую Map для всех элементов
+  const flatMap = new Map<string, any>();
+
+  if (!obj?.elements || !Array.isArray(obj.elements)) {
+    return flatMap;
+  }
+
+  // Получаем список отображаемых полей, если он есть
+  const displayList = Array.isArray(obj.display_list) ? obj.display_list : [];
+
+  // Рекурсивная функция для обработки элементов и их вложенных элементов
+  const processElements = (elements: any[]): void => {
+    elements.forEach((element: any) => {
+      if (!element.name) return;
+
+      // Для элементов с такими классами не обрабатываем вложенные элементы
+      const isSpecialType =
+        element.class_name === 'ViewSetInlineLayout' ||
+        element.class_name === 'ViewSetInlineDynamicLayout' ||
+        element.class_name === 'ViewSetInlineDynamicModelLayout' ||
+        element.field_class === 'ListSerializer';
+
+      if (isSpecialType) {
+        return;
+      }
+
+      const FRONTEND_CLASS = FieldTypeService.getFieldType(element);
+
+      // Если это поле типа Choice, создаем Map-структуру для быстрого доступа к значениям
+      let CHOICES: Map<string, string> | undefined;
+      if (FRONTEND_CLASS === 'Choice' && element.choices && Array.isArray(element.choices)) {
+        CHOICES = new Map<string, string>();
+        element.choices.forEach((choice: { value: string | number; display_name: string }) => {
+          CHOICES?.set(String(choice.value), choice.display_name);
+        });
+      }
+
+      // Определяем видимость элемента на основе display_list
+      // Если display_list пуст, то все элементы видимы, иначе только те, которые в списке
+      const VISIBLE = displayList.length === 0 || displayList.includes(element.name);
+
+      const elementCopy = {
+        ...element,
+        FRONTEND_CLASS,
+        VISIBLE,
+        ...(CHOICES ? { CHOICES } : {}),
+      };
+
+      flatMap.set(element.name, elementCopy);
+
+      // Рекурсивно обрабатываем вложенные элементы, если они есть
+      if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
+        processElements(element.elements);
+      }
+    });
+  };
+
+  processElements(obj.elements);
+
+  const orderedMap = new Map<string, any>();
+
+  // Если есть displayList, сначала добавляем элементы в порядке из displayList
+  if (displayList.length > 0) {
+    displayList.forEach((fieldName: string) => {
+      if (flatMap.has(fieldName)) {
+        orderedMap.set(fieldName, flatMap.get(fieldName));
+      }
+    });
+  }
+
+  // Добавляем все оставшиеся элементы, которых нет в orderedMap
+  flatMap.forEach((value, key) => {
+    if (!orderedMap.has(key)) {
+      orderedMap.set(key, value);
+    }
+  });
+
+  return orderedMap;
+};
+
+// Метод для получения JS-функций модуля
+// const getJSInterface = async (): Promise<ModuleJSInterface> => {
+//   loading.value = true;
+
+// try {
+// Все базовые функции теперь находятся в baseJSInterface
+// console.log(`JS-функции для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)} успешно загружены:`, Object.keys(baseJSInterface).join(', '));
+
+// return jsInterface;
+
+// TODO: Не удалять! в будущем будет использоваться для загрузки JS-функций
+// Формируем URL для запроса JS-функций
+// const routes = moduleConfig.routes as unknown as Record<string, string>;
+// const jsUrl = routes['getJSInterface'];
+
+// console.log(`Загрузка JS-функций из: ${jsUrl}`);
+
+// // Загружаем JS-код как текст через API-клиент
+// const response = await api.get(jsUrl, {
+//   responseType: 'text',
+//   headers: { 'Content-Type': 'text/plain' },
+// });
+
+// const jsCode = response.data;
+
+// Выполняем код и получаем функции напрямую
+// try {
+//   // Создаем функцию, которая выполнит код модуля и вернет объект с функциями
+//   const moduleFunction = new Function(`
+//     // Создаем переменную module для экспорта функций
+//     const module = { exports: {} };
+
+//     // Выполняем код модуля в изолированном контексте
+//     ${jsCode}
+
+//     // Возвращаем экспортированные функции
+//     return module.exports;
+//   `);
+
+//   // Выполняем функцию и получаем объект с функциями
+//   const moduleFunctions = moduleFunction();
+
+//   // Копируем функции в объект
+//   Object.assign(JSIFunctions, moduleFunctions);
+
+//   // Выводим информацию о загруженных функциях
+//   const loadedFunctions = Object.keys(JSIFunctions).filter(
+//     (key) => !Object.keys(baseJSFunctions).includes(key),
+//   );
+//   console.log(
+//     `JS-функции для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)} успешно загружены: ${loadedFunctions.join(
+//       ', ',
+//     )}`,
+//   );
+// } catch (evalError) {
+//   console.error(`Ошибка выполнения кода JS-функций:`, evalError);
+// }
+
+// return JSIFunctions;
+// } catch (err) {
+//   console.error(`Ошибка при получении JS-функций для модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, err);
+//   return JSIFunctions;
+// } finally {
+//   loading.value = false;
+// }
+// };
+
+// // загрузка JS-функций начнётся автоматически при создании стора
+// const initialize = async (): Promise<void> => {
+//   try {
+//     // Проверяем, есть ли маршрут для загрузки JS-функций
+//     const routes = moduleConfig.routes as unknown as Record<string, string>;
+//     if (routes['getJSInterface']) {
+//       await getJSInterface();
+//     }
+//   } catch (error: any) {
+//     console.error(`Ошибка при инициализации стора модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, error);
+//   }
+// };
+
+// Загрузка одной записи из каталога по ID
+const loadRecord = async (
+  moduleName: string,
+  catalogName: string,
+  recordId: string | number,
+): Promise<any> => {
+  const moduleStore = useModuleStore(moduleName);
+  let url = '';
+
+  // Если каталог уже есть в сторе и у него есть URL, используем его
+  if (moduleStore.catalogsByName?.[catalogName]?.url) {
+    url = moduleStore.catalogsByName[catalogName].url;
+    console.log(`Используем сохраненный URL для каталога ${catalogName}: ${url}`);
+  } else {
+    // Иначе ищем URL в индексе элементов каталога
+    const catalogItem = moduleStore.catalogGroupsIndex.get(catalogName);
+
+    if (!catalogItem || !catalogItem.href) {
+      throw new Error(`URL для каталога ${catalogName} не найден в индексе`);
+    }
+
+    url = catalogItem.href;
+    console.log(`Найден URL для каталога ${catalogName} в индексе: ${url}`);
+  }
+
+  // ШАГ 2: Проверяем, есть ли запись в сторе
+  if (
+    catalogsByName[catalogName] &&
+    catalogsByName[catalogName].GET?.RESULTS &&
+    catalogsByName[catalogName].GET.RESULTS.has(String(recordId))
+  ) {
+    // Если запись уже есть в сторе, возвращаем её
+    const record = catalogsByName[catalogName].GET.RESULTS.get(String(recordId));
+    console.log(`Запись ${recordId} найдена в кэше каталога ${catalogName}`);
+    return record;
+  }
+
+  // ШАГ 3: Загрузка записи через GET-запрос
+  const recordUrl = `${url}${recordId}/?mode=short`;
+  console.log(`Загрузка записи ${recordId} из каталога ${catalogName}: ${recordUrl}`);
+
+  const response = await api.get<any>(recordUrl);
+  const recordData = response.data;
+
+  // ШАГ 4: Сохраняем запись в сторе
+  // Если каталог еще не существует в сторе, создаем его
+  if (!catalogsByName[catalogName]) {
+    catalogsByName[catalogName] = {
+      GET: { RESULTS: new Map() },
+      OPTIONS: {},
+      PATCH: {},
+      moduleName: moduleName,
+      url: url,
+    };
+  }
+
+  // Если еще нет структуры RESULTS, создаем её
+  if (!catalogsByName[catalogName].GET.RESULTS) {
+    catalogsByName[catalogName].GET.RESULTS = new Map();
+  }
+
+  // Добавляем запись в индекс
+  catalogsByName[catalogName].GET.RESULTS.set(String(recordId), recordData);
+
+  console.log(`Запись ${recordId} успешно загружена и сохранена в сторе`);
+  return recordData;
+};
+
+// Метод для обновления записи в сторе после PATCH-запроса
+const updateRecordInStore = (catalogName: string, recordId: string, updatedData: any): boolean => {
+  try {
+    // Проверяем, что данные для этого представления загружены
+    if (!catalogsByName[catalogName] || !catalogsByName[catalogName].GET) {
+      console.warn(`Невозможно обновить запись в сторе: данные для ${catalogName} не загружены`);
+      return false;
+    }
+
+    // Получаем текущие данные
+    const currentData = catalogsByName[catalogName].GET;
+
+    // Проверяем, что есть Map RESULTS
+    if (!currentData.RESULTS || !(currentData.RESULTS instanceof Map)) {
+      console.warn(`Невозможно обновить запись в сторе: нет Map RESULTS в данных ${catalogName}`);
+      return false;
+    }
+
+    // Проверяем наличие записи в Map
+    if (!currentData.RESULTS.has(String(recordId))) {
+      console.warn(
+        `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${catalogName}`,
+      );
+      return false;
+    }
+
+    // Обновляем запись в Map
+    const existingRecord = currentData.RESULTS.get(String(recordId));
+    const updatedRecord = { ...existingRecord, ...updatedData };
+    currentData.RESULTS.set(String(recordId), updatedRecord);
+
+    console.log(`Запись с ID ${recordId} успешно обновлена в сторе`);
+    return true;
+  } catch (error) {
+    console.error(`Ошибка при обновлении записи в сторе:`, error);
+    return false;
+  }
+};
+
+// Функция для создания иерархической Map-структуры элементов
+// Он добавляет дополнительные вычисляемые поля к элементам:
+// FRONTEND_CLASS - определяет тип поля для фронтенда
+// TABLE_COLUMNS - для элементов типа ViewSetInlineLayout
+// ELEMENTS - вложенная Map-структура для дочерних элементов
+const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
+  const ELEMENTS = new Map<string, any>();
+
+  if (!elements || !Array.isArray(elements)) {
+    return ELEMENTS;
+  }
+
+  // Обрабатываем элементы текущего уровня
+  elements.forEach((element) => {
+    if (!element.name) return;
+
+    element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
+
+    // Добавляем элемент в Map текущего уровня
+    ELEMENTS.set(element.name, element);
+
+    // Если это ViewSetInlineLayout, создаем TABLE_COLUMNS
+    if (element.class_name === 'ViewSetInlineLayout' && element.elements?.length > 0) {
+      // Создаем плоскую структуру для всех вложенных элементов
+      element.TABLE_COLUMNS = createTableColumns(element);
+    }
+
+    // Если у элемента есть вложенные элементы, создаем для них свою Map-структуру
+    if (element.elements?.length > 0) {
+      // Создаем Map для вложенных элементов
+      element.ELEMENTS = createElementsMap(element.elements);
+    }
+  });
+
+  return ELEMENTS;
+};

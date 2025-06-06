@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { parseBackendApiUrl } from '../config-loader';
-import { loadCatalogByNameFromGroups } from '../router';
+import { loadCatalogIfNeeded } from '../router';
 
 /**
  * Композабл для загрузки данных каталога по URL
@@ -37,7 +37,7 @@ export function useCatalogLoader() {
       console.log('Информация о URL:', urlInfo);
 
       // Загружаем данные в moduleName стор с соответствующим catalogName
-      const success = await loadCatalogByNameFromGroups(
+      const success = await loadCatalogIfNeeded(
         moduleName,
         catalogName,
         (err) => {
