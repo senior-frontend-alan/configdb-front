@@ -51,11 +51,11 @@ export class RecordService {
     // ШАГ 2: Проверяем, есть ли запись в сторе
     if (
       moduleStore.catalogsByName[catalogName] &&
-      moduleStore.catalogsByName[catalogName].GET?.RESULTS &&
-      moduleStore.catalogsByName[catalogName].GET.RESULTS.has(String(recordId))
+      moduleStore.catalogsByName[catalogName].GET?.resultsIndex &&
+      moduleStore.catalogsByName[catalogName].GET.resultsIndex.has(String(recordId))
     ) {
       // Если запись уже есть в сторе, возвращаем её
-      const record = moduleStore.catalogsByName[catalogName].GET.RESULTS.get(String(recordId));
+      const record = moduleStore.catalogsByName[catalogName].GET.resultsIndex.get(String(recordId));
       console.log(`Запись ${recordId} найдена в кэше каталога ${catalogName}`);
       return record;
     }
@@ -73,7 +73,7 @@ export class RecordService {
     initCatalogStructure(moduleName, catalogName, url);
 
     // Добавляем запись в индекс
-    moduleStore.catalogsByName[catalogName].GET.RESULTS.set(String(recordId), recordData);
+    moduleStore.catalogsByName[catalogName].GET.resultsIndex.set(String(recordId), recordData);
 
     console.log(`Запись ${recordId} успешно загружена и сохранена в сторе`);
     return recordData;

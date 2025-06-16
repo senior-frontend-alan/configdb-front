@@ -30,8 +30,8 @@ characteristicSpec - это имя каталога
     <div v-else>
       <!-- Используем DynamicLayout для рекурсивного отображения элементов формы -->
       <DynamicLayout
-        v-if="storeOptions && storeOptions.layout.ELEMENTS"
-        :layout-elements="storeOptions.layout.ELEMENTS"
+        v-if="storeOptions && storeOptions.layout.elementsIndex"
+        :layout-elements="storeOptions.layout.elementsIndex"
         :record-id="recordId"
         :model-value="mergedData"
         :patch-data="getPatchData()"
@@ -116,8 +116,9 @@ characteristicSpec - это имя каталога
   const originalRecord = computed(() => {
     const moduleStore = getModuleStore();
     return (
-      moduleStore.catalogsByName?.[catalogName.value]?.GET?.RESULTS?.get(String(recordId.value)) ||
-      {}
+      moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex?.get(
+        String(recordId.value),
+      ) || {}
     );
   });
 
@@ -301,7 +302,7 @@ characteristicSpec - это имя каталога
       const moduleStore = getModuleStore();
 
       // Проверяем, загружены ли данные каталога
-      if (!moduleStore.catalogsByName?.[catalogName.value]?.GET?.RESULTS) {
+      if (!moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex) {
         throw new Error(`Данные для каталога ${catalogName.value} не загружены. Проверьте роутер.`);
       }
 
@@ -313,8 +314,8 @@ characteristicSpec - это имя каталога
       // Сохраняем метаданные для передачи в DynamicLayout
       storeOptions.value = options;
 
-      // Получаем данные записи из GET.RESULTS для быстрого доступа по id
-      const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.RESULTS?.get(
+      // Получаем данные записи из GET.resultsIndex для быстрого доступа по id
+      const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex?.get(
         String(recordId.value),
       );
 

@@ -96,8 +96,8 @@ ViewSetInlineLayout управляет состоянием и данными
     <div v-else class="catalog-details-container">
       <!-- Используем компонент DynamicLayout для редактирования записи -->
       <DynamicLayout
-        v-if="props.options?.ELEMENTS"
-        :layout-elements="props.options.ELEMENTS"
+        v-if="props.options?.elementsIndex"
+        :layout-elements="props.options.elementsIndex"
         :model-value="newRecord"
         :patch-data="{}"
         @update:model-value="handleFieldUpdate"
@@ -111,7 +111,7 @@ ViewSetInlineLayout управляет состоянием и данными
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, watch } from 'vue';
+  import { ref, computed } from 'vue';
   import { FRONTEND } from '../../../../services/fieldTypeService';
   import CatalogDataTable from '../../../../pages/Page2CatalogDetails/components/DataTable.vue';
   import Message from 'primevue/message';
@@ -123,8 +123,8 @@ ViewSetInlineLayout управляет состоянием и данными
 
   interface FieldOptions {
     FRONTEND_CLASS: typeof FRONTEND.VIEW_SET_INLINE_LAYOUT;
-    ELEMENTS?: Record<string, any>;
-    TABLE_COLUMNS?: Map<string, any>;
+    elementsIndex: Map<string, any>;
+    TABLE_COLUMNS: Map<string, any>;
     elements: Array<any>;
     class_name: string;
     field_class: string;

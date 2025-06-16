@@ -17,8 +17,8 @@ import type {
 
 // Расширяем интерфейс Layout для включения дополнительных свойств
 interface ExtendedLayout extends Layout {
-  TABLE_COLUMNS?: Map<string, any>; // Соответствует возвращаемому значению createTableColumns
-  ELEMENTS?: Map<string, any>; // Соответствует возвращаемому значению createElementsMap
+  TABLE_COLUMNS: Map<string, any>; // Соответствует возвращаемому значению createTableColumns
+  elementsIndex: Map<string, any>; // Соответствует возвращаемому значению createElementsMap
 }
 
 // Типы для JS-функций модулей
@@ -356,7 +356,7 @@ async function loadCatalogOPTIONS(moduleName: string, catalogName: string): Prom
     layout.TABLE_COLUMNS = createTableColumns(layout);
 
     // Создаем иерархическую структуру элементов
-    layout.ELEMENTS = createElementsMap(layout.elements);
+    layout.elementsIndex = createElementsMap(layout.elements);
   }
 
   // Инициализируем структуру каталога в сторе
@@ -372,7 +372,7 @@ async function loadCatalogOPTIONS(moduleName: string, catalogName: string): Prom
 
 interface Catalog {
   GET: {
-    RESULTS?: Map<string, any>;
+    resultsIndex: Map<string, any>;
     loadedRanges?: Array<{ start: number; end: number }>;
     [key: string]: any;
   };
@@ -405,7 +405,7 @@ export function initCatalogStructure(
   if (!moduleStore.catalogsByName[catalogName]) {
     moduleStore.catalogsByName[catalogName] = {
       GET: {
-        RESULTS: new Map<string, any>(),
+        resultsIndex: new Map<string, any>(),
         loadedRanges: [],
       },
       OPTIONS: {},
@@ -417,13 +417,13 @@ export function initCatalogStructure(
     // Если структура существует, но нет GET
     if (!moduleStore.catalogsByName[catalogName].GET) {
       moduleStore.catalogsByName[catalogName].GET = {
-        RESULTS: new Map<string, any>(),
+        resultsIndex: new Map<string, any>(),
         loadedRanges: [],
       };
     } else {
       // Если есть GET, но нет необходимых полей
-      if (!moduleStore.catalogsByName[catalogName].GET.RESULTS) {
-        moduleStore.catalogsByName[catalogName].GET.RESULTS = new Map<string, any>();
+      if (!moduleStore.catalogsByName[catalogName].GET.resultsIndex) {
+        moduleStore.catalogsByName[catalogName].GET.resultsIndex = new Map<string, any>();
       }
 
       if (!moduleStore.catalogsByName[catalogName].GET.loadedRanges) {
@@ -666,14 +666,16 @@ const updateRecordInStore = (catalogName: string, recordId: string, updatedData:
     // Получаем текущие данные
     const currentData = catalogsByName[catalogName].GET;
 
-    // Проверяем, что есть Map RESULTS
-    if (!currentData.RESULTS || !(currentData.RESULTS instanceof Map)) {
-      console.warn(`Невозможно обновить запись в сторе: нет Map RESULTS в данных ${catalogName}`);
+    // Проверяем, что есть Map resultsIndex
+    if (!currentData.resultsIndex || !(currentData.resultsIndex instanceof Map)) {
+      console.warn(
+        `Невозможно обновить запись в сторе: нет Map resultsIndex в данных ${catalogName}`,
+      );
       return false;
     }
 
     // Проверяем наличие записи в Map
-    if (!currentData.RESULTS.has(String(recordId))) {
+    if (!currentData.resultsIndex.has(String(recordId))) {
       console.warn(
         `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${catalogName}`,
       );
@@ -681,9 +683,9 @@ const updateRecordInStore = (catalogName: string, recordId: string, updatedData:
     }
 
     // Обновляем запись в Map
-    const existingRecord = currentData.RESULTS.get(String(recordId));
+    const existingRecord = currentData.resultsIndex.get(String(recordId));
     const updatedRecord = { ...existingRecord, ...updatedData };
-    currentData.RESULTS.set(String(recordId), updatedRecord);
+    currentData.resultsIndex.set(String(recordId), updatedRecord);
 
     console.log(`Запись с ID ${recordId} успешно обновлена в сторе`);
     return true;
@@ -697,12 +699,12 @@ const updateRecordInStore = (catalogName: string, recordId: string, updatedData:
 // Он добавляет дополнительные вычисляемые поля к элементам:
 // FRONTEND_CLASS - определяет тип поля для фронтенда
 // TABLE_COLUMNS - для элементов типа ViewSetInlineLayout
-// ELEMENTS - вложенная Map-структура для дочерних элементов
+// elementsIndex - вложенная Map-структура для дочерних элементов
 const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
-  const ELEMENTS = new Map<string, any>();
+  const elementsIndex = new Map<string, any>();
 
   if (!elements || !Array.isArray(elements)) {
-    return ELEMENTS;
+    return elementsIndex;
   }
 
   // Обрабатываем элементы текущего уровня
@@ -712,7 +714,7 @@ const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
     element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
 
     // Добавляем элемент в Map текущего уровня
-    ELEMENTS.set(element.name, element);
+    elementsIndex.set(element.name, element);
 
     // Если это ViewSetInlineLayout, создаем TABLE_COLUMNS
     if (element.class_name === 'ViewSetInlineLayout' && element.elements?.length > 0) {
@@ -723,9 +725,9 @@ const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
     // Если у элемента есть вложенные элементы, создаем для них свою Map-структуру
     if (element.elements?.length > 0) {
       // Создаем Map для вложенных элементов
-      element.ELEMENTS = createElementsMap(element.elements);
+      element.elementsIndex = createElementsMap(element.elements);
     }
   });
 
-  return ELEMENTS;
+  return elementsIndex;
 };

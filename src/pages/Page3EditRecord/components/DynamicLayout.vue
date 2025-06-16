@@ -21,7 +21,7 @@ DynamicLayout: чисто презентационный компонент
         <!-- Рекурсивно обрабатываем вложенные элементы -->
         <DynamicLayout
           v-if="element.elements && element.elements.length > 0"
-          :layout-elements="element.ELEMENTS"
+          :layout-elements="element.elementsIndex"
           :model-value="modelValue"
           :patch-data="patchData"
           @update:model-value="(newValue) => emit('update:modelValue', newValue)"
@@ -33,7 +33,7 @@ DynamicLayout: чисто презентационный компонент
         <!-- Рекурсивно обрабатываем вложенные элементы строки -->
         <DynamicLayout
           v-if="element.elements && element.elements.length > 0"
-          :layout-elements="element.ELEMENTS"
+          :layout-elements="element.elementsIndex"
           :model-value="modelValue"
           :patch-data="patchData"
           @update:model-value="(newValue) => emit('update:modelValue', newValue)"
@@ -98,6 +98,7 @@ DynamicLayout: чисто презентационный компонент
     layoutElements: Map<string, FormElement>;
     modelValue: Record<string, any>;
     patchData?: Record<string, any>; // Данные о измененных полях (PATCH)
+    recordId: string | number; // ID записи для редактирования
   }>();
 
   // В шаблоне Vue директива v-for работает с массивами

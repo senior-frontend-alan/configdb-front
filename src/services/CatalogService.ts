@@ -33,9 +33,9 @@ export interface LoadedRange {
  * Структура GET-запроса каталога
  */
 export interface CatalogGetData {
-  RESULTS?: Map<string, any>;
-  results?: any[];
-  loadedRanges?: LoadedRange[];
+  resultsIndex: Map<string, Object>;
+  results: Object[];
+  loadedRanges: LoadedRange[];
   count?: number;
   totalCount: number;
   pageSize: number;
@@ -185,7 +185,7 @@ export class CatalogService {
       const combinedResults = offset === 0 ? newResults : [...existingResults, ...newResults];
 
       moduleStore.catalogsByName[catalogName].GET = {
-        ...moduleStore.catalogsByName[catalogName].GET, // Сохраняем существующие данные (например, RESULTS и loadedRanges)
+        ...moduleStore.catalogsByName[catalogName].GET, // Сохраняем существующие данные (например, resultsIndex и loadedRanges)
         ...data, // Добавляем все поля из ответа API
         results: combinedResults, // Явно указываем объединенные результаты
         pageSize: limit, // Добавляем размер страницы
@@ -194,7 +194,7 @@ export class CatalogService {
       if (data?.results && Array.isArray(data.results)) {
         data.results.forEach((item: any) => {
           if (item.id !== undefined) {
-            const resultsMap = moduleStore.catalogsByName[catalogName].GET.RESULTS;
+            const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
             if (resultsMap) {
               resultsMap.set(String(item.id), item);
             }
@@ -241,11 +241,11 @@ export class CatalogService {
     maxItems: number = this.MAX_CACHED_ITEMS,
   ): void {
     const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.RESULTS) {
+    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.resultsIndex) {
       return;
     }
 
-    const resultsMap = moduleStore.catalogsByName[catalogName].GET.RESULTS;
+    const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
     if (!resultsMap || resultsMap.size <= maxItems) return;
 
     // Если превышен лимит, удаляем самые старые загруженные диапазоны
@@ -287,8 +287,8 @@ export class CatalogService {
     }
 
     // Проверяем, есть ли в кэше результаты в виде Map (новый формат)
-    if (moduleStore.catalogsByName[catalogName].GET.RESULTS) {
-      const resultsMap = moduleStore.catalogsByName[catalogName].GET.RESULTS;
+    if (moduleStore.catalogsByName[catalogName].GET.resultsIndex) {
+      const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
       if (!resultsMap) return [];
 
       const startIndex = (page - 1) * pageSize;
@@ -347,11 +347,11 @@ export class CatalogService {
    */
   static getItemById(moduleName: string, catalogName: string, id: string | number): any | null {
     const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.RESULTS) {
+    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.resultsIndex) {
       return null;
     }
 
-    const resultsMap = moduleStore.catalogsByName[catalogName].GET.RESULTS;
+    const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
     return resultsMap ? resultsMap.get(String(id)) || null : null;
   }
 
@@ -366,7 +366,7 @@ export class CatalogService {
 
     // Сбрасываем данные GET
     moduleStore.catalogsByName[catalogName].GET = {
-      RESULTS: new Map(),
+      resultsIndex: new Map(),
       loadedRanges: [],
       metadata: {
         totalCount: 0,
