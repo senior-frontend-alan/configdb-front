@@ -44,7 +44,7 @@ onLazyLoad вызывается при прокрутке таблицы
     <div class="table-container">
       <div class="table-wrapper" :class="{ 'table-scrollable': isTableScrollable }">
         <PrimeDataTable
-          :value="displayedRows"
+          :value="props.tableRows"
           stripedRows
           responsiveLayout="scroll"
           reorderableColumns
@@ -98,12 +98,12 @@ onLazyLoad вызывается при прокрутке таблицы
           </Column>
         </PrimeDataTable>
 
-        <div v-if="!displayedRows.length" class="empty-container">
+        <div v-if="!props.tableRows.length" class="empty-container">
           <Message severity="info">Данные отсутствуют</Message>
         </div>
 
         <!-- Элемент для отслеживания с помощью Intersection Observer -->
-        <div v-else ref="loadMoreTrigger" class="load-more-trigger">
+        <div v-else-if="props.enableLazyLoading" ref="loadMoreTrigger" class="load-more-trigger">
           <ProgressSpinner v-if="props.loading" style="width: 30px; height: 30px" />
           <span v-else-if="!hasMoreData">Все данные загружены</span>
           <span v-else>Загрузка дополнительных данных...</span>
@@ -140,25 +140,27 @@ onLazyLoad вызывается при прокрутке таблицы
     return () => h('div', {}, String(value || ''));
   };
 
-  const props = defineProps<{
-    tableRows: any[];
-    tableColumns: Map<string, any>;
-    primaryKey: string;
-    hasBatchPermission: boolean;
-    selectedItems?: any[];
-    onRowClick?: (event: any) => void;
-    onColumnReorder?: (event: any) => void;
-    loading?: boolean;
-    totalRecords?: number;
-  }>();
+  const props = withDefaults(
+    defineProps<{
+      tableRows: any[];
+      tableColumns: Map<string, any>;
+      primaryKey: string;
+      hasBatchPermission: boolean;
+      selectedItems?: any[];
+      onColumnReorder?: (event: any) => void;
+      loading?: boolean;
+      totalRecords?: number;
+      enableLazyLoading?: boolean;
+    }>(),
+    {
+      enableLazyLoading: false,
+    },
+  );
 
   // Состояние компонента
   const tableSelection = ref<any[]>([]);
   const isTableScrollable = ref(true);
 
-  // Настройки пагинации и отображения таблицы
-
-  // Вычисляемые свойства
   const columns = computed(() => {
     if (!props.tableColumns) return [];
 
@@ -179,12 +181,6 @@ onLazyLoad вызывается при прокрутке таблицы
     return columnsList;
   });
 
-  // Используем данные из props
-  const displayedRows = computed(() => {
-    return props.tableRows || [];
-  });
-
-  // Вычисляемое свойство для определения, есть ли еще данные для загрузки
   const hasMoreData = computed(() => {
     return props.totalRecords !== undefined && props.tableRows.length < props.totalRecords;
   });
@@ -214,8 +210,6 @@ onLazyLoad вызывается при прокрутке таблицы
   };
 
   const handleRowClick = (event: any) => {
-    console.log('Передаем в родительский компонент:', event);
-
     emit('row-click', event);
   };
 
@@ -231,7 +225,6 @@ onLazyLoad вызывается при прокрутке таблицы
   // Ссылка на элемент для отслеживания
   const loadMoreTrigger = ref<HTMLElement | null>(null);
 
-  // Обработчик для Intersection Observer
   const handleIntersection = (entries: IntersectionObserverEntry[]) => {
     const entry = entries[0];
 
@@ -262,15 +255,14 @@ onLazyLoad вызывается при прокрутке таблицы
   let observer: IntersectionObserver | null = null;
 
   onMounted(() => {
-    // Создаем наблюдатель только если он поддерживается браузером
-    if ('IntersectionObserver' in window) {
+    // Создаем наблюдатель только если бесконечная прокрутка включена и браузер поддерживает IntersectionObserver
+    if (props.enableLazyLoading && 'IntersectionObserver' in window) {
       observer = new IntersectionObserver(handleIntersection, {
         root: null, // используем viewport как корневой элемент
         rootMargin: '0px',
         threshold: 0.1, // срабатывает, когда 10% элемента видно
       });
 
-      // Начинаем наблюдение, если элемент существует
       if (loadMoreTrigger.value) {
         observer.observe(loadMoreTrigger.value);
       }
@@ -279,7 +271,7 @@ onLazyLoad вызывается при прокрутке таблицы
 
   // Обновляем наблюдение при изменении элемента
   watch(loadMoreTrigger, (newValue) => {
-    if (observer && newValue) {
+    if (props.enableLazyLoading && observer && newValue) {
       observer.disconnect();
       observer.observe(newValue);
     }
@@ -287,13 +279,11 @@ onLazyLoad вызывается при прокрутке таблицы
 
   // Очищаем наблюдатель при размонтировании компонента
   onUnmounted(() => {
-    if (observer) {
+    if (props.enableLazyLoading && observer) {
       observer.disconnect();
       observer = null;
     }
   });
-
-  // Удалили неиспользуемую функцию onLazyLoad, так как мы теперь используем Intersection Observer
 
   // Создаем эмиттер для оповещения родителя о изменении выделенных строк, клике по строке и ленивой загрузке
   const emit = defineEmits<{

@@ -10,7 +10,7 @@
         :disabled="disabled"
         :required="required"
         class="w-full"
-        :class="{ 'input-modified': props.isModified }"
+        :class="{ 'field-modified': props.isModified }"
       />
       <label :for="id">{{ label }}</label>
     </FloatLabel>
@@ -50,7 +50,7 @@
   const props = defineProps<{
     modelValue?: string | number;
     options: FieldOptions;
-    isModified?: boolean;
+    isModified: boolean;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования

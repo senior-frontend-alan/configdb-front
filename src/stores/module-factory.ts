@@ -3,6 +3,7 @@ import { defineStore, getActivePinia } from 'pinia';
 import { ref, reactive, shallowRef } from 'vue';
 import api from '../api';
 import { CatalogService } from '../services/CatalogService';
+import { RecordService } from '../services/RecordService';
 import { useConfig, parseBackendApiUrl } from '../config-loader';
 import { FieldTypeService } from '../services/fieldTypeService';
 import type { ModuleConfig } from '../config-loader';
@@ -236,9 +237,10 @@ export async function ensureHierarchyLoaded(
     // Если нужно загрузить только каталог, возвращаем успех
     if (!recordId) return true;
 
-    // Шаг 3: Загрузка записи (C)
+    // Шаг 3: Загрузка записи (C) с использованием RecordService
     try {
-      await moduleStore.loadRecord(moduleName, catalogName, recordId);
+      // Используем RecordService вместо прямого вызова moduleStore.loadRecord
+      await RecordService.GET(moduleName, catalogName, recordId);
       console.log(`Запись ${recordId} успешно загружена`);
       return true;
     } catch (error) {
@@ -651,74 +653,6 @@ const createTableColumns = (obj: LayoutWithElements): Map<string, any> => {
 //     console.error(`Ошибка при инициализации стора модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, error);
 //   }
 // };
-
-// Загрузка одной записи из каталога по ID
-const loadRecord = async (
-  moduleName: string,
-  catalogName: string,
-  recordId: string | number,
-): Promise<any> => {
-  const moduleStore = useModuleStore(moduleName);
-  let url = '';
-
-  // Если каталог уже есть в сторе и у него есть URL, используем его
-  if (moduleStore.catalogsByName?.[catalogName]?.url) {
-    url = moduleStore.catalogsByName[catalogName].url;
-    console.log(`Используем сохраненный URL для каталога ${catalogName}: ${url}`);
-  } else {
-    // Иначе ищем URL в индексе элементов каталога
-    const catalogItem = moduleStore.catalogGroupsIndex.get(catalogName);
-
-    if (!catalogItem || !catalogItem.href) {
-      throw new Error(`URL для каталога ${catalogName} не найден в индексе`);
-    }
-
-    url = catalogItem.href;
-    console.log(`Найден URL для каталога ${catalogName} в индексе: ${url}`);
-  }
-
-  // ШАГ 2: Проверяем, есть ли запись в сторе
-  if (
-    catalogsByName[catalogName] &&
-    catalogsByName[catalogName].GET?.RESULTS &&
-    catalogsByName[catalogName].GET.RESULTS.has(String(recordId))
-  ) {
-    // Если запись уже есть в сторе, возвращаем её
-    const record = catalogsByName[catalogName].GET.RESULTS.get(String(recordId));
-    console.log(`Запись ${recordId} найдена в кэше каталога ${catalogName}`);
-    return record;
-  }
-
-  // ШАГ 3: Загрузка записи через GET-запрос
-  const recordUrl = `${url}${recordId}/?mode=short`;
-  console.log(`Загрузка записи ${recordId} из каталога ${catalogName}: ${recordUrl}`);
-
-  const response = await api.get<any>(recordUrl);
-  const recordData = response.data;
-
-  // ШАГ 4: Сохраняем запись в сторе
-  // Если каталог еще не существует в сторе, создаем его
-  if (!catalogsByName[catalogName]) {
-    catalogsByName[catalogName] = {
-      GET: { RESULTS: new Map() },
-      OPTIONS: {},
-      PATCH: {},
-      moduleName: moduleName,
-      url: url,
-    };
-  }
-
-  // Если еще нет структуры RESULTS, создаем её
-  if (!catalogsByName[catalogName].GET.RESULTS) {
-    catalogsByName[catalogName].GET.RESULTS = new Map();
-  }
-
-  // Добавляем запись в индекс
-  catalogsByName[catalogName].GET.RESULTS.set(String(recordId), recordData);
-
-  console.log(`Запись ${recordId} успешно загружена и сохранена в сторе`);
-  return recordData;
-};
 
 // Метод для обновления записи в сторе после PATCH-запроса
 const updateRecordInStore = (catalogName: string, recordId: string, updatedData: any): boolean => {

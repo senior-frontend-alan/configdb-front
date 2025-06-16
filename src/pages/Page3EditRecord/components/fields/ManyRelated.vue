@@ -16,7 +16,7 @@
           option-label="name"
           :modelValue="modelValue || []"
           :options="modelValue || []"
-          :class="{ 'p-invalid': props.options.errors, 'input-modified': props.isModified }"
+          :class="{ 'p-invalid': props.options.errors, 'field-modified': props.isModified }"
           @click="openDialog"
           @remove="handleChipRemove"
           @update:modelValue="handleModelValueChange"
@@ -89,7 +89,7 @@
           v-if="currentModuleName && currentCatalogName"
           :moduleName="currentModuleName"
           :catalogName="currentCatalogName"
-          :onRowClick="handleRowClick"
+          @row-click="handleRowClick"
           @record-selected="onRecordSelected"
           v-model:selectedItems="tempSelectedItems"
         />
@@ -111,7 +111,7 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue';
-  import { useCatalogLoader } from '../../../../composables/useCatalogLoader';
+  import { CatalogService } from '../../../../services/CatalogService';
   import { parseBackendApiUrl } from '../../../../config-loader';
   import CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
@@ -168,7 +168,7 @@
   const props = defineProps<{
     modelValue?: RelatedItem[] | null;
     options: ManyRelatedFieldOptions;
-    isModified?: boolean;
+    isModified: boolean;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
@@ -199,8 +199,7 @@
   const currentModuleName = ref('');
   const currentCatalogName = ref('');
 
-  // Композабл для загрузки данных каталога
-  const catalogLoader = useCatalogLoader();
+  // Состояние загрузки данных
 
   const openInNewTab = () => {
     if (currentModuleName.value && currentCatalogName.value) {
@@ -258,16 +257,22 @@
 
         // Парсим URL для получения информации о модуле и каталоге
         const urlInfo = parseBackendApiUrl(relatedTableUrl.value);
-        currentModuleName.value = urlInfo.moduleName;
-        currentCatalogName.value = urlInfo.catalogName;
+        currentModuleName.value = urlInfo.moduleName || '';
+        currentCatalogName.value = urlInfo.catalogName || '';
 
         console.log('Получены параметры:', {
           модуль: currentModuleName.value,
           каталог: currentCatalogName.value,
         });
 
-        // Загружаем данные в соответствующий стор
-        await catalogLoader.loadCatalogByUrl(relatedTableUrl.value);
+        // Загружаем данные в соответствующий стор через CatalogService
+        if (urlInfo.moduleName && urlInfo.catalogName) {
+          await CatalogService.GET(urlInfo.moduleName, urlInfo.catalogName, 0);
+        } else {
+          throw new Error(
+            `Не удалось определить модуль или каталог из URL: ${relatedTableUrl.value}`,
+          );
+        }
         console.log('Данные каталога загружены успешно');
       } catch (err) {
         console.error('Ошибка при загрузке данных каталога:', err);

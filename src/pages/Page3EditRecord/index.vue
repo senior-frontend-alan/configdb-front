@@ -36,6 +36,7 @@ characteristicSpec - это имя каталога
         :model-value="mergedData"
         :patch-data="getPatchData()"
         @update:model-value="debouncedHandleFieldUpdate"
+        @reset-field="resetField"
       />
 
       <!-- Панель кнопок, которая может быть фиксированной или нет в зависимости от прокрутки -->
@@ -51,7 +52,7 @@ characteristicSpec - это имя каталога
           icon="pi pi-undo"
           class="p-button-secondary"
           :disabled="!hasUnsavedChanges"
-          @click="resetChanges"
+          @click="resetAllFields"
         />
         <div class="flex gap-2">
           <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
@@ -185,7 +186,7 @@ characteristicSpec - это имя каталога
 
   const debouncedHandleFieldUpdate = debounce(handleFieldUpdate, 500);
 
-  const resetChanges = () => {
+  const resetAllFields = () => {
     try {
       const moduleStore = getModuleStore();
       if (moduleStore.catalogsByName?.[catalogName.value]) {
@@ -202,6 +203,29 @@ characteristicSpec - это имя каталога
       }
     } catch (error) {
       console.error('Ошибка при отмене изменений:', error);
+    }
+  };
+
+  // Сброс изменений для конкретного поля
+  const resetField = (fieldName: string) => {
+    try {
+      const moduleStore = getModuleStore();
+      if (moduleStore.catalogsByName?.[catalogName.value]?.PATCH) {
+        if (fieldName in moduleStore.catalogsByName[catalogName.value].PATCH) {
+          delete moduleStore.catalogsByName[catalogName.value].PATCH[fieldName];
+
+          toast.add({
+            severity: 'info',
+            summary: 'Поле сброшено',
+            detail: `Изменения поля "${fieldName}" были отменены`,
+            life: 3000,
+          });
+        } else {
+          console.log(`Поле ${fieldName} не было изменено, нечего сбрасывать`);
+        }
+      }
+    } catch (error) {
+      console.error(`Ошибка при сбросе поля ${fieldName}:`, error);
     }
   };
 
@@ -385,7 +409,6 @@ characteristicSpec - это имя каталога
         console.log('Ответ сервера:', response.data);
 
         // Обновляем данные в сторе
-        const moduleStore = getModuleStore();
         if (moduleStore.updateRecordInStore) {
           const updated = moduleStore.updateRecordInStore(
             catalogName.value,
@@ -542,17 +565,17 @@ characteristicSpec - это имя каталога
 
 <style>
   /* Стили для модифицированных полей */
-  .input-modified {
+  .field-modified {
     border-color: #ffb74d !important; /* Оранжевая граница */
   }
 
   /* При наведении сохраняем цвет границы */
-  .input-modified:hover {
+  .field-modified:hover {
     border-color: #ff9800 !important;
   }
 
   /* При фокусе сохраняем цвет границы, но делаем её ярче */
-  .input-modified:focus {
+  .field-modified:focus {
     border-color: #ff9800 !important;
     box-shadow: 0 0 0 1px #ff9800 !important;
   }

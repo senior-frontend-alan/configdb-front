@@ -22,7 +22,7 @@
   const props = defineProps<{
     modelValue?: any;
     options: FieldOptions;
-    isModified?: boolean;
+    isModified: boolean;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования

@@ -3,6 +3,13 @@ DynamicLayout: чисто презентационный компонент
 Задача - отображении элементов формы и передаче событий изменения данных родительскому компоненту.
 Получать данные через пропсы от родителя и отправлять события обновления обратно родителю
 НЕ работать напрямую со стором 
+
+Родительская форма определяет isModified
+Централизованное управление - вся логика изменений находится в одном месте
+Единообразие - все поля используют одинаковую логику определения изменений
+Оптимизация - можно оптимизировать хранение данных об изменениях (например, хранить только разницу)
+Простота глобальных действий - легко реализовать действия для всех измененных полей (сброс, подсветка и т.д.)
+Контроль транзакций - проще реализовать отмену/повтор действий на уровне всей формы
 -->
 
 <template>
@@ -42,8 +49,9 @@ DynamicLayout: чисто презентационный компонент
           :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
           :options="element"
           :model-value="modelValue[element.name]"
-          :is-modified="isFieldModified(element.name)"
+          :is-modified="isFieldModified(element.name) || false"
           @update:model-value="updateFieldValue(element.name, $event)"
+          @reset-field="(fieldName: string) => emit('reset-field', fieldName)"
         />
       </div>
     </template>
@@ -89,7 +97,6 @@ DynamicLayout: чисто презентационный компонент
   const props = defineProps<{
     layoutElements: Map<string, FormElement>;
     modelValue: Record<string, any>;
-    recordId?: string;
     patchData?: Record<string, any>; // Данные о измененных полях (PATCH)
   }>();
 
@@ -103,6 +110,7 @@ DynamicLayout: чисто презентационный компонент
 
   const emit = defineEmits<{
     'update:modelValue': [value: Record<string, any>];
+    'reset-field': [fieldName: string];
   }>();
 
   const isFieldModified = (fieldName: string) => {
@@ -123,10 +131,10 @@ DynamicLayout: чисто презентационный компонент
 
   // Функция для отладки полей формы
   const debugField = (element: FormElement) => {
-    console.log(`Поле ${element.name}:`, {
-      значение: props.modelValue[element.name],
-      метаданные: element,
-    });
+    // console.log(`Поле ${element.name}:`, {
+    //   значение: props.modelValue[element.name],
+    //   метаданные: element,
+    // });
     return false; // Отключаем отображение отладочной информации в UI
   };
 </script>

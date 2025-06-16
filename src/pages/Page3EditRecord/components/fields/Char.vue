@@ -4,7 +4,7 @@
       <InputText
         :id="id"
         v-model="value"
-        :class="{ 'p-invalid': hasTypeError, 'input-modified': props.isModified }"
+        :class="{ 'p-invalid': hasTypeError, 'field-modified': props.isModified }"
         :disabled="disabled"
         :required="required"
         :placeholder="placeholder"
@@ -56,12 +56,14 @@
   const props = defineProps<{
     modelValue?: any; // !!!Вообще должно быть String но Vue проверяет типы пропсов перед отрисовкой и выводит ошибку в консоль если там не String
     options: FieldOptions;
-    isModified?: boolean;
+    isModified: boolean;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
-  const label = computed(() => (props.options.label || props.options.name) + (required.value ? ' *' : ''));
+  const label = computed(
+    () => (props.options.label || props.options.name) + (required.value ? ' *' : ''),
+  );
   const placeholder = computed(() => props.options.placeholder || '');
   const disabled = computed(() => props.options.readonly || false);
   const required = computed(() => props.options.required || false);

@@ -112,7 +112,7 @@
   const props = defineProps<{
     modelValue?: string;
     options: FieldOptions;
-    isModified?: boolean;
+    isModified: boolean;
   }>();
 
   const id = computed(() => props.options.name);

@@ -11,7 +11,7 @@
       :max="max"
       :step="1"
       class="w-full"
-      :class="{ 'input-modified': props.isModified }"
+      :class="{ 'field-modified': props.isModified }"
       integerOnly
     />
     <label :for="id">{{ label }}</label>
@@ -39,7 +39,7 @@
   const props = defineProps<{
     modelValue?: number;
     options: FieldOptions;
-    isModified?: boolean;
+    isModified: boolean;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования

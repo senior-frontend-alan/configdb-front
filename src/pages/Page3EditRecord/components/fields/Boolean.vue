@@ -5,7 +5,7 @@
       v-model="value"
       :binary="true"
       :disabled="disabled"
-      :class="{ 'input-modified': props.isModified }"
+      :class="{ 'field-modified': props.isModified }"
     />
     <label :for="id" class="ml-2">{{ label }}</label>
   </div>
@@ -27,7 +27,7 @@
   const props = defineProps<{
     modelValue?: boolean;
     options: FieldOptions;
-    isModified?: boolean;
+    isModified: boolean;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
