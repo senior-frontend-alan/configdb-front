@@ -1,4 +1,4 @@
-<!-- Отображаем как модальное окно с новой таблицей -->
+<!-- Отображаем как Page2CatalogDetails в модальном окне -->
 <template>
   <div>
     <InputGroup
@@ -69,11 +69,13 @@
         <Message severity="error" :life="5000">{{ error }}</Message>
       </div>
       <div v-else class="catalog-details-container">
-        <!-- Встраиваем компонент CatalogDetails с передачей необходимых параметров -->
-        <CatalogDetails
+        <!-- Встраиваем компонент Page2CatalogDetails с передачей необходимых параметров -->
+        <Page2CatalogDetails
           v-if="currentModuleName && currentCatalogName"
           :moduleName="currentModuleName"
           :catalogName="currentCatalogName"
+          :isModalMode="true"
+          selectionMode="single"
           @row-click="customRowClick"
           @record-selected="onRecordSelected"
         />
@@ -97,7 +99,7 @@
   import { ref, computed } from 'vue';
   import { CatalogService } from '../../../../services/CatalogService';
   import { parseBackendApiUrl } from '../../../../config-loader';
-  import CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
+  import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import Select from 'primevue/select';
   import FloatLabel from 'primevue/floatlabel';
@@ -218,7 +220,10 @@
 
         // Загружаем данные в соответствующий стор через CatalogService
         if (urlInfo.moduleName && urlInfo.catalogName) {
-          await CatalogService.GET(urlInfo.moduleName, urlInfo.catalogName, 0);
+          await Promise.all([
+            CatalogService.GET(urlInfo.moduleName, urlInfo.catalogName, 0),
+            CatalogService.OPTIONS(urlInfo.moduleName, urlInfo.catalogName),
+          ]);
         } else {
           throw new Error(
             `Не удалось определить модуль или каталог из URL: ${relatedTableUrl.value}`,
@@ -240,7 +245,7 @@
     }
   };
 
-  // Обработка выбора записи из компонента CatalogDetails
+  // Обработка выбора записи из компонента Page2CatalogDetails
   const onRecordSelected = (record: any) => {
     console.log('Выбрана запись:', record);
     selectedItem.value = record;

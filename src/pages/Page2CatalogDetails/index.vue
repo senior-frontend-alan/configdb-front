@@ -48,22 +48,26 @@ CatalogDataTable отвечает только за отображение да�
     </div>
 
     <div class="catalog-details">
-      <!-- Используем компонент DataTable с ленивой загрузкой при скролле -->
-      <CatalogDataTable
+      <DataTable
         :tableRows="lazyItems"
         :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
-        :hasBatchPermission="!!currentCatalog?.OPTIONS?.permitted_actions?.batch"
+        :selectionMode="computedSelectionMode"
         :selectedItems="tableSelection"
         :onColumnReorder="onColumnReorder"
         :loading="loading"
-        :enableLazyLoading="true"
         @update:selectedItems="tableSelection = $event"
         @row-click="handleRowClick"
         :isTableScrollable="isTableScrollable"
         :totalRecords="totalRecords"
-        @load-more="loadMoreData"
       />
+
+      <!-- Элемент для отслеживания с помощью Intersection Observer -->
+      <div ref="loadMoreTrigger" class="load-more-trigger">
+        <ProgressSpinner v-if="loadingMore" style="width: 30px; height: 30px" />
+        <span v-else-if="!hasMoreData && totalRecords >= 20">Все данные загружены</span>
+        <span v-else-if="hasMoreData">Загрузка дополнительных данных...</span>
+      </div>
     </div>
     <!-- Статус-бар с информацией о количестве элементов -->
     <div class="status-bar">
@@ -84,12 +88,12 @@ CatalogDataTable отвечает только за отображение да�
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, watch } from 'vue';
+  import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
   import { CatalogService } from '../../services/CatalogService';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
-  import CatalogDataTable from './components/DataTable.vue';
+  import DataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
   import Button from 'primevue/button';
 
@@ -100,6 +104,8 @@ CatalogDataTable отвечает только за отображение да�
     moduleName: string; // Обязательный параметр
     catalogName: string; // Обязательный параметр
     selectedItems?: any[]; // Опциональный массив выделенных строк
+    isModalMode?: boolean; // Флаг, указывающий, что компонент отображается в модальном окне
+    selectionMode?: 'single' | 'multiple'; // Режим выбора строк: одиночный или множественный
   }>();
 
   // Состояние компонента
@@ -113,6 +119,15 @@ CatalogDataTable отвечает только за отображение да�
   const totalRecords = ref(0);
   const isTableScrollable = ref(false);
 
+  // Реф для элемента триггера ленивой загрузки
+  const loadMoreTrigger = ref<HTMLDivElement | null>(null);
+  // Отдельный флаг для отображения загрузки дополнительных данных
+  const loadingMore = ref(false);
+  // Проверяем, есть ли еще данные для загрузки
+  const hasMoreData = computed(() => {
+    return totalRecords.value > 0 && lazyItems.value.length < totalRecords.value;
+  });
+
   // Из props
   const moduleName = computed(() => props.moduleName);
   const catalogName = computed(() => props.catalogName);
@@ -121,16 +136,25 @@ CatalogDataTable отвечает только за отображение да�
   const currentCatalog = computed(() => {
     return moduleStore.value?.catalogsByName[catalogName.value];
   });
+  
+  // Вычисляемое свойство для определения режима выбора строк
+  const computedSelectionMode = computed(() => {
+    // Если явно указан режим выбора, используем его
+    if (props.selectionMode) {
+      return props.selectionMode;
+    }
+    
+    // Иначе определяем режим на основе прав доступа
+    return !!currentCatalog.value?.OPTIONS?.permitted_actions?.batch ? 'multiple' : 'single';
+  });
 
   // Проверка наличия данных и метаданных и инициализация из стора
   const initializeDataFromStore = () => {
-    // Проверяем наличие каталога в сторе
     if (!currentCatalog.value) {
       error.value = 'Нет данных каталога';
       return false;
     }
 
-    // Проверяем наличие метаданных для отображения
     if (
       !currentCatalog.value.OPTIONS ||
       !currentCatalog.value.OPTIONS.layout ||
@@ -140,13 +164,12 @@ CatalogDataTable отвечает только за отображение да�
       return false;
     }
 
-    // Инициализируем данные из стора, если они есть
     if (currentCatalog.value?.GET?.results && Array.isArray(currentCatalog.value.GET.results)) {
       // Если в сторе уже есть данные, используем их
       lazyItems.value = [...currentCatalog.value.GET.results];
       console.log('Данные инициализированы из стора:', lazyItems.value);
 
-      // Обновляем также общее количество записей
+      // Обновляем общее количество записей
       if (currentCatalog.value.GET.count !== undefined) {
         totalRecords.value = currentCatalog.value.GET.count;
       }
@@ -205,19 +228,22 @@ CatalogDataTable отвечает только за отображение да�
     const rowData = event.data;
     console.log('Данные строки:', rowData);
 
-    // Переход на страницу редактирования
-    if (rowData && rowData.id) {
+    // Переход на страницу редактирования только если компонент не в модальном режиме
+    if (!props.isModalMode && rowData && rowData.id) {
       // Формируем URL для перехода
       const editUrl = `/${moduleName.value}/${catalogName.value}/edit/${rowData.id}`;
       console.log('Переход по URL:', editUrl);
 
       router.push(editUrl);
-    } else {
+    } else if (!rowData || !rowData.id) {
       console.warn(
         'Не удалось получить идентификатор строки для перехода на страницу редактирования',
       );
       console.log('Полученные данные:', event);
     }
+
+    // В любом случае эмитим событие row-click, чтобы родительские компоненты могли его обработать
+    emit('row-click', event);
   };
 
   // Переход на страницу добавления новой записи
@@ -294,29 +320,47 @@ CatalogDataTable отвечает только за отображение да�
 
   // Обработчик события load-more для ленивой загрузки при скролле
   const loadMoreData = async (event: { first: number; rows: number }) => {
-    console.log('loadMoreData event:', event);
+    console.log('loadMoreData вызван с параметрами:', event);
     const { first } = event;
-
-    // Если уже идет загрузка, не запускаем новую
-    if (loading.value) return;
 
     // Если загружены все данные, не загружаем больше
     if (totalRecords.value && lazyItems.value.length >= totalRecords.value) {
       console.log('Все данные уже загружены');
+      loadingMore.value = false;
       return;
     }
 
     // Используем first как offset для загрузки данных
     await loadCatalogData(first);
+
+    loadingMore.value = false;
   };
 
   const onInitialLoad = async () => {
     await loadCatalogData(0);
   };
 
+  // Функция для обработки пересечения элемента с областью видимости
+  const handleIntersection = (entries: IntersectionObserverEntry[]) => {
+    const entry = entries[0];
+
+    // Если элемент виден и не идет загрузка, и есть еще данные для загрузки
+    if (entry.isIntersecting && !loadingMore.value && hasMoreData.value) {
+      loadingMore.value = true;
+
+      const currentLength = lazyItems.value.length;
+      const rows = 20; // Количество записей для загрузки
+
+      // Вызываем функцию загрузки данных с текущим смещением
+      loadMoreData({ first: currentLength, rows });
+    }
+  };
+
+  // Создаем и настраиваем Intersection Observer
+  let observer: IntersectionObserver | null = null;
+
   // Начальная загрузка данных при монтировании компонента
   onMounted(async () => {
-    // Проверяем наличие необходимых данных и метаданных и инициализируем данные из стора
     if (!initializeDataFromStore()) {
       loading.value = false;
       return;
@@ -330,6 +374,19 @@ CatalogDataTable отвечает только за отображение да�
       loading.value = false;
     }
 
+    // Создаем наблюдатель, если браузер поддерживает IntersectionObserver
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver(handleIntersection, {
+        root: null, // используем viewport как корневой элемент
+        rootMargin: '0px',
+        threshold: 0.1, // срабатывает, когда 10% элемента видно
+      });
+
+      if (loadMoreTrigger.value) {
+        observer.observe(loadMoreTrigger.value);
+      }
+    }
+
     // Отладочные логи для проверки условий рендеринга
     console.log('После загрузки данных:');
     console.log('loading =', loading.value);
@@ -340,6 +397,21 @@ CatalogDataTable отвечает только за отображение да�
       'currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS =',
       currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS,
     );
+  });
+
+  // Обновляем наблюдение при изменении элемента
+  watch(loadMoreTrigger, (newValue) => {
+    if (observer && newValue) {
+      observer.disconnect();
+      observer.observe(newValue);
+    }
+  });
+
+  onUnmounted(() => {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
   });
 </script>
 
@@ -471,5 +543,16 @@ CatalogDataTable отвечает только за отображение да�
   .status-value {
     color: var(--text-color-secondary);
     opacity: 0.5;
+  }
+  /* Стили для элемента триггера ленивой загрузки */
+  .load-more-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    text-align: center;
+    color: #666;
+    font-size: 0.9rem;
+    height: 60px;
   }
 </style>

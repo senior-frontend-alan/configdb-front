@@ -34,9 +34,17 @@ ViewSetInlineLayout управляет состоянием и данными
           <Button
             icon="pi pi-trash"
             class="p-button-sm p-button-outlined p-button-icon"
-            :disabled="!props.modelValue?.length"
+            size="small"
             @click="clearField"
-            v-tooltip="'Очистить поле'"
+            v-tooltip="'Удалить запись'"
+          />
+          <Button
+            icon="pi pi-copy"
+            class="p-button-sm p-button-outlined p-button-icon"
+            size="small"
+            :disabled="selectedItems.length !== 1"
+            @click="duplicateSelectedRow"
+            v-tooltip="'Дублировать запись'"
           />
         </div>
 
@@ -58,7 +66,7 @@ ViewSetInlineLayout управляет состоянием и данными
         :tableRows="props.modelValue || []"
         :tableColumns="props.options?.TABLE_COLUMNS || new Map()"
         :primaryKey="props.options?.primary_key || 'id'"
-        :hasBatchPermission="true"
+        selectionMode="multiple"
         :selectedItems="selectedItems"
         :isTableScrollable="isTableScrollable"
         @row-click="handleRowClick"
@@ -83,14 +91,11 @@ ViewSetInlineLayout управляет состоянием и данными
   >
     <template #header>
       <div class="dialog-header-container">
-        <span class="dialog-title">Добавление записи</span>
+        <span class="dialog-title">{{ dialogTitle }}</span>
       </div>
     </template>
-    <div v-if="loading" class="p-4 text-center">
-      <ProgressSpinner style="width: 50px; height: 50px" />
-      <div>Загрузка данных...</div>
-    </div>
-    <div v-else-if="error" class="p-4 text-center">
+
+    <div v-if="error" class="p-4 text-center">
       <Message severity="error" :life="5000">{{ error }}</Message>
     </div>
     <div v-else class="catalog-details-container">
@@ -100,12 +105,13 @@ ViewSetInlineLayout управляет состоянием и данными
         :layout-elements="props.options.elementsIndex"
         :model-value="newRecord"
         :patch-data="{}"
+        :record-id="newRecord.id || '0'"
         @update:model-value="handleFieldUpdate"
       />
     </div>
     <template #footer>
       <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="closeDialog" />
-      <Button label="Добавить" icon="pi pi-check" @click="addSelectedRecords" />
+      <Button :label="saveButtonLabel" icon="pi pi-check" @click="handleRecordSave" />
     </template>
   </Dialog>
 </template>
@@ -117,7 +123,6 @@ ViewSetInlineLayout управляет состоянием и данными
   import Message from 'primevue/message';
   import Button from 'primevue/button';
   import Dialog from 'primevue/dialog';
-  import ProgressSpinner from 'primevue/progressspinner';
   import DynamicLayout from '../../components/DynamicLayout.vue';
   import ColumnVisibilitySelector from '../../../../pages/Page2CatalogDetails/components/ColumnVisibilitySelector.vue';
 
@@ -182,23 +187,39 @@ ViewSetInlineLayout управляет состоянием и данными
 
   // Состояние модального окна
   const dialogVisible = ref(false);
-  const loading = ref(false);
   const error = ref<string | null>(null);
+  const dialogTitle = ref('Добавление записи');
+  const saveButtonLabel = ref('Добавить');
+  const editingRecordIndex = ref<number | null>(null);
 
-  // Данные для новой записи
+  // Данные для новой/редактируемой записи
   const newRecord = ref<Record<string, any>>({});
 
   // Открытие модального окна для добавления записи
   const openAddDialog = () => {
     // Сбрасываем данные новой записи
     newRecord.value = {};
+    editingRecordIndex.value = null;
+    dialogTitle.value = 'Добавление записи';
+    saveButtonLabel.value = 'Добавить';
     dialogVisible.value = true;
-    loading.value = false;
+    error.value = null;
+  };
+
+  // Открытие модального окна для редактирования записи
+  const openEditDialog = (recordData: RelatedItem, index: number) => {
+    // Копируем данные записи для редактирования
+    newRecord.value = { ...recordData };
+    editingRecordIndex.value = index;
+    dialogTitle.value = 'Редактирование записи';
+    saveButtonLabel.value = 'Сохранить';
+    dialogVisible.value = true;
     error.value = null;
   };
 
   const closeDialog = () => {
     dialogVisible.value = false;
+    editingRecordIndex.value = null;
   };
 
   const handleFieldUpdate = (updatedData: Record<string, any>) => {
@@ -207,22 +228,23 @@ ViewSetInlineLayout управляет состоянием и данными
 
   // Обработка сохранения записи из формы
   const handleRecordSave = () => {
-    const newValue = [...(props.modelValue || []), newRecord.value];
-
-    emit('update:modelValue', newValue);
+    if (editingRecordIndex.value !== null) {
+      // Редактирование существующей записи
+      const updatedValue = [...(props.modelValue || [])];
+      updatedValue[editingRecordIndex.value] = newRecord.value;
+      emit('update:modelValue', updatedValue);
+    } else {
+      // Добавление новой записи
+      const newValue = [...(props.modelValue || []), newRecord.value];
+      emit('update:modelValue', newValue);
+    }
 
     closeDialog();
-  };
-
-  // Добавление выбранных записей
-  const addSelectedRecords = () => {
-    handleRecordSave();
   };
 
   // Очистка выбранных строк из таблицы
   const clearField = () => {
     if (!props.modelValue || !selectedItems.value.length) return;
-
     // Получаем первичный ключ для сравнения элементов
     const primaryKey = props.options?.primary_key || 'id';
 
@@ -243,8 +265,24 @@ ViewSetInlineLayout управляет состоянием и данными
     emit('reset-field', fieldName.value);
   };
 
+  // Дублирование выбранной записи
+  const duplicateSelectedRow = () => {
+    if (selectedItems.value.length !== 1) return;
+    const selectedRecord = selectedItems.value[0];
+
+    // Создаем новый объект с теми же свойствами, но без id
+    const duplicatedRecord = { ...selectedRecord };
+    // Создаем новый объект без id, чтобы не было конфликта с существующей записью
+    const { id, ...recordWithoutId } = duplicatedRecord;
+    const newValue = [...(props.modelValue || []), recordWithoutId];
+    emit('update:modelValue', newValue);
+  };
+
   const handleRowClick = (event: any) => {
     console.log('Клик по строке:', event);
+    if (event && event.data) {
+      openEditDialog(event.data, event.index);
+    }
   };
 
   const handleSelectedItemsChange = (items: RelatedItem[]) => {

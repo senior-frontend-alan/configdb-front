@@ -5,21 +5,8 @@ import api from '../api';
 import { CatalogService } from '../services/CatalogService';
 import { RecordService } from '../services/RecordService';
 import { useConfig, parseBackendApiUrl } from '../config-loader';
-import { FieldTypeService } from '../services/fieldTypeService';
 import type { ModuleConfig } from '../config-loader';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
-import type {
-  CatalogDetailsAPIResponseOPTIONS,
-  CatalogDetailsAPIResponseGET,
-  CatalogDetailsAPIResponsePATCH,
-  Layout,
-} from './types/catalogDetailsAPIResponseOPTIONS.type';
-
-// Расширяем интерфейс Layout для включения дополнительных свойств
-interface ExtendedLayout extends Layout {
-  TABLE_COLUMNS: Map<string, any>; // Соответствует возвращаемому значению createTableColumns
-  elementsIndex: Map<string, any>; // Соответствует возвращаемому значению createElementsMap
-}
 
 // Типы для JS-функций модулей
 export interface ModuleJSInterface {
@@ -218,7 +205,7 @@ export async function ensureHierarchyLoaded(
         // Загружаем данные через CatalogService и OPTIONS запрос параллельно
         const [firstPageData] = await Promise.all([
           CatalogService.GET(moduleName, catalogName, 1, pageSize),
-          loadCatalogOPTIONS(moduleName, catalogName),
+          CatalogService.OPTIONS(moduleName, catalogName),
         ]);
 
         if (firstPageData && firstPageData.length > 0) {
@@ -315,59 +302,6 @@ async function loadCatalogGroups(moduleName: string): Promise<any[]> {
     console.error(`Ошибка при получении групп каталогов для модуля ${moduleName}:`, err);
     return [];
   }
-}
-
-// Загрузка метаданных каталога через OPTIONS-запрос и формирование структуры OPTIONS в сторе
-async function loadCatalogOPTIONS(moduleName: string, catalogName: string): Promise<string> {
-  const moduleStore = useModuleStore(moduleName);
-  if (!moduleStore) {
-    throw new Error(`Стор для модуля ${moduleName} не найден`);
-  }
-
-  // ШАГ 1: Поиск URL для загрузки каталога
-  let url = '';
-
-  // Если каталог уже есть в сторе и у него есть URL, используем его
-  if (moduleStore.catalogsByName?.[catalogName]?.url) {
-    url = moduleStore.catalogsByName[catalogName].url;
-    console.log(`Используем сохраненный URL для каталога ${catalogName}: ${url}`);
-  } else {
-    // Иначе ищем URL в индексе элементов каталога
-    const catalogItem = moduleStore.catalogGroupsIndex.get(catalogName);
-
-    if (!catalogItem || !catalogItem.href) {
-      throw new Error(`URL для каталога ${catalogName} не найден в индексе`);
-    }
-
-    url = catalogItem.href;
-    console.log(`Найден URL для каталога ${catalogName} в индексе: ${url}`);
-  }
-
-  // ШАГ 2: Загрузка метаданных через OPTIONS-запрос
-  const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
-  const optionsResponseData = optionsResponse.data;
-
-  // Добавляем наши вычисляемые поля в OPTIONS для удобства
-  if (optionsResponseData?.layout) {
-    // Приводим layout к расширенному типу ExtendedLayout
-    const layout = optionsResponseData.layout as ExtendedLayout;
-
-    // Создаем таблицу колонок с учетом порядка из display_list
-    layout.TABLE_COLUMNS = createTableColumns(layout);
-
-    // Создаем иерархическую структуру элементов
-    layout.elementsIndex = createElementsMap(layout.elements);
-  }
-
-  // Инициализируем структуру каталога в сторе
-  initCatalogStructure(moduleName, catalogName, url);
-
-  moduleStore.catalogsByName[catalogName].OPTIONS = optionsResponseData;
-
-  console.log(
-    `Метаданные каталога ${catalogName} успешно загружены через OPTIONS и сохранены в сторе`,
-  );
-  return url;
 }
 
 interface Catalog {
@@ -484,96 +418,6 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
   });
 }
 
-// Интерфейс для описания макета с элементами и списком отображения
-interface LayoutWithElements {
-  // Массив элементов макета
-  elements: any[];
-  // Опциональный список полей для отображения
-  display_list?: string[];
-}
-
-// Функция для создания плоской Map-структуры со всеми полями из elements и их вложенных элементов
-const createTableColumns = (obj: LayoutWithElements): Map<string, any> => {
-  // Создаем плоскую Map для всех элементов
-  const flatMap = new Map<string, any>();
-
-  if (!obj?.elements || !Array.isArray(obj.elements)) {
-    return flatMap;
-  }
-
-  // Получаем список отображаемых полей, если он есть
-  const displayList = Array.isArray(obj.display_list) ? obj.display_list : [];
-
-  // Рекурсивная функция для обработки элементов и их вложенных элементов
-  const processElements = (elements: any[]): void => {
-    elements.forEach((element: any) => {
-      if (!element.name) return;
-
-      // Для элементов с такими классами не обрабатываем вложенные элементы
-      const isSpecialType =
-        element.class_name === 'ViewSetInlineLayout' ||
-        element.class_name === 'ViewSetInlineDynamicLayout' ||
-        element.class_name === 'ViewSetInlineDynamicModelLayout' ||
-        element.field_class === 'ListSerializer';
-
-      if (isSpecialType) {
-        return;
-      }
-
-      const FRONTEND_CLASS = FieldTypeService.getFieldType(element);
-
-      // Если это поле типа Choice, создаем Map-структуру для быстрого доступа к значениям
-      let CHOICES: Map<string, string> | undefined;
-      if (FRONTEND_CLASS === 'Choice' && element.choices && Array.isArray(element.choices)) {
-        CHOICES = new Map<string, string>();
-        element.choices.forEach((choice: { value: string | number; display_name: string }) => {
-          CHOICES?.set(String(choice.value), choice.display_name);
-        });
-      }
-
-      // Определяем видимость элемента на основе display_list
-      // Если display_list пуст, то все элементы видимы, иначе только те, которые в списке
-      const VISIBLE = displayList.length === 0 || displayList.includes(element.name);
-
-      const elementCopy = {
-        ...element,
-        FRONTEND_CLASS,
-        VISIBLE,
-        ...(CHOICES ? { CHOICES } : {}),
-      };
-
-      flatMap.set(element.name, elementCopy);
-
-      // Рекурсивно обрабатываем вложенные элементы, если они есть
-      if (element.elements && Array.isArray(element.elements) && element.elements.length > 0) {
-        processElements(element.elements);
-      }
-    });
-  };
-
-  processElements(obj.elements);
-
-  const orderedMap = new Map<string, any>();
-
-  // Если есть displayList, сначала добавляем элементы в порядке из displayList
-  if (displayList.length > 0) {
-    displayList.forEach((fieldName: string) => {
-      if (flatMap.has(fieldName)) {
-        orderedMap.set(fieldName, flatMap.get(fieldName));
-      }
-    });
-  }
-
-  // Добавляем все оставшиеся элементы, которых нет в orderedMap
-  flatMap.forEach((value, key) => {
-    if (!orderedMap.has(key)) {
-      orderedMap.set(key, value);
-    }
-  });
-
-  return orderedMap;
-};
-
 // Метод для получения JS-функций модуля
 // const getJSInterface = async (): Promise<ModuleJSInterface> => {
 //   loading.value = true;
@@ -657,14 +501,17 @@ const createTableColumns = (obj: LayoutWithElements): Map<string, any> => {
 // Метод для обновления записи в сторе после PATCH-запроса
 const updateRecordInStore = (catalogName: string, recordId: string, updatedData: any): boolean => {
   try {
+    // Получаем стор модуля
+    const moduleStore = useModuleStore();
+
     // Проверяем, что данные для этого представления загружены
-    if (!catalogsByName[catalogName] || !catalogsByName[catalogName].GET) {
+    if (!moduleStore.catalogsByName[catalogName] || !moduleStore.catalogsByName[catalogName].GET) {
       console.warn(`Невозможно обновить запись в сторе: данные для ${catalogName} не загружены`);
       return false;
     }
 
     // Получаем текущие данные
-    const currentData = catalogsByName[catalogName].GET;
+    const currentData = moduleStore.catalogsByName[catalogName].GET;
 
     // Проверяем, что есть Map resultsIndex
     if (!currentData.resultsIndex || !(currentData.resultsIndex instanceof Map)) {
@@ -693,41 +540,4 @@ const updateRecordInStore = (catalogName: string, recordId: string, updatedData:
     console.error(`Ошибка при обновлении записи в сторе:`, error);
     return false;
   }
-};
-
-// Функция для создания иерархической Map-структуры элементов
-// Он добавляет дополнительные вычисляемые поля к элементам:
-// FRONTEND_CLASS - определяет тип поля для фронтенда
-// TABLE_COLUMNS - для элементов типа ViewSetInlineLayout
-// elementsIndex - вложенная Map-структура для дочерних элементов
-const createElementsMap = (elements: any[] | undefined): Map<string, any> => {
-  const elementsIndex = new Map<string, any>();
-
-  if (!elements || !Array.isArray(elements)) {
-    return elementsIndex;
-  }
-
-  // Обрабатываем элементы текущего уровня
-  elements.forEach((element) => {
-    if (!element.name) return;
-
-    element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
-
-    // Добавляем элемент в Map текущего уровня
-    elementsIndex.set(element.name, element);
-
-    // Если это ViewSetInlineLayout, создаем TABLE_COLUMNS
-    if (element.class_name === 'ViewSetInlineLayout' && element.elements?.length > 0) {
-      // Создаем плоскую структуру для всех вложенных элементов
-      element.TABLE_COLUMNS = createTableColumns(element);
-    }
-
-    // Если у элемента есть вложенные элементы, создаем для них свою Map-структуру
-    if (element.elements?.length > 0) {
-      // Создаем Map для вложенных элементов
-      element.elementsIndex = createElementsMap(element.elements);
-    }
-  });
-
-  return elementsIndex;
 };

@@ -52,7 +52,7 @@ onLazyLoad вызывается при прокрутке таблицы
           @column-reorder="onColumnReorder"
           class="p-datatable-sm transparent-header inner-shadow"
           v-model:selection="tableSelection"
-          :selection-mode="hasBatchPermission ? 'multiple' : 'single'"
+          :selection-mode="props.selectionMode || 'multiple'"
           :dataKey="primaryKey"
           :scrollable="true"
           :resizableColumns="true"
@@ -62,8 +62,8 @@ onLazyLoad вызывается при прокрутке таблицы
           :totalRecords="props.totalRecords || 0"
           showGridlines
         >
-          <!-- Колонка с чекбоксами для массового выделения, если разрешены batch операции -->
-          <Column v-if="hasBatchPermission" selectionMode="multiple" headerStyle="width: 3rem" />
+          <!-- Колонка с чекбоксами для массового выделения, если режим выбора multiple -->
+          <Column :selectionMode="props.selectionMode" headerStyle="width: 3rem" />
 
           <!-- Динамические колонки -->
           <Column
@@ -101,30 +101,20 @@ onLazyLoad вызывается при прокрутке таблицы
         <div v-if="!props.tableRows.length" class="empty-container">
           <Message severity="info">Данные отсутствуют</Message>
         </div>
-
-        <!-- Элемент для отслеживания с помощью Intersection Observer -->
-        <div v-else-if="props.enableLazyLoading" ref="loadMoreTrigger" class="load-more-trigger">
-          <ProgressSpinner v-if="props.loading" style="width: 30px; height: 30px" />
-          <span v-else-if="!hasMoreData">Все данные загружены</span>
-          <span v-else>Загрузка дополнительных данных...</span>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, h, onMounted, onUnmounted } from 'vue';
+  import { ref, computed, watch, h } from 'vue';
   import type { Component } from 'vue';
   import PrimeDataTable from 'primevue/datatable';
   import Column from 'primevue/column';
   import Message from 'primevue/message';
-  import ProgressSpinner from 'primevue/progressspinner';
   // Импортируем динамические компоненты полей
   import { dynamicField } from './fields';
-  // CatalogService теперь используется в родительском компоненте
 
-  // Функция для разрешения компонентов
   const resolveComponent = (component: any, value: any, metadata: any): Component => {
     // Если компонент является фабрикой, вызываем ее с переданными параметрами
     if (component && 'factory' in component && component.factory) {
@@ -145,15 +135,16 @@ onLazyLoad вызывается при прокрутке таблицы
       tableRows: any[];
       tableColumns: Map<string, any>;
       primaryKey: string;
-      hasBatchPermission: boolean;
       selectedItems?: any[];
       onColumnReorder?: (event: any) => void;
       loading?: boolean;
+      isTableScrollable?: boolean;
       totalRecords?: number;
-      enableLazyLoading?: boolean;
+      selectionMode?: 'single' | 'multiple';
     }>(),
     {
-      enableLazyLoading: false,
+      loading: false,
+      totalRecords: 0,
     },
   );
 
@@ -181,10 +172,7 @@ onLazyLoad вызывается при прокрутке таблицы
     return columnsList;
   });
 
-  const hasMoreData = computed(() => {
-    return props.totalRecords !== undefined && props.tableRows.length < props.totalRecords;
-  });
-
+  // Функция для получения frontendClass поля
   const getColumnFrontendClass = (fieldName: string): string => {
     if (!props.tableColumns || !props.tableColumns.has(fieldName)) return '';
     return props.tableColumns.get(fieldName)?.FRONTEND_CLASS || '';
@@ -219,78 +207,11 @@ onLazyLoad вызывается при прокрутке таблицы
     }
   };
 
-  // Флаг для предотвращения множественных загрузок
-  const isLoading = ref(false);
-
-  // Ссылка на элемент для отслеживания
-  const loadMoreTrigger = ref<HTMLElement | null>(null);
-
-  const handleIntersection = (entries: IntersectionObserverEntry[]) => {
-    const entry = entries[0];
-
-    // Если элемент виден и не идет загрузка и есть еще данные для загрузки
-    if (entry.isIntersecting && !props.loading && hasMoreData.value) {
-      // Предотвращаем множественные загрузки
-      if (isLoading.value) return;
-
-      isLoading.value = true;
-
-      // Вычисляем параметры для загрузки следующей порции данных
-      const currentLength = props.tableRows?.length || 0;
-      const rows = 20; // Количество записей для загрузки, можно настроить через props
-
-      console.log(`Загрузка данных, начиная с ${currentLength}, количество: ${rows}`);
-
-      // Отправляем событие родительскому компоненту с правильным offset
-      emit('load-more', { first: currentLength, rows });
-
-      // Сбрасываем флаг загрузки через некоторое время
-      setTimeout(() => {
-        isLoading.value = false;
-      }, 1000);
-    }
-  };
-
-  // Создаем и настраиваем Intersection Observer
-  let observer: IntersectionObserver | null = null;
-
-  onMounted(() => {
-    // Создаем наблюдатель только если бесконечная прокрутка включена и браузер поддерживает IntersectionObserver
-    if (props.enableLazyLoading && 'IntersectionObserver' in window) {
-      observer = new IntersectionObserver(handleIntersection, {
-        root: null, // используем viewport как корневой элемент
-        rootMargin: '0px',
-        threshold: 0.1, // срабатывает, когда 10% элемента видно
-      });
-
-      if (loadMoreTrigger.value) {
-        observer.observe(loadMoreTrigger.value);
-      }
-    }
-  });
-
-  // Обновляем наблюдение при изменении элемента
-  watch(loadMoreTrigger, (newValue) => {
-    if (props.enableLazyLoading && observer && newValue) {
-      observer.disconnect();
-      observer.observe(newValue);
-    }
-  });
-
-  // Очищаем наблюдатель при размонтировании компонента
-  onUnmounted(() => {
-    if (props.enableLazyLoading && observer) {
-      observer.disconnect();
-      observer = null;
-    }
-  });
-
-  // Создаем эмиттер для оповещения родителя о изменении выделенных строк, клике по строке и ленивой загрузке
+  // Создаем эмиттер для оповещения родителя о изменении выделенных строк, клике по строке
   const emit = defineEmits<{
     (e: 'row-click', event: any): void;
     (e: 'selection-change', selection: any[]): void;
     (e: 'update:selectedItems', value: any[]): void;
-    (e: 'load-more', options: { first: number; rows: number }): void;
   }>();
 
   // Следим за изменениями в таблице и отправляем их родителю

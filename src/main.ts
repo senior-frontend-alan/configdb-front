@@ -56,6 +56,18 @@ const MyPreset = definePreset(Aura, {
       950: '{nexignBlue.950}',
     },
   },
+  components: {
+    dialog: {
+      // Определяем CSS на уровне компонента
+      // Уменьшаем отступы в заголовке диалогового окна
+      css: () => `
+        .p-dialog .p-dialog-header {
+          padding: 0.5rem 0.5rem;
+          padding-left: 1rem;
+        }
+      `,
+    },
+  },
 });
 
 app.use(PrimeVue, {

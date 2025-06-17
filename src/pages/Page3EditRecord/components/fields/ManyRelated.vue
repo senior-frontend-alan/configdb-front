@@ -85,10 +85,12 @@
           </div>
         </div> -->
 
-        <CatalogDetails
+        <Page2CatalogDetails
           v-if="currentModuleName && currentCatalogName"
           :moduleName="currentModuleName"
           :catalogName="currentCatalogName"
+          :isModalMode="true"
+          selectionMode="multiple"
           @row-click="handleRowClick"
           @record-selected="onRecordSelected"
           v-model:selectedItems="tempSelectedItems"
@@ -113,7 +115,7 @@
   import { ref, computed } from 'vue';
   import { CatalogService } from '../../../../services/CatalogService';
   import { parseBackendApiUrl } from '../../../../config-loader';
-  import CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
+  import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import MultiSelect from 'primevue/multiselect';
   import FloatLabel from 'primevue/floatlabel';
