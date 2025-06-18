@@ -15,6 +15,23 @@ CatalogDataTable отвечает только за отображение да�
     <div class="header-container">
       <div class="title-container">
         <h3>{{ currentCatalog?.OPTIONS?.verbose_name || 'Каталог без названия' }}</h3>
+
+        <!-- Инпут для ввода ID записи и кнопка для прокрутки к ней -->
+        <div class="scroll-to-id-container">
+          <InputText
+            v-model="scrollToIdInput"
+            placeholder="ID записи"
+            class="p-inputtext-sm"
+            style="width: 100px"
+          />
+          <Button
+            label="Перейти"
+            class="p-button-sm"
+            @click="scrollToRecord(scrollToIdInput)"
+            :disabled="!scrollToIdInput"
+          />
+        </div>
+
         <Button
           id="refresh-button"
           icon="pi pi-refresh"
@@ -49,6 +66,7 @@ CatalogDataTable отвечает только за отображение да�
 
     <div class="catalog-details">
       <DataTable
+        ref="dataTable"
         :tableRows="lazyItems"
         :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
@@ -88,7 +106,7 @@ CatalogDataTable отвечает только за отображение да�
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+  import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
   import { CatalogService } from '../../services/CatalogService';
@@ -96,8 +114,9 @@ CatalogDataTable отвечает только за отображение да�
   import DataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
   import Button from 'primevue/button';
+  import InputText from 'primevue/inputtext';
 
-  // Получаем параметры маршрута только для навигации
+  // Получаем router для навигации
   const router = useRouter();
 
   const props = defineProps<{
@@ -109,15 +128,13 @@ CatalogDataTable отвечает только за отображение да�
   }>();
 
   // Состояние компонента
-  // Состояние выделенных строк в таблице
-  const tableSelection = ref<any[]>([]);
   const loading = ref(true);
   const error = ref<string | null>(null);
-
-  // Данные для ленивой загрузки
   const lazyItems = ref<any[]>([]);
-  const totalRecords = ref(0);
+  const tableSelection = ref<any[]>([]);
   const isTableScrollable = ref(false);
+  const totalRecords = ref(0);
+  const scrollToIdInput = ref<string>(''); // Инпут для ввода ID записи
 
   // Реф для элемента триггера ленивой загрузки
   const loadMoreTrigger = ref<HTMLDivElement | null>(null);
@@ -136,14 +153,14 @@ CatalogDataTable отвечает только за отображение да�
   const currentCatalog = computed(() => {
     return moduleStore.value?.catalogsByName[catalogName.value];
   });
-  
+
   // Вычисляемое свойство для определения режима выбора строк
   const computedSelectionMode = computed(() => {
     // Если явно указан режим выбора, используем его
     if (props.selectionMode) {
       return props.selectionMode;
     }
-    
+
     // Иначе определяем режим на основе прав доступа
     return !!currentCatalog.value?.OPTIONS?.permitted_actions?.batch ? 'multiple' : 'single';
   });
@@ -386,17 +403,6 @@ CatalogDataTable отвечает только за отображение да�
         observer.observe(loadMoreTrigger.value);
       }
     }
-
-    // Отладочные логи для проверки условий рендеринга
-    console.log('После загрузки данных:');
-    console.log('loading =', loading.value);
-    console.log('error =', error.value);
-    console.log('lazyItems.length =', lazyItems.value.length);
-    console.log('totalRecords =', totalRecords.value);
-    console.log(
-      'currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS =',
-      currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS,
-    );
   });
 
   // Обновляем наблюдение при изменении элемента
@@ -406,6 +412,58 @@ CatalogDataTable отвечает только за отображение да�
       observer.observe(newValue);
     }
   });
+
+  // Ссылка на компонент DataTable
+  const dataTable = ref();
+
+  // Функция для прокрутки к записи и её выделения
+  const scrollToRecord = async (recordId: string) => {
+    if (!recordId || !lazyItems.value.length) return;
+
+    console.log('Прокрутка к записи:', recordId);
+
+    // Находим запись в массиве данных по ID
+    const recordIndex = lazyItems.value.findIndex((item) => String(item.id) === String(recordId));
+
+    if (recordIndex === -1) {
+      console.warn('Запись не найдена в текущих данных:', recordId);
+      return;
+    }
+
+    // Устанавливаем выбранную запись
+    tableSelection.value = [lazyItems.value[recordIndex]];
+
+    // Ждем следующего цикла рендеринга
+    await nextTick();
+
+    // Используем метод дочернего компонента для прокрутки к строке
+    if (dataTable.value && typeof dataTable.value.scrollToRowByIndex === 'function') {
+      dataTable.value.scrollToRowByIndex(recordIndex);
+    } else {
+      console.warn('Метод scrollToRowByIndex не найден в компоненте DataTable');
+    }
+  };
+
+  // Проверяем наличие recordIdToScroll в хранилище после загрузки данных
+  watch(
+    () => lazyItems.value.length,
+    async () => {
+      if (lazyItems.value.length > 0) {
+        // Проверяем наличие ID для скроллинга в хранилище
+        const recordIdToScroll =
+          moduleStore.value.catalogsByName?.[catalogName.value]?.GET?.recordIdToScroll;
+
+        if (recordIdToScroll) {
+          console.log(`Найден recordIdToScroll в хранилище: ${recordIdToScroll}`);
+          await scrollToRecord(recordIdToScroll);
+
+          // Очищаем ID после скроллинга, чтобы избежать повторной прокрутки
+          // moduleStore.value.catalogsByName[catalogName.value].GET.recordIdToScroll = null;
+        }
+      }
+    },
+    { immediate: true },
+  );
 
   onUnmounted(() => {
     if (observer) {

@@ -131,6 +131,32 @@ routes.push({
   },
 });
 
+// Страница 3 - Добавление новой записи
+routes.push({
+  path: '/:moduleName/:catalogName/add',
+  name: 'AddRecord',
+  component: () => import('./pages/Page3EditRecord/index.vue'),
+  props: true, // Автоматически передаем параметры маршрута как props
+  beforeEnter: async (to, _from, next) => {
+    const moduleName = to.params.moduleName as string;
+    const catalogName = to.params.catalogName as string;
+
+    console.log(`Подготовка к добавлению новой записи: ${moduleName}/${catalogName}`);
+
+    try {
+      // Загружаем только иерархию модуля и каталога, без записи
+      const success = await ensureHierarchyLoaded(moduleName, catalogName);
+      if (!success) {
+        console.error(`Не удалось загрузить иерархию для ${moduleName}/${catalogName}`);
+      }
+    } catch (error) {
+      console.error('Неожиданная ошибка при подготовке к добавлению записи:', error);
+    } finally {
+      next(); // Продолжаем навигацию в любом случае
+    }
+  },
+});
+
 // Добавляем дополнительные маршруты для модулей, если необходимо
 try {
   config.value.modules.forEach((module) => {

@@ -78,6 +78,60 @@ export class RecordService {
     console.log(`Запись ${recordId} успешно загружена и сохранена в сторе`);
     return recordData;
   }
+
+  /**
+   * Обновляет запись в GET после успешного PATCH ответа от сервера
+   * @returns Успешно ли обновлена запись
+   */
+  static updateInStore(
+    moduleName: string,
+    catalogName: string,
+    recordId: string,
+    updatedData: any,
+  ): boolean {
+    try {
+      const moduleStore = useModuleStore(moduleName);
+
+      if (
+        !moduleStore.catalogsByName[catalogName] ||
+        !moduleStore.catalogsByName[catalogName].GET
+      ) {
+        console.warn(`Невозможно обновить запись в сторе: данные для ${catalogName} не загружены`);
+        return false;
+      }
+
+      const currentData = moduleStore.catalogsByName[catalogName].GET;
+
+      // Проверяем, что есть Map resultsIndex
+      if (!currentData.resultsIndex || !(currentData.resultsIndex instanceof Map)) {
+        console.warn(
+          `Невозможно обновить запись в сторе: нет Map resultsIndex в данных ${catalogName}`,
+        );
+        return false;
+      }
+
+      // Проверяем наличие записи в Map
+      if (!currentData.resultsIndex.has(String(recordId))) {
+        console.warn(
+          `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${catalogName}`,
+        );
+        return false;
+      }
+
+      // Получаем существующую запись
+      const existingRecord = currentData.resultsIndex.get(String(recordId));
+
+      // Обновляем существующий объект на месте, чтобы сохранить связь с массивом results
+      // Это гарантирует, что если объект также находится в массиве results, он тоже обновится
+      Object.assign(existingRecord, updatedData);
+
+      console.log(`Запись с ID ${recordId} успешно обновлена в сторе`);
+      return true;
+    } catch (error) {
+      console.error(`Ошибка при обновлении записи в сторе:`, error);
+      return false;
+    }
+  }
 }
 
 /**

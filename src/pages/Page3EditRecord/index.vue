@@ -74,6 +74,7 @@ characteristicSpec - это имя каталога
   import { ref, computed, onMounted, onUnmounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
+  import { RecordService } from '../../services/RecordService';
   import { useToast } from 'primevue/usetoast';
   import api from '../../api';
   import DynamicLayout from './components/DynamicLayout.vue';
@@ -288,9 +289,26 @@ characteristicSpec - это имя каталога
 
   // Функция для возврата к списку
   const goBack = () => {
-    const currentPath = route.path;
-    const basePath = currentPath.split('/').slice(0, -2).join('/');
-    router.push(basePath);
+    const moduleName = route.params.moduleName as string;
+    const catalogName = route.params.catalogName as string;
+    
+    try {
+      // Получаем стор модуля
+      const moduleStore = getModuleStore();
+      
+      // Устанавливаем ID записи для скроллинга в хранилище
+      if (moduleStore.catalogsByName?.[catalogName]?.GET) {
+        moduleStore.catalogsByName[catalogName].GET.recordIdToScroll = recordId.value;
+        console.log(`Установлен recordIdToScroll: ${recordId.value}`);
+      }
+    } catch (error) {
+      console.error('Ошибка при установке recordIdToScroll:', error);
+    }
+    
+    // Переходим на страницу деталей каталога
+    router.push({
+      path: `/${moduleName}/${catalogName}`,
+    });
   };
 
   // Инициализация данных из стора (данные уже загружены в роутере)
@@ -405,13 +423,13 @@ characteristicSpec - это имя каталога
         const cleanData = cleanObject(catalogData.PATCH);
         console.log('Данные для отправки:', cleanData);
 
-        // Отправляем запрос
         const response = await api.patch(url, cleanData);
         console.log('Ответ сервера:', response.data);
 
-        // Обновляем данные в сторе
-        if (moduleStore.updateRecordInStore) {
-          const updated = moduleStore.updateRecordInStore(
+        // Обновляем данные  записи в сторе
+        if (RecordService.updateInStore) {
+          const updated = RecordService.updateInStore(
+            moduleName.value,
             catalogName.value,
             recordId.value,
             response.data,
@@ -427,9 +445,13 @@ characteristicSpec - это имя каталога
         toast.add({
           severity: 'success',
           summary: 'Успешно',
-          detail: 'Данные успешно сохранены',
-          life: 3000,
+          detail: `Данные успешно сохранены (ID: ${recordId.value})`,
+          // Убран параметр life, чтобы тоаст отображался постоянно до закрытия
+          sticky: true, // Делает тоаст постоянным, пока пользователь не закроет
         });
+
+        // Очищаем PATCH после успешного сохранения
+        catalogData.PATCH = {};
 
         // Возвращаемся к списку после сохранения
         goBack();

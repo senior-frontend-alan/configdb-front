@@ -1,12 +1,12 @@
 // src/services/CatalogService.ts
 import { ref, computed } from 'vue';
+import { FieldTypeService, FRONTEND } from '../services/fieldTypeService';
 import api from '../api';
 import { useModuleStore, initCatalogStructure } from '../stores/module-factory';
 import type { CatalogDetailsAPIResponseGET } from '../stores/types/catalogDetailsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseOPTIONS } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { Layout } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { CatalogItem } from '../stores/types/catalogsAPIResponseGET.type';
-import { FieldTypeService } from '../services/fieldTypeService';
 
 // Маршрутизатор → Стор → Компоненты
 
@@ -33,17 +33,24 @@ export interface LoadedRange {
 }
 
 /**
+ * Тип для хранения загруженных диапазонов в виде объекта с ключами по диапазонам
+ * Ключ имеет формат "start-end", например "0-19"
+ */
+export type LoadedRangesMap = Record<string, LoadedRange>;
+
+/**
  * Структура GET-запроса каталога
  */
 export interface CatalogGetData {
   resultsIndex: Map<string, Object>;
   results: Object[];
-  loadedRanges: LoadedRange[];
+  loadedRanges: LoadedRangesMap;
   count?: number;
   totalCount: number;
   pageSize: number;
   next: string | null;
   previous: string | null;
+  recordIdToScroll?: string | null; // ID записи для автоматического скроллинга до нее
 }
 
 /**
@@ -119,8 +126,8 @@ export class CatalogService {
   static isRangeLoaded(
     moduleName: string,
     catalogName: string,
-    page: number,
-    pageSize: number,
+    startIndex: number,
+    endIndex: number,
   ): boolean {
     const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
     if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET) {
@@ -131,13 +138,11 @@ export class CatalogService {
     const loadedRanges = moduleStore.catalogsByName[catalogName].GET.loadedRanges;
     if (!loadedRanges) return false;
 
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize - 1;
+    // Сначала проверяем точное совпадение по ключу (O(1))
+    const exactKey = `${startIndex}-${endIndex}`;
+    if (loadedRanges[exactKey]) return true;
 
-    // Проверяем, есть ли диапазон, который полностью включает запрашиваемый
-    return loadedRanges.some(
-      (range: LoadedRange) => range.start <= startIndex && range.end >= endIndex,
-    );
+    return false;
   }
 
   /**
@@ -156,6 +161,26 @@ export class CatalogService {
       const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
       if (!moduleStore) {
         throw new Error(`Не удалось получить стор для модуля ${moduleName}`);
+      }
+
+      // проверяем наличие данных в сторе и проверяем, загружен ли запрошенный диапазон
+      if (
+        moduleStore.catalogsByName?.[catalogName]?.GET?.results &&
+        moduleStore.catalogsByName?.[catalogName]?.GET?.loadedRanges
+      ) {
+        if (this.isRangeLoaded(moduleName, catalogName, offset, offset + limit - 1)) {
+          console.log(
+            `CatalogService.GET: Данные для ${moduleName}/${catalogName} с offset=${offset}, limit=${limit} уже загружены в стор, используем кэш`,
+          );
+
+          // Возвращаем только запрошенный диапазон из кэша
+          const allResults = moduleStore.catalogsByName[catalogName].GET?.results || [];
+          return allResults.slice(offset, offset + limit);
+        } else {
+          console.log(
+            `CatalogService.GET: Данные для ${moduleName}/${catalogName} с offset=${offset}, limit=${limit} не найдены в кэше, загружаем с сервера`,
+          );
+        }
       }
 
       // ШАГ 1: Поиск URL для загрузки каталога
@@ -206,6 +231,7 @@ export class CatalogService {
         ...data, // Добавляем все поля из ответа API
         results: combinedResults, // Явно указываем объединенные результаты
         pageSize: limit, // Добавляем размер страницы
+        recordIdToScroll: moduleStore.catalogsByName[catalogName].GET?.recordIdToScroll || null, // ID записи для скроллинга
       };
 
       if (data?.results && Array.isArray(data.results)) {
@@ -221,12 +247,18 @@ export class CatalogService {
 
       const loadedRanges = moduleStore.catalogsByName[catalogName].GET.loadedRanges;
       if (loadedRanges) {
-        loadedRanges.push({
-          start: offset,
-          end: offset + (data.results?.length || 0) - 1,
+        // Формируем ключ для диапазона в формате "start-end"
+        const start = offset;
+        const end = offset + (data.results?.length || 0) - 1;
+        const rangeKey = `${start}-${end}`;
+
+        // Сохраняем объект диапазона по этому ключу
+        loadedRanges[rangeKey] = {
+          start,
+          end,
           page: Math.floor(offset / limit) + 1,
           timestamp: Date.now(),
-        });
+        };
       }
 
       // TODO:
@@ -250,10 +282,23 @@ export class CatalogService {
   }
 
   // Загрузка метаданных каталога через OPTIONS-запрос и формирование структуры OPTIONS в сторе
-  static async OPTIONS(moduleName: string, catalogName: string): Promise<string> {
+  static async OPTIONS(
+    moduleName: string,
+    catalogName: string,
+  ): Promise<CatalogDetailsAPIResponseOPTIONS> {
     const moduleStore = useModuleStore(moduleName);
     if (!moduleStore) {
       throw new Error(`Стор для модуля ${moduleName} не найден`);
+    }
+
+    // Проверяем, загружены ли уже метаданные OPTIONS для этого каталога
+    if (moduleStore.catalogsByName?.[catalogName]?.OPTIONS) {
+      console.log(
+        `CatalogService.OPTIONS: Метаданные для ${moduleName}/${catalogName} уже загружены в стор, используем кэш`,
+      );
+
+      // Возвращаем сами данные OPTIONS из стора
+      return moduleStore.catalogsByName[catalogName].OPTIONS;
     }
 
     // ШАГ 1: Поиск URL для загрузки каталога
@@ -298,7 +343,7 @@ export class CatalogService {
     console.log(
       `Метаданные каталога ${catalogName} успешно загружены через OPTIONS и сохранены в сторе`,
     );
-    return url;
+    return optionsResponseData;
   }
 
   // Функция для создания плоской Map-структуры со всеми полями из elements и их вложенных элементов
@@ -332,11 +377,15 @@ export class CatalogService {
         const FRONTEND_CLASS = FieldTypeService.getFieldType(element);
 
         // Если это поле типа Choice, создаем Map-структуру для быстрого доступа к значениям
-        let CHOICES: Map<string, string> | undefined;
-        if (FRONTEND_CLASS === 'Choice' && element.choices && Array.isArray(element.choices)) {
-          CHOICES = new Map<string, string>();
+        let choicesIndex: Map<string, string> | undefined;
+        if (
+          FRONTEND_CLASS === FRONTEND.CHOICE &&
+          element.choices &&
+          Array.isArray(element.choices)
+        ) {
+          choicesIndex = new Map<string, string>();
           element.choices.forEach((choice: { value: string | number; display_name: string }) => {
-            CHOICES?.set(String(choice.value), choice.display_name);
+            choicesIndex?.set(String(choice.value), choice.display_name);
           });
         }
 
@@ -348,7 +397,7 @@ export class CatalogService {
           ...element,
           FRONTEND_CLASS,
           VISIBLE,
-          ...(CHOICES ? { CHOICES } : {}),
+          ...(choicesIndex ? { choicesIndex } : {}),
         };
 
         flatMap.set(element.name, elementCopy);
@@ -421,44 +470,45 @@ export class CatalogService {
   };
 
   /**
+   * Не удалять!
    * Ограничивает размер кэша, удаляя старые данные
    */
-  static limitCacheSize(
-    moduleName: string,
-    catalogName: string,
-    maxItems: number = this.MAX_CACHED_ITEMS,
-  ): void {
-    const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.resultsIndex) {
-      return;
-    }
+  // static limitCacheSize(
+  //   moduleName: string,
+  //   catalogName: string,
+  //   maxItems: number = this.MAX_CACHED_ITEMS,
+  // ): void {
+  //   const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
+  //   if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.resultsIndex) {
+  //     return;
+  //   }
 
-    const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
-    if (!resultsMap || resultsMap.size <= maxItems) return;
+  //   const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
+  //   if (!resultsMap || resultsMap.size <= maxItems) return;
 
-    // Если превышен лимит, удаляем самые старые загруженные диапазоны
-    const loadedRanges = moduleStore.catalogsByName[catalogName].GET.loadedRanges;
-    if (!loadedRanges || loadedRanges.length <= 1) return;
+  //   // Если превышен лимит, удаляем самые старые загруженные диапазоны
+  //   const loadedRanges = moduleStore.catalogsByName[catalogName].GET.loadedRanges;
+  //   if (!loadedRanges || loadedRanges.length <= 1) return;
 
-    // Сортируем диапазоны по времени загрузки (от старых к новым)
-    loadedRanges.sort((a, b) => a.timestamp - b.timestamp);
+  //   // Сортируем диапазоны по времени загрузки (от старых к новым)
+  //   loadedRanges.sort((a, b) => a.timestamp - b.timestamp);
 
-    // Удаляем старые диапазоны, пока не уложимся в лимит
-    // Для упрощения будем просто удалять самый старый диапазон
-    // В реальном приложении здесь нужна более сложная логика
-    const oldestRange = loadedRanges.shift();
-    if (!oldestRange) return;
+  //   // Удаляем старые диапазоны, пока не уложимся в лимит
+  //   // Для упрощения будем просто удалять самый старый диапазон
+  //   // В реальном приложении здесь нужна более сложная логика
+  //   const oldestRange = loadedRanges.shift();
+  //   if (!oldestRange) return;
 
-    // Удаляем самый старый диапазон из списка
-    moduleStore.catalogsByName[catalogName].GET.loadedRanges = loadedRanges.filter(
-      (range) => range.timestamp !== oldestRange.timestamp,
-    );
+  //   // Удаляем самый старый диапазон из списка
+  //   moduleStore.catalogsByName[catalogName].GET.loadedRanges = loadedRanges.filter(
+  //     (range) => range.timestamp !== oldestRange.timestamp,
+  //   );
 
-    // В реальном приложении здесь нужно удалить записи, относящиеся к этому диапазону
-    // Но это сложно реализовать без дополнительного хранения ID для каждого диапазона
-    // Поэтому в данной реализации мы просто удаляем диапазон из списка
-    console.log(`Удален устаревший диапазон данных для страницы ${oldestRange.page}`);
-  }
+  //   // В реальном приложении здесь нужно удалить записи, относящиеся к этому диапазону
+  //   // Но это сложно реализовать без дополнительного хранения ID для каждого диапазона
+  //   // Поэтому в данной реализации мы просто удаляем диапазон из списка
+  //   console.log(`Удален устаревший диапазон данных для страницы ${oldestRange.page}`);
+  // }
 
   /**
    * Получает элементы для указанной страницы из кэша
@@ -555,7 +605,7 @@ export class CatalogService {
     // Сбрасываем данные GET
     moduleStore.catalogsByName[catalogName].GET = {
       resultsIndex: new Map(),
-      loadedRanges: [],
+      loadedRanges: {},
       metadata: {
         totalCount: 0,
         pageSize: 10,

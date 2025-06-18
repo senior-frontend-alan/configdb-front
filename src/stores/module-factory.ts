@@ -340,7 +340,7 @@ export function initCatalogStructure(
     moduleStore.catalogsByName[catalogName] = {
       GET: {
         resultsIndex: new Map<string, any>(),
-        loadedRanges: [],
+        loadedRanges: {},
       },
       OPTIONS: {},
       PATCH: {},
@@ -352,7 +352,7 @@ export function initCatalogStructure(
     if (!moduleStore.catalogsByName[catalogName].GET) {
       moduleStore.catalogsByName[catalogName].GET = {
         resultsIndex: new Map<string, any>(),
-        loadedRanges: [],
+        loadedRanges: {},
       };
     } else {
       // Если есть GET, но нет необходимых полей
@@ -497,47 +497,3 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
 //     console.error(`Ошибка при инициализации стора модуля ${extractModuleNameFromUrl(moduleConfig.routes.getCatalog)}:`, error);
 //   }
 // };
-
-// Метод для обновления записи в сторе после PATCH-запроса
-const updateRecordInStore = (catalogName: string, recordId: string, updatedData: any): boolean => {
-  try {
-    // Получаем стор модуля
-    const moduleStore = useModuleStore();
-
-    // Проверяем, что данные для этого представления загружены
-    if (!moduleStore.catalogsByName[catalogName] || !moduleStore.catalogsByName[catalogName].GET) {
-      console.warn(`Невозможно обновить запись в сторе: данные для ${catalogName} не загружены`);
-      return false;
-    }
-
-    // Получаем текущие данные
-    const currentData = moduleStore.catalogsByName[catalogName].GET;
-
-    // Проверяем, что есть Map resultsIndex
-    if (!currentData.resultsIndex || !(currentData.resultsIndex instanceof Map)) {
-      console.warn(
-        `Невозможно обновить запись в сторе: нет Map resultsIndex в данных ${catalogName}`,
-      );
-      return false;
-    }
-
-    // Проверяем наличие записи в Map
-    if (!currentData.resultsIndex.has(String(recordId))) {
-      console.warn(
-        `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${catalogName}`,
-      );
-      return false;
-    }
-
-    // Обновляем запись в Map
-    const existingRecord = currentData.resultsIndex.get(String(recordId));
-    const updatedRecord = { ...existingRecord, ...updatedData };
-    currentData.resultsIndex.set(String(recordId), updatedRecord);
-
-    console.log(`Запись с ID ${recordId} успешно обновлена в сторе`);
-    return true;
-  } catch (error) {
-    console.error(`Ошибка при обновлении записи в сторе:`, error);
-    return false;
-  }
-};

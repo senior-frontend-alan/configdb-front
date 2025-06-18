@@ -17,7 +17,6 @@
           :modelValue="modelValue || []"
           :options="modelValue || []"
           :class="{ 'p-invalid': props.options.errors, 'field-modified': props.isModified }"
-          @click="openDialog"
           @remove="handleChipRemove"
           @update:modelValue="handleModelValueChange"
         />
@@ -255,27 +254,22 @@
     // Если есть URL для загрузки связанных данных
     if (relatedTableUrl.value) {
       try {
-        console.log('Загрузка данных каталога:', relatedTableUrl.value);
-
         // Парсим URL для получения информации о модуле и каталоге
         const urlInfo = parseBackendApiUrl(relatedTableUrl.value);
         currentModuleName.value = urlInfo.moduleName || '';
         currentCatalogName.value = urlInfo.catalogName || '';
 
-        console.log('Получены параметры:', {
-          модуль: currentModuleName.value,
-          каталог: currentCatalogName.value,
-        });
-
         // Загружаем данные в соответствующий стор через CatalogService
         if (urlInfo.moduleName && urlInfo.catalogName) {
-          await CatalogService.GET(urlInfo.moduleName, urlInfo.catalogName, 0);
+          await Promise.all([
+            CatalogService.GET(urlInfo.moduleName, urlInfo.catalogName, 0),
+            CatalogService.OPTIONS(urlInfo.moduleName, urlInfo.catalogName),
+          ]);
         } else {
           throw new Error(
             `Не удалось определить модуль или каталог из URL: ${relatedTableUrl.value}`,
           );
         }
-        console.log('Данные каталога загружены успешно');
       } catch (err) {
         console.error('Ошибка при загрузке данных каталога:', err);
         error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';

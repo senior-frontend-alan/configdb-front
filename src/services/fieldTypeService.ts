@@ -17,6 +17,8 @@ export const BACKEND = {
 
     // ! не проваливаемся внутрь на этапе показа колонок таблицы
     VIEW_SET_INLINE_LAYOUT: 'ViewSetInlineLayout', // подчиненная вложенная таблица/объект
+    VIEW_SET_INLINE_DYNAMIC_LAYOUT: 'ViewSetInlineDynamicLayout', // подчиненная вложенная таблица/объект с динамическим макетом
+    VIEW_SET_INLINE_DYNAMIC_MODEL_LAYOUT: 'ViewSetInlineDynamicModelLayout', // подчиненная вложенная таблица/объект с динамической моделью
 
     LAYOUT_SECTION: 'LayoutSection',
     LAYOUT_ROW: 'LayoutRow',
@@ -43,6 +45,7 @@ export const BACKEND = {
     // VIEW_SET_INLINE_DYNAMIC_LAYOUT: 'ViewSetInlineDynamicLayout', // подчиненная вложенная таблица/объект
     // VIEW_SET_INLINE_DYNAMIC_MODEL_LAYOUT: 'ViewSetInlineDynamicModelLayout', // подчиненная вложенная таблица/объект
     // или field_class: "ListSerializer"
+    LIST_SERIALIZER: 'ListSerializer', // Сериализатор списка
   },
   input_type: {
     CHECKBOX: 'checkbox',
