@@ -16,10 +16,8 @@ export function formatComputedValue(
     if (options.jsItemRepr) {
       // Если указан moduleName, пытаемся получить JS-функции модуля
       if (options.moduleName && typeof options.moduleName === 'string') {
-        // Получаем стор модуля напрямую
         const moduleStore = useModuleStore(options.moduleName);
 
-        // Получаем доступ к JS-функциям модуля
         const jsi = moduleStore.getJSIFunctions();
 
         try {

@@ -105,7 +105,6 @@
   const formFields = ref<FormField[]>([]);
   const formData = reactive<Record<string, any>>({});
 
-  // Получаем store модуля
   const getModuleStore = () => {
     const moduleStore = useModuleStore(props.moduleName);
     if (!moduleStore) {
@@ -245,7 +244,6 @@
     }
   };
 
-  // Сохранение данных
   const saveData = async () => {
     saving.value = true;
     error.value = null;

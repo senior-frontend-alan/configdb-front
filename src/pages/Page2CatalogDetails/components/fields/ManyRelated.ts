@@ -83,7 +83,6 @@ export function formatManyRelatedValue(value: any): string {
       })
       .join(', ');
   } catch (error) {
-    // В случае любой ошибки логируем и возвращаем сообщение об ошибке
     console.error('Ошибка при обработке many_related данных:', error, value);
     return INVALID_DATA_TYPE;
   }

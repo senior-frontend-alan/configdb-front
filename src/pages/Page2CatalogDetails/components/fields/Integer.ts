@@ -21,7 +21,6 @@ export function formatInteger(value: FieldDefinition, options: FormattingOptions
         const numValue = parseInt(value, 10);
         return String(numValue);
       }
-      // Если строка не преобразуется в число
       console.error('Неправильный тип данных для formatIntegerValue:', value);
       return `Неверный тип: "${value}"`;
     }

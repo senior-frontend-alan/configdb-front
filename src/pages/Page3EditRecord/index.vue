@@ -2,11 +2,13 @@
 characteristicSpec - это имя каталога
 203 - это ID записи
 
+URL для создания новой записи: http://localhost:5173/catalog/characteristicSpec/create
+
 Маршрутизатор отвечает за загрузку данных при переходе на страницу
 Роутер имеет всю необходимую информацию для загрузки данных еще до того, как компонент страницы будет создан.
 -->
 <template>
-  <div class="edit-record-page">
+  <div :class="['edit-record-page', isCreateMode ? 'create-mode' : 'edit-mode']">
     <div class="flex justify-content-between align-items-center mb-4">
       <h1 class="text-2xl font-bold">{{ pageTitle }}</h1>
       <Button
@@ -35,6 +37,7 @@ characteristicSpec - это имя каталога
         :record-id="recordId"
         :model-value="mergedData"
         :patch-data="getPatchData()"
+        :is-create-mode="isCreateMode"
         @update:model-value="debouncedHandleFieldUpdate"
         @reset-field="resetField"
       />
@@ -106,15 +109,23 @@ characteristicSpec - это имя каталога
   const formActionsRef = ref<HTMLElement | null>(null);
   const isAtBottom = ref(false);
 
+  // Определяем, находимся ли мы в режиме создания новой записи
+  const isCreateMode = computed(() => !recordId.value || recordId.value === 'create');
+
   const pageTitle = computed(() => {
-    return `Редактирование записи: ${catalogName.value} (ID: ${recordId.value})`;
+    return isCreateMode.value
+      ? `Создание записи: ${catalogName.value}`
+      : `Редактирование записи: ${catalogName.value} (ID: ${recordId.value})`;
   });
 
   // Метаданные формы
   const storeOptions = ref<any>(null);
 
-  // Исходная запись из GET
+  // Исходная запись из GET или пустой объект для режима создания
   const originalRecord = computed(() => {
+    if (isCreateMode.value) {
+      return {}; // Пустой объект для новой записи
+    }
     const moduleStore = getModuleStore();
     return (
       moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex?.get(
@@ -186,7 +197,7 @@ characteristicSpec - это имя каталога
     }
   };
 
-  const debouncedHandleFieldUpdate = debounce(handleFieldUpdate, 500);
+  const debouncedHandleFieldUpdate = debounce(handleFieldUpdate, 300);
 
   const resetAllFields = () => {
     try {
@@ -291,11 +302,11 @@ characteristicSpec - это имя каталога
   const goBack = () => {
     const moduleName = route.params.moduleName as string;
     const catalogName = route.params.catalogName as string;
-    
+
     try {
       // Получаем стор модуля
       const moduleStore = getModuleStore();
-      
+
       // Устанавливаем ID записи для скроллинга в хранилище
       if (moduleStore.catalogsByName?.[catalogName]?.GET) {
         moduleStore.catalogsByName[catalogName].GET.recordIdToScroll = recordId.value;
@@ -304,7 +315,7 @@ characteristicSpec - это имя каталога
     } catch (error) {
       console.error('Ошибка при установке recordIdToScroll:', error);
     }
-    
+
     // Переходим на страницу деталей каталога
     router.push({
       path: `/${moduleName}/${catalogName}`,
@@ -320,7 +331,10 @@ characteristicSpec - это имя каталога
       const moduleStore = getModuleStore();
 
       // Проверяем, загружены ли данные каталога
-      if (!moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex) {
+      if (
+        !moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex &&
+        !isCreateMode.value
+      ) {
         throw new Error(`Данные для каталога ${catalogName.value} не загружены. Проверьте роутер.`);
       }
 
@@ -332,17 +346,28 @@ characteristicSpec - это имя каталога
       // Сохраняем метаданные для передачи в DynamicLayout
       storeOptions.value = options;
 
-      // Получаем данные записи из GET.resultsIndex для быстрого доступа по id
-      const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex?.get(
-        String(recordId.value),
-      );
+      // В режиме создания не проверяем наличие записи
+      if (isCreateMode.value) {
+        console.log('Режим создания новой записи');
+        // Инициализируем пустой PATCH для новой записи, если его еще нет
+        if (!moduleStore.catalogsByName[catalogName.value].PATCH) {
+          moduleStore.catalogsByName[catalogName.value].PATCH = {};
+        }
+      } else {
+        // Получаем данные записи из GET.resultsIndex для быстрого доступа по id
+        const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex?.get(
+          String(recordId.value),
+        );
 
-      // Проверяем, найдена ли запись
-      if (!recordData) {
-        throw new Error(`Запись с ID ${recordId.value} не найдена в каталоге ${catalogName.value}`);
+        // Проверяем, найдена ли запись
+        if (!recordData) {
+          throw new Error(
+            `Запись с ID ${recordId.value} не найдена в каталоге ${catalogName.value}`,
+          );
+        }
+        console.log('Запись из стора:', 'найдена');
       }
 
-      console.log('Запись из стора:', 'найдена');
       console.log('Загруженные метаданные:', storeOptions.value);
     } catch (e) {
       console.error('Ошибка инициализации данных из стора:', e);
@@ -353,9 +378,8 @@ characteristicSpec - это имя каталога
   };
 
   // Функция JSON.parse(JSON.stringify()) не справляется с циклическими ссылками и выбрасывает ошибку
-  // Наша функция cleanObject специально обрабатывает такие случаи, пропуская проблемные свойства
+  // Эта функция создает глубокую копию объекта, но без циклических ссылок
   // Она также более безопасна для сложных объектов, содержащих специальные типы данных
-  // Теперь при сохранении данных формы не должно возникать ошибок, связанных с циклическими ссылками. Функция cleanObject создает "плоскую" копию объекта, которая безопасно сериализуется в JSON для отправки на сервер.
   const cleanObject = (obj: any) => {
     // Создаем новый объект для результата
     const result: Record<string, any> = {};
@@ -411,27 +435,43 @@ characteristicSpec - это имя каталога
         throw new Error('Нет данных для сохранения');
       }
 
-      // Отправляем PATCH запрос для сохранения данных
       try {
         saving.value = true;
-
-        // Формируем URL для запроса
-        const url = `/catalog/api/v1/${catalogName.value}/${recordId.value}/?mode=short`;
-        console.log(`Отправка PATCH запроса на: ${url}`);
 
         // Создаем чистый объект данных без реактивности и циклических ссылок
         const cleanData = cleanObject(catalogData.PATCH);
         console.log('Данные для отправки:', cleanData);
 
-        const response = await api.patch(url, cleanData);
-        console.log('Ответ сервера:', response.data);
+        let response;
+        let newRecordId;
 
-        // Обновляем данные  записи в сторе
+        if (isCreateMode.value) {
+          // Формируем URL для POST запроса (создание новой записи)
+          const url = `/${moduleName.value}/api/v1/${catalogName.value}/`;
+          console.log(`Отправка POST запроса на: ${url}`);
+
+          // Отправляем POST запрос для создания новой записи
+          response = await api.post(url, cleanData);
+          console.log('Ответ сервера (создание):', response.data);
+
+          // Получаем ID новой записи из ответа
+          newRecordId = response.data.id || response.data.ID;
+        } else {
+          // Формируем URL для PATCH запроса (обновление существующей записи)
+          const url = `/${moduleName.value}/api/v1/${catalogName.value}/${recordId.value}/?mode=short`;
+          console.log(`Отправка PATCH запроса на: ${url}`);
+
+          // Отправляем PATCH запрос для обновления существующей записи
+          response = await api.patch(url, cleanData);
+          console.log('Ответ сервера (обновление):', response.data);
+        }
+
+        // Обновляем данные записи в сторе
         if (RecordService.updateInStore) {
           const updated = RecordService.updateInStore(
             moduleName.value,
             catalogName.value,
-            recordId.value,
+            isCreateMode.value ? newRecordId : recordId.value,
             response.data,
           );
           if (updated) {
@@ -445,8 +485,9 @@ characteristicSpec - это имя каталога
         toast.add({
           severity: 'success',
           summary: 'Успешно',
-          detail: `Данные успешно сохранены (ID: ${recordId.value})`,
-          // Убран параметр life, чтобы тоаст отображался постоянно до закрытия
+          detail: isCreateMode.value
+            ? `Запись успешно создана (ID: ${newRecordId})`
+            : `Данные успешно сохранены (ID: ${recordId.value})`,
           sticky: true, // Делает тоаст постоянным, пока пользователь не закроет
         });
 
@@ -462,7 +503,9 @@ characteristicSpec - это имя каталога
         toast.add({
           severity: 'error',
           summary: 'Ошибка',
-          detail: `Не удалось сохранить данные: ${err.message || 'Неизвестная ошибка'}`,
+          detail: `Не удалось ${isCreateMode.value ? 'создать запись' : 'сохранить данные'}: ${
+            err.message || 'Неизвестная ошибка'
+          }`,
           life: 5000,
         });
       } finally {
