@@ -1,29 +1,37 @@
 // настройка axios для всего приложения
 import axios from 'axios';
-import { useConfig, initConfig } from './config-loader';
+import { useConfig } from './config-loader';
 import { ref } from 'vue';
 import { setCsrfTokenFromHeader, getCsrfToken } from './utils/localstorage';
 
-// Инициализируем конфигурацию
-const config = initConfig();
-
-// Создаем экземпляр axios
+// Создаем экземпляр axios с базовыми настройками
+// Без зависимостей от конфигурации на уровне модуля
 const api = axios.create({
   // Устанавливаем пустой baseURL, чтобы запросы проходили через прокси Vite
   baseURL: '',
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: config.appConfig.apiTimeoutMs,
+  // Устанавливаем стандартный таймаут, который будет обновлен после загрузки конфигурации
+  timeout: 10000, // 10 секунд по умолчанию
   // Включаем куки для всех запросов по умолчанию
   withCredentials: true,
 });
 
-// Функция для настройки API с использованием конфигурации
+/**
+ * Функция для настройки API с использованием загруженной конфигурации
+ * Должна быть вызвана после успешной загрузки конфигурации
+ */
 export function setupApi() {
-  const { getApiTimeout } = useConfig();
-  // Не устанавливаем baseURL, чтобы запросы проходили через прокси Vite
-  api.defaults.timeout = getApiTimeout();
+  const { config } = useConfig();
+  
+  if (!config.value) {
+    console.error('Невозможно настроить API: конфигурация не загружена');
+    return;
+  }
+  
+  // Настраиваем таймаут из конфигурации
+  api.defaults.timeout = config.value.appConfig.apiRetryTimeoutMs;
 
   console.log(
     'API настроен с базовым URL:',

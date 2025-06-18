@@ -1,6 +1,6 @@
 // Загружает нужные модули в приложение из файла app.config.json
 import { ref, readonly } from 'vue';
-import configData from '../app.config.json';
+import axios from 'axios';
 
 // Типы для конфигурации
 export interface ModuleRoutes {
@@ -106,19 +106,47 @@ export function parseBackendApiUrl(url: string): ApiUrlInfo {
 }
 
 // Создаем реактивную ссылку на конфигурацию
-const config = ref<Config>(configData as Config);
+const config = ref<Config | null>(null);
+const configLoaded = ref<boolean>(false);
+const configError = ref<Error | null>(null);
+
+// Функция для загрузки конфигурации из файла app.config.json
+export async function loadConfig(): Promise<Config> {
+  // Если конфигурация уже загружена, возвращаем её
+  if (configLoaded.value && config.value) {
+    return config.value;
+  }
+
+  try {
+    // Загружаем конфигурацию через AJAX запрос
+    console.log('Загрузка конфигурации из app.config.json...');
+    const response = await axios.get<Config>('/app.config.json');
+    
+    // Сохраняем конфигурацию
+    config.value = response.data;
+    configLoaded.value = true;
+    configError.value = null;
+    
+    console.log('Конфигурация успешно загружена:', config.value.appConfig.name);
+    return config.value;
+  } catch (error) {
+    console.error('Ошибка при загрузке конфигурации:', error);
+    configError.value = error instanceof Error ? error : new Error('Неизвестная ошибка при загрузке конфигурации');
+    throw configError.value;
+  }
+}
 
 // Композабл для доступа к конфигурации
 export function useConfig() {
   return {
     // Возвращаем только для чтения версию конфигурации
     config: readonly(config),
+    configLoaded: readonly(configLoaded),
+    configError: readonly(configError),
   };
 }
 
-// Инициализация конфигурации
-export function initConfig() {
-  // Здесь можно добавить логику для загрузки конфигурации с сервера
-  console.log('Конфигурация инициализирована:', config.value.appConfig.name);
-  return config.value;
+// Инициализация конфигурации - для обратной совместимости
+export function initConfig(): Promise<Config> {
+  return loadConfig();
 }

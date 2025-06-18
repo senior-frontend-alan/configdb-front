@@ -110,6 +110,12 @@ export function useModuleStore(moduleName: string) {
 
   const { config } = useConfig();
 
+  // Проверяем, что конфигурация загружена
+  if (!config.value) {
+    console.error('Конфигурация не загружена, невозможно получить модуль');
+    return null;
+  }
+
   // Находим модуль напрямую в конфигурации
   const moduleConfig = config.value.modules.find((m) => {
     const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
@@ -255,6 +261,13 @@ async function loadCatalogGroups(moduleName: string): Promise<any[]> {
 
     // Формируем URL для запроса к API
     const { config } = useConfig();
+    
+    // Проверяем, что конфигурация загружена
+    if (!config.value) {
+      console.error('Конфигурация не загружена, невозможно получить URL для модуля');
+      return [];
+    }
+    
     const moduleConfig = config.value.modules.find((m) => {
       const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
       return extractedModuleName === moduleName;
