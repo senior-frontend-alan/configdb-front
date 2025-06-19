@@ -1,0 +1,90 @@
+{
+  "appConfig": {
+    "name": "Home",
+    "ui": {
+      "siteTitle": "NG-Core Example",
+      "siteCopyright": "© Nexign, JSC, 1992–2025",
+      "theme": "light"
+    },
+    "i18n": {
+      "defaultLanguage": "ru",
+      "locales": {
+        "en": "English",
+        "ru": "Русский"
+      }
+    }
+  },
+  "api": {
+    "endpoints": {
+      "core": {
+        "session": "/api/v1/session/",
+        "auth": "/api/v1/auth/login/",
+        "transaction": "/api/v1/auditTransaction/"
+      },
+      "modules": {
+        "catalog": {
+          "label": "Catalog",
+          "endpoints": {
+            "catalog": "http://localhost:5173/catalog/api/v1/-catalog/"
+          },
+          "resources": {
+            "jsFunctions": "/js/modules/catalog.js"
+          }
+        },
+        "inventory": {
+          "label": "Inventory",
+          "endpoints": {
+            "catalog": "http://localhost:5173/inventory/api/v1/-catalog/"
+          },
+          "resources": {
+            "jsFunctions": "/js/modules/applicationReferences.js"
+          }
+        },
+        "ocsManage": {
+          "label": "OCS Manage",
+          "endpoints": {
+            "catalog": "http://localhost:5173/ocsmanage/api/v1/-catalog/"
+          },
+          "resources": {
+            "jsFunctions": "/js/modules/applicationReferences.js"
+          }
+        }
+      }
+    },
+    "settings": {
+      "timeoutMs": 5000,
+      "retryTimeoutMs": 30000,
+      "cacheMaxAge": 900000,
+      "callHistoryLimit": 100
+    }
+  }
+}
+
+
+"endpoints": {
+  "core": {
+    "session": "/api/v1/session/",
+    "auth": "/api/v1/auth/login/",
+    "transaction": "/api/v1/auditTransaction/"
+  },
+  "modules": [
+    {
+      "id": "catalog",
+      "label": "Catalog",
+      "api": "http://localhost:5173/catalog/api/v1/-catalog/",
+      "resources": "/js/modules/catalog.js"
+    },
+    {
+      "id": "inventory",
+      "label": "Inventory",
+      "api": "http://localhost:5173/inventory/api/v1/-catalog/",
+      "resources": "/js/modules/applicationReferences.js"
+    },
+    {
+      "id": "ocsManage",
+      "label": "OCS Manage",
+      "api": "http://localhost:5173/ocsmanage/api/v1/-catalog/",
+      "resources": "/js/modules/applicationReferences.js"
+    }
+  ]
+}

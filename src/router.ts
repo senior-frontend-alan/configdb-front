@@ -1,10 +1,7 @@
 // src/router.ts
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
-import { useConfig, parseBackendApiUrl } from './config-loader';
 import { useAuthStore } from './stores/authStore';
 import { ensureHierarchyLoaded } from './stores/module-factory';
-
-const { config } = useConfig();
 
 // Маршрутизатор → Стор → Компоненты
 
@@ -156,19 +153,6 @@ routes.push({
     }
   },
 });
-
-// Добавляем дополнительные маршруты для модулей, если необходимо
-try {
-  config.value.modules.forEach((module) => {
-    // Получаем имя модуля из URL
-    const moduleName = parseBackendApiUrl(module.routes.getCatalog).moduleName;
-    console.log(`Добавление дополнительных маршрутов для модуля: ${moduleName}`);
-
-    // Здесь можно добавить специфичные маршруты для конкретных модулей, если необходимо
-  });
-} catch (error) {
-  console.error('Ошибка при создании динамических маршрутов:', error);
-}
 
 const router = createRouter({
   history: createWebHistory(),

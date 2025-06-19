@@ -70,10 +70,19 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(authData: AuthSessionData): Promise<boolean> {
     loading.value = true;
     error.value = JSON.parse(JSON.stringify(initialState.error));
+    const { config } = useConfig();
 
     try {
+      if (!config.value) {
+        throw new Error('Конфигурация не загружена');
+      }
+
+      const loginUrl = config.value?.appConfig?.routes?.apiSession;
+
+      console.log(`Используем URL для авторизации: ${loginUrl}`);
+
       // Отправляем запрос на аутентификацию в Django
-      const response = await api.post('/api/v1/session/', authData, {
+      const response = await api.post(loginUrl, authData, {
         headers: {
           'X-CSRFToken': getCsrfToken(),
         },
@@ -102,9 +111,19 @@ export const useAuthStore = defineStore('auth', () => {
       // Получаем CSRF токен для запроса
       const csrfToken = getCsrfToken();
 
-      // Получаем URL для выхода из конфигурации
+      // Проверяем, что сессия существует
+      if (!session.value || !session.value.session_key) {
+        console.warn('Невозможно выйти: нет активной сессии');
+        return false;
+      }
+
+      // Получаем базовый URL для сессии из конфигурации
       const { config } = useConfig();
-      const sessionUrl = config.value.appConfig.routes.apiSession;
+      const baseSessionUrl = config.value?.appConfig?.routes?.apiSession;
+
+      // Формируем полный URL с ID сессии и параметром mode=short
+      // http://localhost:5173/api/v1/session/rkijjeex5chslvj7v1q5gf8tur2i1usu/?mode=short
+      const sessionUrl = `${baseSessionUrl}${session.value.session_key}/?mode=short`;
       console.log('Отправляем запрос на выход по адресу:', sessionUrl);
 
       // Отправляем запрос на выход в Django

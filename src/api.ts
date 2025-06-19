@@ -24,19 +24,14 @@ const api = axios.create({
  */
 export function setupApi() {
   const { config } = useConfig();
-  
+
   if (!config.value) {
     console.error('Невозможно настроить API: конфигурация не загружена');
     return;
   }
-  
+
   // Настраиваем таймаут из конфигурации
   api.defaults.timeout = config.value.appConfig.apiRetryTimeoutMs;
-
-  console.log(
-    'API настроен с базовым URL:',
-    api.defaults.baseURL || 'пустой (используется прокси Vite)',
-  );
   console.log('API таймаут установлен:', api.defaults.timeout, 'мс');
 }
 

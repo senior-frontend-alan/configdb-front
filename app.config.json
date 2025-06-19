@@ -2,16 +2,7 @@
   "appConfig": {
     "name": "Home",
     "routes": {
-      "apiRoot": "/",
-      "apiHelpRoot": "/help",
-      "apiPrefix": "/api/v1",
-      "apiSession": "/api/v1/session/",
-      "apiTransaction": "/api/v1/auditTransaction/",
-      "apiBuildInfo": "/api/v1/status/",
-      "apiApplication": "/api/v1/application/",
-      "apiVersion": "/api/v1/productVersion/?current=1",
-      "apiLoginSSO": "/api/v1/auth/login/",
-      "settings": "/settings"
+      "apiSession": "http://localhost:5173/api/v1/session/"
     },
     "apiTimeoutMs": 5000,
     "apiRetryTimeoutMs": 30000,
@@ -39,15 +30,13 @@
     {
       "label": "Inventory",
       "routes": {
-        "getCatalog": "http://localhost:5173/inventory/api/v1/-catalog/",
-        "getJSIFunctions": "/js/modules/applicationReferences.js"
+        "getCatalog": "http://localhost:5173/inventory/api/v1/-catalog/"
       }
     },
     {
       "label": "OCS Manage",
       "routes": {
-        "getCatalog": "http://localhost:5173/ocsmanage/api/v1/-catalog/",
-        "getJSIFunctions": "/js/modules/applicationReferences.js"
+        "getCatalog": "http://localhost:5173/ocsmanage/api/v1/-catalog/"
       }
     }
   ]
