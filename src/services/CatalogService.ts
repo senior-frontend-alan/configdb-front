@@ -8,19 +8,27 @@ import type { CatalogDetailsAPIResponseOPTIONS } from '../stores/types/catalogDe
 import type { Layout } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { CatalogItem } from '../stores/types/catalogsAPIResponseGET.type';
 
-// Маршрутизатор → Стор → Компоненты
+// Сервисы отвечают за API-запросы и обновление соответствующих сторов
+// Сторы предоставляют интерфейс для доступа к данным и их изменения
+
+// Маршрутизатор → Стор (Сервисы) → Компоненты
+
+// Сервисы с обновлением стора
+// Сервисы отвечают за:
+// формирование API-запросов
+// обновление соответствующих сторов
+
+// Сторы отвечают за:
+// хранение состояния
+// предоставление методов для его изменения
+
+// Компоненты отвечают за:
+// отображение данных
+// вызов сервисов
 
 // Lazy Loading + Virtual Scroll = Эффективность²
 // Lazy Loading: экономит трафик и серверные ресурсы
 // Virtual Scroll: экономит память браузера и ускоряет рендеринг
-
-// 3. CatalogService
-// Отвечает за: Непосредственную загрузку данных с пагинацией
-// Задачи:
-// Формирование запросов к API с учетом пагинации
-// Кэширование загруженных диапазонов данных
-// Управление размером кэша
-// Обновление данных в сторе
 
 /**
  * Информация о загруженном диапазоне данных
@@ -59,7 +67,7 @@ export interface CatalogGetData {
 export interface CatalogData {
   GET: CatalogGetData;
   OPTIONS: Record<string, any>;
-  PATCH: Record<string, any>;
+  unsavedChanges: Record<string, any>;
   moduleName: string;
   url: string;
 }

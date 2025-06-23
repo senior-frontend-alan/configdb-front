@@ -236,7 +236,7 @@
         tempSelectedItems.value = tempSelectedItems.value.filter((item) => item.id !== rowData.id);
       }
 
-      // Изменения будут отправлены в PATCH только после нажатия на кнопку "Выбрать"
+      // Изменения будут отправлены в unsavedChanges только после нажатия на кнопку "Выбрать"
     }
     console.log('Выбранные элементы:', tempSelectedItems.value);
   };

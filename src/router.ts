@@ -159,33 +159,6 @@ const router = createRouter({
   routes,
 });
 
-// Маршруты, которые доступны без авторизации
-const publicRoutes = ['/login'];
-
-// Проверка авторизации перед каждым переходом
-router.beforeEach((to, _, next) => {
-  const authStore = useAuthStore();
-  const isAuthenticated = authStore.isAuthenticated;
-
-  // Если пользователь не авторизован и пытается попасть на защищенный маршрут
-  if (!isAuthenticated && !publicRoutes.includes(to.path)) {
-    console.log('Пользователь не авторизован, перенаправление на страницу входа');
-    next('/login');
-  } else {
-    // Если пользователь авторизован и пытается попасть на страницу входа
-    if (isAuthenticated && to.path === '/login') {
-      // Выполняем разлогинивание
-      authStore.logout().finally(() => {
-        // После разлогинивания разрешаем переход на страницу входа
-        next();
-      });
-    } else {
-      // В остальных случаях разрешаем переход
-      next();
-    }
-  }
-});
-
 // Для загрузки данных используйте ensureHierarchyLoaded из module-factory.ts
 // Эта функция обеспечивает иерархическую загрузку данных: модуль -> каталог -> запись
 // В зависимости от переданных параметров загружает только необходимые уровни иерархии:
@@ -194,5 +167,38 @@ router.beforeEach((to, _, next) => {
 // - ensureHierarchyLoaded(moduleName, catalogName, recordId) - загружает всю иерархию
 
 // Для загрузки связанных данных для вложенных компонентов используйте отдельную функцию в компоненте
+
+// Маршруты, которые доступны без авторизации
+const publicRoutes = ['/login'];
+
+// Функция для инициализации проверки сессии при запуске приложения
+export async function initializeAuth() {
+  const authStore = useAuthStore();
+
+  try {
+    console.log('Инициализация приложения: проверка сессии');
+    const isSessionValid = await authStore.checkSession();
+    console.log('Проверка сессии завершена, статус аутентификации:', authStore.isAuthenticated);
+
+    // Если сессия недействительна и текущий маршрут не в списке публичных
+    const currentPath = window.location.pathname;
+    if (!isSessionValid && !publicRoutes.includes(currentPath)) {
+      console.log('Сессия недействительна, перенаправление на страницу входа');
+      router.push('/login');
+      return false;
+    }
+
+    return isSessionValid;
+  } catch (error) {
+    console.error('Ошибка при инициализации проверки сессии:', error);
+
+    // В случае ошибки также перенаправляем на страницу входа
+    const currentPath = window.location.pathname;
+    if (!publicRoutes.includes(currentPath)) {
+      router.push('/login');
+    }
+    return false;
+  }
+}
 
 export default router;

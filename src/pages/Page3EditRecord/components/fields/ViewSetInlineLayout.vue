@@ -105,7 +105,6 @@ ViewSetInlineLayout управляет состоянием и данными
         :layout-elements="props.options.elementsIndex"
         :model-value="newRecord"
         :patch-data="{}"
-        :record-id="newRecord.id || '0'"
         @update:model-value="handleFieldUpdate"
       />
     </div>

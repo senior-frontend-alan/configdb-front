@@ -11,7 +11,7 @@ import Aura from '@primeuix/themes/aura';
 // import Material from '@primeuix/themes/material';
 import { definePreset } from '@primeuix/themes';
 import App from './App.vue';
-import router from './router';
+import router, { initializeAuth } from './router';
 import { loadConfig, useConfig, parseBackendApiUrl } from './config-loader';
 import { setupApi } from './api';
 import { createModuleStore } from './stores/module-factory';
@@ -135,6 +135,9 @@ async function initApp() {
     useAuthStore();
     useSettingsStore();
     console.log('Сторы авторизации и настроек успешно инициализированы');
+
+    // Проверка сессии при загрузке приложения (только один раз)
+    await initializeAuth();
 
     // Инициализация модульных сторов
     initializeModuleStores();

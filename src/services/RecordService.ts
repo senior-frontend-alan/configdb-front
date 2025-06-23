@@ -1,9 +1,7 @@
-// src/services/CatalogService.ts
-import { ref, computed } from 'vue';
+// src/services/RecordService.ts
 import api from '../api';
 import { useModuleStore, initCatalogStructure } from '../stores/module-factory';
-import type { CatalogDetailsAPIResponseGET } from '../stores/types/catalogDetailsAPIResponseGET.type';
-import type { CatalogItem } from '../stores/types/catalogsAPIResponseGET.type';
+import { useAuthStore } from '../stores/authStore';
 
 // Маршрутизатор → Стор → Компоненты
 
@@ -110,15 +108,25 @@ export class RecordService {
         return false;
       }
 
-      // Проверяем наличие записи в Map
+      // Проверяем наличие записи в сторе в Map
       if (!currentData.resultsIndex.has(String(recordId))) {
-        console.warn(
-          `Невозможно обновить запись в сторе: запись с ID ${recordId} не найдена в ${catalogName}`,
-        );
-        return false;
+        console.log(`Запись с ID ${recordId} не найдена в ${catalogName}, добавляем её в стор`);
+
+        // Добавляем новую запись в стор
+        if (currentData.results && Array.isArray(currentData.results)) {
+          currentData.results.push(updatedData);
+          currentData.resultsIndex.set(String(recordId), updatedData);
+
+          console.log(`Запись с ID ${recordId} успешно добавлена в стор`);
+          return true;
+        } else {
+          console.warn(
+            `Невозможно добавить запись в стор: отсутствует массив results в ${catalogName}`,
+          );
+          return false;
+        }
       }
 
-      // Получаем существующую запись
       const existingRecord = currentData.resultsIndex.get(String(recordId));
 
       // Обновляем существующий объект на месте, чтобы сохранить связь с массивом results
@@ -131,6 +139,94 @@ export class RecordService {
       console.error(`Ошибка при обновлении записи в сторе:`, error);
       return false;
     }
+  }
+
+  /**
+   * Создает новую запись в каталоге
+   * @returns Данные созданной записи
+   */
+  static async sendPostRequest(moduleName: string, catalogName: string, data: any): Promise<any> {
+    const moduleStore = useModuleStore(moduleName);
+
+    if (!moduleStore || !moduleStore.catalogsByName || !moduleStore.catalogsByName[catalogName]) {
+      throw new Error(`Не найден каталог ${catalogName} в модуле ${moduleName}`);
+    }
+    // URL не из конфиге! (из конфига мы загружаем только список справочников)
+    // URL в соотвествующем ModuleStore модуля и имени каталога ()
+    let baseUrl = moduleStore.catalogsByName[catalogName].url || '';
+
+    // Проверяем и обеспечиваем наличие символа / в конце baseUrl
+    if (!baseUrl.endsWith('/')) {
+      baseUrl += '/';
+    }
+    // Добавляем параметр mode=short
+    if (!baseUrl.includes('?mode=short')) {
+      baseUrl += '?mode=short';
+    }
+
+    // Получаем CSRF-токен из аутентификационного стора
+    const authStore = useAuthStore();
+    const csrfToken = authStore.csrfToken;
+    const headers = csrfToken ? { 'X-CSRFToken': csrfToken } : {};
+
+    const response = await api.post(baseUrl, data, { headers });
+    console.log(`Отправка POST запроса на: ${baseUrl}`);
+    console.log('Данные для отправки:', data);
+    console.log('Ответ сервера (создание):', response.data);
+
+    // Получаем ID новой записи из ответа
+    const newRecordId = response.data.id || response.data.ID;
+
+    // Обновляем запись в сторе
+    this.updateInStore(moduleName, catalogName, String(newRecordId), response.data);
+
+    return response.data;
+  }
+
+  /**
+   * Обновляет существующую запись в каталоге
+   * @returns Данные обновленной записи
+   */
+  static async sendPatchRequest(
+    moduleName: string,
+    catalogName: string,
+    recordId: string | number,
+    data: any,
+  ): Promise<any> {
+    const moduleStore = useModuleStore(moduleName);
+
+    if (!moduleStore || !moduleStore.catalogsByName || !moduleStore.catalogsByName[catalogName]) {
+      throw new Error(`Не найден каталог ${catalogName} в модуле ${moduleName}`);
+    }
+    // URL не из конфиге! (из конфига мы загружаем только список справочников)
+    // URL в соотвествующем ModuleStore модуля и имени каталога ()
+    let baseUrl = moduleStore.catalogsByName[catalogName].url || '';
+
+    // Проверяем и обеспечиваем наличие символа / в конце baseUrl
+    if (!baseUrl.endsWith('/')) {
+      baseUrl += '/';
+    }
+
+    let url = `${baseUrl}${recordId}/`;
+
+    // Добавляем параметр mode=short
+    if (!url.includes('?mode=short')) {
+      url += '?mode=short';
+    }
+
+    // Получаем CSRF-токен из аутентификационного стора
+    const authStore = useAuthStore();
+    const csrfToken = authStore.csrfToken;
+    const headers = csrfToken ? { 'X-CSRFToken': csrfToken } : {};
+
+    const response = await api.patch(url, data, { headers });
+    console.log(`Отправка PATCH запроса на: ${url}`);
+    console.log('Данные для отправки:', data);
+    console.log('Ответ сервера (обновление):', response.data);
+
+    this.updateInStore(moduleName, catalogName, String(recordId), response.data);
+
+    return response.data;
   }
 }
 

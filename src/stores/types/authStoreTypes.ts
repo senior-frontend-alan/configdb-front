@@ -46,6 +46,7 @@ export interface ApiErrorState {
 // Интерфейс для состояния хранилища
 export interface AuthState {
   session: Session | null;
+  csrfToken: string | null; // CSRF-токен для защищенных запросов
   loading: boolean;
   error: ApiErrorState;
 }

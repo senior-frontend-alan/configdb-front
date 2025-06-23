@@ -34,10 +34,8 @@ URL для создания новой записи: http://localhost:5173/catal
       <DynamicLayout
         v-if="storeOptions && storeOptions.layout.elementsIndex"
         :layout-elements="storeOptions.layout.elementsIndex"
-        :record-id="recordId"
         :model-value="mergedData"
-        :patch-data="getPatchData()"
-        :is-create-mode="isCreateMode"
+        :patch-data="getUnsavedChanges()"
         @update:model-value="debouncedHandleFieldUpdate"
         @reset-field="resetField"
       />
@@ -79,7 +77,6 @@ URL для создания новой записи: http://localhost:5173/catal
   import { useModuleStore } from '../../stores/module-factory';
   import { RecordService } from '../../services/RecordService';
   import { useToast } from 'primevue/usetoast';
-  import api from '../../api';
   import DynamicLayout from './components/DynamicLayout.vue';
   import Button from 'primevue/button';
   import ProgressSpinner from 'primevue/progressspinner';
@@ -134,20 +131,9 @@ URL для создания новой записи: http://localhost:5173/catal
     );
   });
 
-  // PATCH данные из стора
-  const patchData = computed(() => {
-    try {
-      const moduleStore = getModuleStore();
-      return moduleStore.catalogsByName?.[catalogName.value]?.PATCH || {};
-    } catch (error) {
-      console.error('Ошибка при получении PATCH данных:', error);
-      return {};
-    }
-  });
-
   // Получаем объединенные данные (исходные из GET + изменения)
   const mergedData = computed(() => {
-    return { ...originalRecord.value, ...patchData.value };
+    return { ...originalRecord.value, ...unsavedChangesInfo.value.data };
   });
 
   let debounceTimer: number | null = null;
@@ -166,7 +152,9 @@ URL для создания новой записи: http://localhost:5173/catal
     console.log('handleFieldUpdate updatedData', updatedData);
     try {
       const moduleStore = getModuleStore();
-      const currentPatch = { ...(moduleStore.catalogsByName?.[catalogName.value]?.PATCH || {}) };
+      const unsavedChanges = {
+        ...(moduleStore.catalogsByName?.[catalogName.value]?.unsavedChanges || {}),
+      };
 
       // Обрабатываем каждое поле в обновленных данных
       for (const [key, value] of Object.entries(updatedData)) {
@@ -176,16 +164,16 @@ URL для создания новой записи: http://localhost:5173/catal
 
         if (valueMatches) {
           // Если значение совпадает с исходным, удаляем поле из PATCH
-          delete currentPatch[key];
+          delete unsavedChanges[key];
         } else {
           // Если значение отличается, добавляем в PATCH
-          currentPatch[key] = value;
+          unsavedChanges[key] = value;
         }
       }
 
       // Обновляем PATCH в сторе
-      moduleStore.catalogsByName[catalogName.value].PATCH = currentPatch;
-      console.log('Обновлены PATCH данные:', currentPatch);
+      moduleStore.catalogsByName[catalogName.value].unsavedChanges = unsavedChanges;
+      console.log('Обновлены PATCH данные:', unsavedChanges);
 
       // Проверяем положение прокрутки после изменения данных
       // Используем setTimeout, чтобы проверка произошла после обновления DOM
@@ -204,7 +192,7 @@ URL для создания новой записи: http://localhost:5173/catal
       const moduleStore = getModuleStore();
       if (moduleStore.catalogsByName?.[catalogName.value]) {
         // Очищаем PATCH в сторе
-        moduleStore.catalogsByName[catalogName.value].PATCH = {};
+        moduleStore.catalogsByName[catalogName.value].unsavedChanges = {};
 
         // Показываем сообщение об успешной отмене изменений
         toast.add({
@@ -223,9 +211,9 @@ URL для создания новой записи: http://localhost:5173/catal
   const resetField = (fieldName: string) => {
     try {
       const moduleStore = getModuleStore();
-      if (moduleStore.catalogsByName?.[catalogName.value]?.PATCH) {
-        if (fieldName in moduleStore.catalogsByName[catalogName.value].PATCH) {
-          delete moduleStore.catalogsByName[catalogName.value].PATCH[fieldName];
+      if (moduleStore.catalogsByName?.[catalogName.value]?.unsavedChanges) {
+        if (fieldName in moduleStore.catalogsByName[catalogName.value].unsavedChanges) {
+          delete moduleStore.catalogsByName[catalogName.value].unsavedChanges[fieldName];
 
           toast.add({
             severity: 'info',
@@ -242,38 +230,31 @@ URL для создания новой записи: http://localhost:5173/catal
     }
   };
 
-  // Получаем данные о патче из стора
-  const getPatchData = () => {
+  // Получаем данные о несохраненных изменениях из стора
+  const getUnsavedChanges = () => {
     try {
       const moduleStore = getModuleStore();
-      return moduleStore.catalogsByName?.[catalogName.value]?.PATCH || {};
+      return moduleStore.catalogsByName?.[catalogName.value]?.unsavedChanges || {};
     } catch {
       return {};
     }
   };
 
-  const hasUnsavedChanges = computed(() => {
-    try {
-      const patchData = getPatchData();
+  // Вычисляемые свойства на основе несохраненных изменений
+  const unsavedChangesInfo = computed(() => {
+    const changes = getUnsavedChanges();
+    const changesCount = Object.keys(changes).length;
 
-      // Если PATCH пустой или не существует, изменений нет
-      const hasChanges = Object.keys(patchData).length > 0;
-
-      return hasChanges;
-    } catch {
-      return false;
-    }
+    return {
+      data: changes,
+      count: changesCount,
+      hasChanges: changesCount > 0,
+    };
   });
 
-  // Подсчитываем количество измененных полей
-  const modifiedFieldsCount = computed(() => {
-    try {
-      const patchData = getPatchData();
-      return Object.keys(patchData).length;
-    } catch {
-      return 0;
-    }
-  });
+  // Производные вычисляемые свойства для удобства
+  const hasUnsavedChanges = computed(() => unsavedChangesInfo.value.hasChanges);
+  const modifiedFieldsCount = computed(() => unsavedChangesInfo.value.count);
 
   const getModuleStore = () => {
     if (!moduleName.value) {
@@ -350,8 +331,8 @@ URL для создания новой записи: http://localhost:5173/catal
       if (isCreateMode.value) {
         console.log('Режим создания новой записи');
         // Инициализируем пустой PATCH для новой записи, если его еще нет
-        if (!moduleStore.catalogsByName[catalogName.value].PATCH) {
-          moduleStore.catalogsByName[catalogName.value].PATCH = {};
+        if (!moduleStore.catalogsByName[catalogName.value].unsavedChanges) {
+          moduleStore.catalogsByName[catalogName.value].unsavedChanges = {};
         }
       } else {
         // Получаем данные записи из GET.resultsIndex для быстрого доступа по id
@@ -430,69 +411,71 @@ URL для создания новой записи: http://localhost:5173/catal
       const moduleStore = getModuleStore();
       const catalogData = moduleStore.catalogsByName?.[catalogName.value];
 
-      // Проверяем наличие изменений в PATCH
-      if (!catalogData?.PATCH || Object.keys(catalogData.PATCH).length === 0) {
+      if (!catalogData?.unsavedChanges || Object.keys(catalogData.unsavedChanges).length === 0) {
         throw new Error('Нет данных для сохранения');
       }
 
       try {
         saving.value = true;
+        const rawData = catalogData.unsavedChanges;
 
         // Создаем чистый объект данных без реактивности и циклических ссылок
-        const cleanData = cleanObject(catalogData.PATCH);
+        const cleanData = cleanObject(rawData);
         console.log('Данные для отправки:', cleanData);
 
         let response;
-        let newRecordId;
+        let newRecordId; // Объявляем переменную для хранения ID новой записи
 
-        if (isCreateMode.value) {
-          // Формируем URL для POST запроса (создание новой записи)
-          const url = `/${moduleName.value}/api/v1/${catalogName.value}/`;
-          console.log(`Отправка POST запроса на: ${url}`);
+        try {
+          // В зависимости от режима используем POST или PATCH
+          if (isCreateMode.value) {
+            // Создание новой записи
+            response = await RecordService.sendPostRequest(
+              moduleName.value,
+              catalogName.value,
+              cleanData,
+            );
 
-          // Отправляем POST запрос для создания новой записи
-          response = await api.post(url, cleanData);
-          console.log('Ответ сервера (создание):', response.data);
-
-          // Получаем ID новой записи из ответа
-          newRecordId = response.data.id || response.data.ID;
-        } else {
-          // Формируем URL для PATCH запроса (обновление существующей записи)
-          const url = `/${moduleName.value}/api/v1/${catalogName.value}/${recordId.value}/?mode=short`;
-          console.log(`Отправка PATCH запроса на: ${url}`);
-
-          // Отправляем PATCH запрос для обновления существующей записи
-          response = await api.patch(url, cleanData);
-          console.log('Ответ сервера (обновление):', response.data);
-        }
-
-        // Обновляем данные записи в сторе
-        if (RecordService.updateInStore) {
-          const updated = RecordService.updateInStore(
-            moduleName.value,
-            catalogName.value,
-            isCreateMode.value ? newRecordId : recordId.value,
-            response.data,
-          );
-          if (updated) {
-            console.log('Данные в сторе успешно обновлены');
+            newRecordId = response.id || response.ID;
           } else {
-            console.warn('Не удалось обновить данные в сторе');
+            // Обновление существующей записи
+            response = await RecordService.sendPatchRequest(
+              moduleName.value,
+              catalogName.value,
+              recordId.value,
+              cleanData,
+            );
           }
+
+          console.log('Ответ сервера:', response);
+        } catch (error) {
+          console.error('Ошибка при сохранении данных:', error);
+          throw error;
         }
 
         // Показываем сообщение об успешном сохранении
+        let successMessage = '';
+        let recordIdentifier = '';
+
+        if (isCreateMode.value) {
+          // Для операции POST
+          recordIdentifier = newRecordId || response?.id || response?.ID;
+          successMessage = `Запись успешно создана (ID: ${recordIdentifier})`;
+        } else {
+          // Для операции PATCH
+          recordIdentifier = recordId.value;
+          successMessage = `Данные успешно обновлены (ID: ${recordIdentifier})`;
+        }
+
         toast.add({
           severity: 'success',
           summary: 'Успешно',
-          detail: isCreateMode.value
-            ? `Запись успешно создана (ID: ${newRecordId})`
-            : `Данные успешно сохранены (ID: ${recordId.value})`,
-          sticky: true, // Делает тоаст постоянным, пока пользователь не закроет
+          detail: successMessage,
+          life: 0, // Делает тоаст постоянным, пока пользователь не закроет
         });
 
         // Очищаем PATCH после успешного сохранения
-        catalogData.PATCH = {};
+        catalogData.unsavedChanges = {};
 
         // Возвращаемся к списку после сохранения
         goBack();

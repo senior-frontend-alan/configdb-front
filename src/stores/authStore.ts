@@ -1,19 +1,24 @@
-// src/stores/authStore.ts
 import { defineStore } from 'pinia';
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import api from '../api';
 import { useConfig } from '../config-loader';
-import {
-  loadSessionFromStorage,
-  saveSessionToStorage,
-  getCsrfToken,
-  clearSessionData,
-} from '../utils/localstorage';
-import type { AuthSessionData, Session, ApiErrorState, AuthState } from './types/authStoreTypes';
+import type { AuthSessionData, AuthState, ApiErrorState, Session } from './types/authStoreTypes';
+
+// Механизм работы с CSRF-токеном:
+
+// механизм работы с CSRF-токеном:
+// На странице /login запрос отправляется без CSRF-токена,
+// Получает ответ установить куку sessionid
+// CSRF-токен хранится в памяти
+
+// При перезагрузки страницы
+// отправляется запрос GET http://localhost:8080/api/v1/session/?mode=short с кукой sessionid
+// и сервер возвращает новый CSRF-токен в заголовке ответа который снова хранится в памяти
 
 // Начальное состояние хранилища
 const initialState: AuthState = {
-  session: loadSessionFromStorage(),
+  session: null, // Сессия хранится в куках
+  csrfToken: null, // CSRF-токен хранится в сторе
   loading: false,
   error: {
     type: '',
@@ -25,19 +30,27 @@ const initialState: AuthState = {
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(initialState.session);
+  const csrfToken = ref<string | null>(initialState.csrfToken);
   const loading = ref(initialState.loading);
   const error = ref<ApiErrorState>(initialState.error);
 
-  const isAuthenticated = computed(() => !!session.value?.id);
+  // Проверяем наличие id или session_key для определения статуса аутентификации
+  const isAuthenticated = computed(() => {
+    if (!session.value) return false;
+    return !!(session.value.id || session.value.session_key);
+  });
 
-  // Отслеживание изменений сессии для сохранения в localStorage
-  watch(
-    session,
-    (newSession) => {
-      saveSessionToStorage(newSession);
-    },
-    { deep: true },
-  );
+  /**
+   * Функция для сброса ошибки в хранилище
+   */
+  function resetError(): void {
+    error.value = {
+      type: '',
+      message: '',
+      status: 0,
+      data: null,
+    };
+  }
 
   /**
    * Функция для сохранения ошибки в хранилище
@@ -69,7 +82,7 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function login(authData: AuthSessionData): Promise<boolean> {
     loading.value = true;
-    error.value = JSON.parse(JSON.stringify(initialState.error));
+    resetError();
     const { config } = useConfig();
 
     try {
@@ -77,20 +90,44 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error('Конфигурация не загружена');
       }
 
-      const loginUrl = config.value?.appConfig?.routes?.apiSession;
+      // Очищаем предыдущую сессию перед новым логином (т.к. в куках могут оставаться данные)
+      clearLocalSessionData();
+
+      // Получаем URL для авторизации
+      let loginUrl = config.value?.appConfig?.routes?.apiSession;
+
+      // Добавляем слеш в конец URL, если его там нет
+      if (loginUrl && !loginUrl.endsWith('/')) {
+        loginUrl += '/';
+      }
 
       console.log(`Используем URL для авторизации: ${loginUrl}`);
+      console.log('Отправляем данные для авторизации:', { username: authData.username });
 
       // Отправляем запрос на аутентификацию в Django
       const response = await api.post(loginUrl, authData, {
-        headers: {
-          'X-CSRFToken': getCsrfToken(),
-        },
         withCredentials: true, // Важно для работы с сессиями Django
       });
 
-      session.value = response.data;
-      return true;
+      // Проверяем наличие CSRF-токена в заголовке ответа
+      const newCsrfToken = response.headers?.['x-csrftoken'];
+      if (newCsrfToken) {
+        csrfToken.value = newCsrfToken;
+        console.log('Получен новый CSRF-токен в заголовке ответа. Сохранен в сторе:', newCsrfToken);
+      }
+
+      // Проверяем ответ сервера
+      console.log('Ответ сервера при авторизации:', response.data);
+
+      // Сохраняем сессию в сторе (а sessionId хранится в куках)
+      if (response.data && (response.data.id || response.data.session_key)) {
+        session.value = response.data;
+        console.log('Сессия успешно создана и сохранена в сторе');
+        return true;
+      } else {
+        console.error('Ошибка: сервер не вернул данные сессии');
+        return false;
+      }
     } catch (err) {
       console.error('Ошибка!!!:', err);
       saveError(err);
@@ -101,72 +138,96 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Выход из системы
+   * Очистка локальных данных сессии и куков
+   * Очищает данные сессии в сторе и удаляет связанные куки
+   */
+  function clearLocalSessionData(): void {
+    session.value = null;
+    csrfToken.value = null;
+
+    // Более надежный способ удаления куков
+    // Удаляем куку sessionid с указанием всех необходимых параметров
+    const cookiesToClear = ['sessionid', 'csrftoken'];
+    const domain = window.location.hostname;
+    const paths = ['/', '/api/'];
+
+    // Перебираем все комбинации имен куков и путей
+    cookiesToClear.forEach((cookieName) => {
+      paths.forEach((path) => {
+        // Удаляем куку с указанием домена
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}; domain=${domain}; secure;`;
+        // Удаляем куку без указания домена
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${path}; secure;`;
+      });
+    });
+
+    console.log('Куки очищены');
+
+    // Для отладки выводим все оставшиеся куки
+    console.log('Оставшиеся куки после очистки:', document.cookie);
+  }
+
+  /**
+   * Выход из системы с перенаправлением на страницу входа
    */
   async function logout(): Promise<boolean> {
     loading.value = true;
-    error.value = JSON.parse(JSON.stringify(initialState.error));
+    resetError();
+    const { config } = useConfig();
 
     try {
-      // Получаем CSRF токен для запроса
-      const csrfToken = getCsrfToken();
-
-      // Проверяем, что сессия существует
-      if (!session.value || !session.value.session_key) {
-        console.warn('Невозможно выйти: нет активной сессии');
-        return false;
+      if (!config.value) {
+        throw new Error('Конфигурация не загружена');
       }
 
-      // Получаем базовый URL для сессии из конфигурации
-      const { config } = useConfig();
-      const baseSessionUrl = config.value?.appConfig?.routes?.apiSession;
+      if (!session.value) {
+        throw new Error('Нет активной сессии для выхода');
+      }
 
-      // Формируем полный URL с ID сессии и параметром mode=short
-      // http://localhost:5173/api/v1/session/rkijjeex5chslvj7v1q5gf8tur2i1usu/?mode=short
+      if (!session.value.session_key) {
+        throw new Error('Отсутствует session_key для выхода из системы');
+      }
+
+      let baseSessionUrl = config.value?.appConfig?.routes?.apiSession;
+
+      // Проверяем и добавляем слеш в конец базового URL, если его там нет
+      if (!baseSessionUrl) {
+        throw new Error('Не настроен URL для работы с сессиями');
+      }
+
+      if (!baseSessionUrl.endsWith('/')) {
+        baseSessionUrl += '/';
+      }
+
+      // Формируем полный URL с идентификатором сессии и параметром mode=short
       const sessionUrl = `${baseSessionUrl}${session.value.session_key}/?mode=short`;
-      console.log('Отправляем запрос на выход по адресу:', sessionUrl);
+      console.log(`Отправляем запрос на выход по URL: ${sessionUrl}`);
 
       // Отправляем запрос на выход в Django
-      await api.delete(sessionUrl, {
+      const response = await api.delete(sessionUrl, {
         headers: {
-          'X-CSRFToken': csrfToken,
+          'X-CSRFToken': csrfToken.value,
         },
         withCredentials: true,
       });
 
-      // Удаляем данные сессии из localStorage
-      clearSessionData();
+      // Логируем заголовки ответа для отладки
+      console.log('Заголовки ответа при выходе:', response.headers);
 
-      // Очищаем сессию в хранилище
-      session.value = null;
+      // Очищаем локальные данные сессии и куки
+      clearLocalSessionData();
 
-      // Дополнительный запрос на получение нового CSRF токена
-      // Это поможет сбросить сессию на сервере
-      try {
-        await api.get('/api/v1/csrf/', {
-          withCredentials: true,
-        });
-      } catch (csrfErr) {
-        console.log('Не удалось получить новый CSRF токен, но это не критично:', csrfErr);
-      }
+      // Перенаправляем на страницу логина
+      // Полная перезагрузка страницы - это обеспечивает полный сброс состояния приложения
+      window.location.href = '/login';
 
       return true;
     } catch (err) {
       console.error('Ошибка при выходе из системы:', err);
       saveError(err);
 
-      // Даже в случае ошибки удаляем данные сессии из localStorage
-      clearSessionData();
-      session.value = null;
-
-      // Пробуем получить новый CSRF токен даже в случае ошибки
-      try {
-        await api.get('/api/v1/csrf/', {
-          withCredentials: true,
-        });
-      } catch (csrfErr) {
-        console.log('Не удалось получить новый CSRF токен после ошибки:', csrfErr);
-      }
+      // Даже в случае ошибки очищаем сессию
+      clearLocalSessionData();
 
       return false;
     } finally {
@@ -179,21 +240,59 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function checkSession(): Promise<boolean> {
     loading.value = true;
-    error.value = JSON.parse(JSON.stringify(initialState.error));
+    resetError();
+    const { config } = useConfig();
 
     try {
-      const response = await api.get('/api/v1/session/', {
-        withCredentials: true,
+      if (!config.value) {
+        throw new Error('Конфигурация не загружена');
+      }
+
+      // Используем тот же URL, что и для авторизации
+      let sessionUrl = config.value?.appConfig?.routes?.apiSession;
+
+      // Добавляем слеш в конец URL, если его там нет
+      if (sessionUrl && !sessionUrl.endsWith('/')) {
+        sessionUrl += '/';
+      }
+
+      console.log(`Используем URL для проверки сессии: ${sessionUrl}`);
+
+      // При проверке сессии также получаем новый CSRF-токен
+      const response = await api.get(sessionUrl, {
+        withCredentials: true, // Важно для работы с сессиями Django
       });
 
-      if (response.data && response.data.id) {
-        session.value = response.data;
+      // Проверяем наличие CSRF-токена в заголовке ответа
+      const newCsrfToken = response.headers?.['x-csrftoken'];
+      if (newCsrfToken) {
+        csrfToken.value = newCsrfToken;
+        console.log('Получен новый CSRF-токен при проверке сессии:', newCsrfToken);
+      }
+
+      // Проверяем ответ сервера
+      console.log('Ответ сервера при проверке сессии:', response.data);
+      console.log('Текущая сессия в сторе:', session.value);
+
+      // Важно: если получен CSRF-токен, значит сессия действительна
+      if (newCsrfToken) {
+        // Проверяем, если ответ - массив, берем первый элемент
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          session.value = response.data[0] as Session;
+          console.log('Сессия действительна, данные из массива обновлены в сторе:', session.value);
+        } else {
+          session.value = response.data as Session;
+          console.log('Сессия действительна, данные обновлены в сторе:', session.value);
+        }
         return true;
       } else {
+        // Если нет CSRF-токена, сессия недействительна
         session.value = null;
+        console.log('Сессия недействительна (нет CSRF-токена), очищена в сторе');
         return false;
       }
     } catch (err) {
+      console.error('Ошибка при проверке сессии:', err);
       session.value = null;
       saveError(err);
       return false;
@@ -202,46 +301,21 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /**
-   * Очистка ошибки
-   */
-  function clearError(): void {
-    // Используем начальное состояние для ошибки
-    error.value = JSON.parse(JSON.stringify(initialState.error));
-  }
-
-  /**
-   * Сброс состояния хранилища к начальному
-   */
-  function resetState(): void {
-    session.value = initialState.session;
-    loading.value = initialState.loading;
-    error.value = JSON.parse(JSON.stringify(initialState.error));
-  }
-
-  // Инициализация: проверяем сессию только если уже есть данные в localStorage
-  if (session.value) {
-    console.log('Сессия загружена из localStorage:', session.value);
-    // Можно добавить проверку сессии на сервере
-    // checkSession();
-  }
-
   // Экспортируем состояние и методы
   return {
     // Состояние
     session,
+    csrfToken,
     loading,
     error,
-
-    // Геттеры
     isAuthenticated,
 
     // Методы
     login,
     logout,
+    clearLocalSessionData,
     checkSession,
-    clearError,
     saveError,
-    resetState,
+    resetError,
   };
 });

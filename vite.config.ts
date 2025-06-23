@@ -34,6 +34,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     cors: false,
+    /* Временно отключено проксирование
     proxy: {
       '/static': 'http://localhost:7008',
       '/catalog/api/': {
@@ -85,5 +86,6 @@ export default defineConfig({
         },
       },
     },
+    */
   },
 });

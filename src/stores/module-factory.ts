@@ -172,10 +172,46 @@ export async function ensureHierarchyLoaded(
 ): Promise<boolean> {
   try {
     // Шаг 1: Загрузка модуля (A)
-    const moduleStore = useModuleStore(moduleName);
+    let moduleStore = useModuleStore(moduleName);
+    // Если стор не найден, попробуем создать его
+    // (когда открываем http://localhost:5173/inventory на новой странице нужно где-то создать стор)
     if (!moduleStore) {
-      console.error(`Не удалось получить стор для модуля ${moduleName}`);
-      return false;
+      console.log(`Стор для модуля ${moduleName} не найден, пробуем создать его`);
+
+      try {
+        const { config } = useConfig();
+
+        if (!config.value) {
+          console.error('Конфигурация не загружена, невозможно создать стор модуля');
+          return false;
+        }
+
+        // Находим конфигурацию модуля
+        const moduleConfig = config.value.modules.find((m) => {
+          const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
+          return extractedModuleName === moduleName;
+        });
+
+        if (!moduleConfig) {
+          console.error(`Модуль с именем '${moduleName}' не найден в конфигурации`);
+          return false;
+        }
+
+        // Создаем стор для модуля
+        const storeCreator = createModuleStore(moduleConfig);
+        storeCreator(); // Инициализируем стор (это регистрирует его в Pinia)
+        moduleStore = useModuleStore(moduleName); // Пробуем получить созданный стор
+
+        if (!moduleStore) {
+          console.error(`Не удалось создать стор для модуля ${moduleName}`);
+          return false;
+        }
+
+        console.log(`Стор для модуля ${moduleName} успешно создан`);
+      } catch (error) {
+        console.error(`Ошибка при создании стора для модуля ${moduleName}:`, error);
+        return false;
+      }
     }
 
     // Проверяем, загружены ли группы каталогов
@@ -261,13 +297,13 @@ async function loadCatalogGroups(moduleName: string): Promise<any[]> {
 
     // Формируем URL для запроса к API
     const { config } = useConfig();
-    
+
     // Проверяем, что конфигурация загружена
     if (!config.value) {
       console.error('Конфигурация не загружена, невозможно получить URL для модуля');
       return [];
     }
-    
+
     const moduleConfig = config.value.modules.find((m) => {
       const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
       return extractedModuleName === moduleName;
@@ -324,7 +360,7 @@ interface Catalog {
     [key: string]: any;
   };
   OPTIONS: any;
-  PATCH: any;
+  unsavedChanges: any;
   moduleName: string;
   url: string;
   [key: string]: any;
@@ -356,7 +392,7 @@ export function initCatalogStructure(
         loadedRanges: {},
       },
       OPTIONS: {},
-      PATCH: {},
+      unsavedChanges: {},
       moduleName,
       url,
     } as Catalog;
