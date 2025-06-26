@@ -26,14 +26,13 @@ export interface I18nConfig {
 }
 
 export interface AppConfig {
-  name: string;
+  siteTitle: string;
+  siteCopyright: string;
   routes: AppRoutes;
   apiRetryTimeoutMs: number;
   apiCacheMaxAge: number;
-  siteTitle: string;
-  siteCopyright: string;
-  theme: string;
-  i18n: I18nConfig;
+  theme?: string;
+  i18n?: I18nConfig;
 }
 
 export interface Config {
@@ -121,17 +120,18 @@ export async function loadConfig(): Promise<Config> {
     // Загружаем конфигурацию через AJAX запрос
     console.log('Загрузка конфигурации из app.config.json...');
     const response = await axios.get<Config>('/app.config.json');
-    
+
     // Сохраняем конфигурацию
     config.value = response.data;
     configLoaded.value = true;
     configError.value = null;
-    
+
     console.log('Конфигурация успешно загружена:', config.value.appConfig.name);
     return config.value;
   } catch (error) {
     console.error('Ошибка при загрузке конфигурации:', error);
-    configError.value = error instanceof Error ? error : new Error('Неизвестная ошибка при загрузке конфигурации');
+    configError.value =
+      error instanceof Error ? error : new Error('Неизвестная ошибка при загрузке конфигурации');
     throw configError.value;
   }
 }

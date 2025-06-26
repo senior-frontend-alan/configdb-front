@@ -2,6 +2,7 @@
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
   import { useAuthStore } from '../stores/authStore';
+  import { useConfig } from '../config-loader';
   import InputGroup from 'primevue/inputgroup';
   import InputGroupAddon from 'primevue/inputgroupaddon';
   import FloatLabel from 'primevue/floatlabel';
@@ -12,10 +13,9 @@
 
   const router = useRouter();
   const authStore = useAuthStore();
+  const { config } = useConfig();
   const username = ref('');
   const password = ref('');
-
-  // Локальная авторизация всегда разрешена в этой версии
   const isLocalAuthAllowed = true;
 
   const clearError = () => {
@@ -61,8 +61,8 @@
   <div class="login-page">
     <div class="login-header">
       <div class="logo">
-        <span class="logo-letter">R</span>
-        <span class="logo-text">RSC Management Console</span>
+        <img src="/favicon.jpg" alt="Logo" style="border-radius: 8px;" /> &nbsp;
+        <span class="logo-text">{{ config?.appConfig?.siteTitle }}</span>
       </div>
     </div>
 
@@ -201,6 +201,10 @@
     display: flex;
     align-items: center;
     color: white;
+  }
+  
+  .logo-icon {
+    border-radius: 8px;
   }
 
   .logo-letter {

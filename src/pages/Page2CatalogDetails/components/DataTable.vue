@@ -1,6 +1,7 @@
 <!-- 
 Родительский компонент Page2CatalogDetails/index.vue теперь отвечает за загрузку и подготовку данных
 DataTable.vue чисто презентационный и отвечает только за отображение данных
+Не должен сам обращаться к стору, если следовать принципу разделения ответственности
 
   Компонент для отображения данных в виде таблицы.
   Принимает TABLE_COLUMNS и данные напрямую, не обращаясь к стору.
@@ -98,8 +99,11 @@ onLazyLoad вызывается при прокрутке таблицы
           </Column>
         </PrimeDataTable>
 
-        <div v-if="!props.tableRows.length" class="empty-container">
-          <Message severity="info">Данные отсутствуют</Message>
+        <div
+          v-if="!props.tableRows.length"
+          class="empty-container flex justify-content-center align-items-center"
+        >
+          <Message severity="secondary" variant="simple">Данные отсутствуют</Message>
         </div>
       </div>
     </div>
@@ -118,7 +122,8 @@ onLazyLoad вызывается при прокрутке таблицы
   const resolveComponent = (component: any, value: any, metadata: any): Component => {
     // Если компонент является фабрикой, вызываем ее с переданными параметрами
     if (component && 'factory' in component && component.factory) {
-      return component(value, metadata);
+      // Передаем локаль как отдельный третий параметр
+      return component(value, metadata, props.locale);
     }
 
     // Если это обычный компонент, возвращаем его как есть
@@ -134,6 +139,7 @@ onLazyLoad вызывается при прокрутке таблицы
     defineProps<{
       tableRows: any[];
       tableColumns: Map<string, any>;
+      locale: string; // Локаль для форматирования дат и чисел
       primaryKey: string;
       selectedItems?: any[];
       onColumnReorder?: (event: any) => void;
@@ -274,6 +280,12 @@ onLazyLoad вызывается при прокрутке таблицы
   /* Скрываем иконку загрузки по умолчанию */
   :deep(.p-datatable-loading-icon) {
     display: none;
+  }
+
+  :deep(.p-datatable-gridlines .p-datatable-thead > tr > th) {
+    /* background-color: var(--p-floatlabel-color); */
+    background-color: #f0f5fb;
+    white-space: normal;
   }
 
   /* Стили для индикатора загрузки в футере */

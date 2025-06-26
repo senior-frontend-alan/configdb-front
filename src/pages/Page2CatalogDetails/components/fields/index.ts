@@ -1,12 +1,18 @@
 import { Component, h } from 'vue';
 import { FRONTEND, FieldDefinition } from '../../../../services/fieldTypeService';
+
+// Это модуль с утилитами, а не компонент Vue
+// Кеширование локали здесь создаст глобальное состояние, что усложняет тестирование
+// Подписка на изменения стора в модуле может привести к утечкам памяти, так как подписка никогда не будет отменена
+// Поэтому локаль передается как пропс
+
 import CharWithButton from './CharWithButton.vue';
 import RichEdit from './RichEdit.vue';
 import { formatChoiceValue } from './Choice';
 import { formatInteger } from './Integer';
 import { formatDecimal } from './Decimal';
 import { formatChar } from './Char';
-import { formatDateValue, formatTimeValue, formatDateTimeValue } from './DateTime';
+import { formatDate, formatTime, formatDateTime } from './DateTime';
 import { formatComputedValue } from './Computed';
 import { formatRelatedValue } from './Related';
 import { formatPrimaryKeyRelatedValue } from './PrimaryKeyRelated';
@@ -26,7 +32,7 @@ type FieldComponentFactory = {
 // Поэтому мы создаем отдельную функцию createFieldFactory, которая явно указывает тип.
 // Иначе TypeScript не может автоматически определить, что эта функция является "фабрикой компонентов", а не обычным компонентом Vue.
 function createFieldFactory(
-  factory: (value: unknown, metadata?: unknown) => Component | (() => any),
+  factory: (value: unknown, metadata: unknown, locale: string) => Component | (() => any),
 ): FieldComponentFactory {
   const typedFactory = factory as FieldComponentFactory;
   typedFactory.factory = true;
@@ -62,14 +68,14 @@ export const dynamicField: Record<string, Component | FieldComponentFactory> = {
   [FRONTEND.DECIMAL]: createFieldFactory((value) => {
     return h('span', {}, formatDecimal(value as FieldDefinition));
   }),
-  [FRONTEND.DATE]: createFieldFactory((value) => {
-    return h('span', {}, formatDateValue(value as FieldDefinition));
+  [FRONTEND.DATE]: createFieldFactory((value, _metadata, locale) => {
+    return h('span', {}, formatDate(value as FieldDefinition, locale));
   }),
-  [FRONTEND.TIME]: createFieldFactory((value) => {
-    return h('span', {}, formatTimeValue(value as FieldDefinition));
+  [FRONTEND.TIME]: createFieldFactory((value, _metadata, locale) => {
+    return h('span', {}, formatTime(value as FieldDefinition, locale));
   }),
-  [FRONTEND.DATE_TIME]: createFieldFactory((value) => {
-    return h('span', {}, formatDateTimeValue(value as FieldDefinition));
+  [FRONTEND.DATE_TIME]: createFieldFactory((value, _metadata, locale) => {
+    return h('span', {}, formatDateTime(value as FieldDefinition, locale));
   }),
   [FRONTEND.COMPUTED]: createFieldFactory((value) => {
     return h('span', {}, formatComputedValue(value as FieldDefinition));
@@ -82,15 +88,21 @@ export const dynamicField: Record<string, Component | FieldComponentFactory> = {
   }),
   [FRONTEND.MANY_RELATED]: createFieldFactory((value, metadata) => {
     // Проверяем, является ли value массивом объектов с id и name
-    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === 'object' &&
+      value[0] !== null
+    ) {
       // Возвращаем компонент с чипсами
-      return () => h(ManyRelated, {
-        value: value,
-        field: {
-          FRONTEND_CLASS: FRONTEND.MANY_RELATED,
-          ...metadata as object
-        }
-      });
+      return () =>
+        h(ManyRelated, {
+          value: value,
+          field: {
+            FRONTEND_CLASS: FRONTEND.MANY_RELATED,
+            ...(metadata as object),
+          },
+        });
     }
     // В противном случае возвращаем простой span с отформатированным текстом
     return h('span', {}, formatManyRelatedValue(value));

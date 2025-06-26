@@ -3,7 +3,7 @@
   import { computed, ref, onMounted, onUnmounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useAuthStore } from './stores/authStore';
-  import AppTopbar from './components/AppTopbar.vue';
+  // import AppTopbar from './components/AppTopbar.vue';
   import SideMenu from './components/SideMenu.vue';
   import AppBreadcrumb from './components/AppBreadcrumb.vue';
   import AppProgressBar from './components/AppProgressBar.vue';
@@ -76,9 +76,10 @@
       </div>
 
       <AppBreadcrumb class="layout-breadcrumb breadcrumb-with-margin" />
-      <div class="layout-topbar" :class="{ sticky: isTopbarSticky }">
+      <!-- Не удалять! -->
+      <!-- <div class="layout-topbar" :class="{ sticky: isTopbarSticky }">
         <AppTopbar />
-      </div>
+      </div> -->
 
       <div class="layout-content">
         <!-- :key="route.fullPath" - Это важно! 

@@ -17,6 +17,7 @@ import { setupApi } from './api';
 import { createModuleStore } from './stores/module-factory';
 import { useAuthStore } from './stores/authStore';
 import { useSettingsStore } from './stores/settingsStore';
+import { setupI18n } from './i18n';
 
 /**
  * Создает тему приложения
@@ -119,6 +120,10 @@ async function initApp() {
     app.use(pinia);
     app.use(router);
     app.use(ToastService);
+    
+    // Инициализация i18n
+    const i18n = setupI18n();
+    app.use(i18n);
 
     // Применяем тему
     const MyPreset = createAppTheme();

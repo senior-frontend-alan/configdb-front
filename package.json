@@ -4,21 +4,23 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "run-p type-check build-only",
+    "build": "vite build",
     "preview": "vite preview",
     "build-only": "vite build",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "generate-translations": "node src/i18n/generate-translations.js"
   },
   "dependencies": {
     "@primeuix/themes": "^1.0.0",
+    "ace-builds": "^1.41.0",
     "axios": "^1.8.4",
     "chart.js": "^4.4.8",
     "pinia": "^3.0.1",
     "primeicons": "^7.0.0",
     "primevue": "^4.3.1",
     "vue": "^3.4.27",
+    "vue-i18n": "^12.0.0-alpha.2",
     "vue-router": "^4.3.0",
-    "ace-builds": "^1.41.0",
     "vue3-ace-editor": "^2.2.4"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
 <template>
   <div class="home-page">
-    <h1>Главная страница</h1>
-    <p>Добро пожаловать в приложение ConfigDB</p>
+    <h1>{{ $t('home.title') }}</h1>
+    <p>{{ $t('home.welcome') }}</p>
   </div>
 </template>
 

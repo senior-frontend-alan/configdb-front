@@ -1,6 +1,7 @@
 {
   "appConfig": {
-    "name": "Home",
+    "siteTitle": "NG-Core Example",
+    "siteCopyright": "© Nexign, JSC, 1992–2025",
     "routes": {
       "apiSession": "http://localhost:7008/api/v1/session/"
     },
@@ -8,8 +9,6 @@
     "apiRetryTimeoutMs": 30000,
     "apiCacheMaxAge": 900000,
     "apiCallHistoryLimit": 100,
-    "siteTitle": "NG-Core Example",
-    "siteCopyright": "© Nexign, JSC, 1992–2025",
     "theme": "light",
     "i18n": {
       "defaultLanguage": "ru",

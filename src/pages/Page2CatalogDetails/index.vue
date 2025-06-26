@@ -66,7 +66,7 @@ CatalogDataTable отвечает только за отображение да�
 
     <div class="catalog-details">
       <DataTable
-        ref="dataTable"
+        ref="dataTableRef"
         :tableRows="lazyItems"
         :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
@@ -74,6 +74,7 @@ CatalogDataTable отвечает только за отображение да�
         :selectedItems="tableSelection"
         :onColumnReorder="onColumnReorder"
         :loading="loading"
+        :locale="userLocale"
         @update:selectedItems="tableSelection = $event"
         @row-click="handleRowClick"
         :isTableScrollable="isTableScrollable"
@@ -109,6 +110,7 @@ CatalogDataTable отвечает только за отображение да�
   import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
+  import { useSettingsStore } from '../../stores/settingsStore';
   import { CatalogService } from '../../services/CatalogService';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import DataTable from './components/DataTable.vue';
@@ -116,8 +118,10 @@ CatalogDataTable отвечает только за отображение да�
   import Button from 'primevue/button';
   import InputText from 'primevue/inputtext';
 
-  // Получаем router для навигации
   const router = useRouter();
+
+  const settingsStore = useSettingsStore();
+  const userLocale = computed(() => settingsStore.locale);
 
   const props = defineProps<{
     moduleName: string; // Обязательный параметр
@@ -414,7 +418,7 @@ CatalogDataTable отвечает только за отображение да�
   });
 
   // Ссылка на компонент DataTable
-  const dataTable = ref();
+  const dataTableRef = ref();
 
   // Функция для прокрутки к записи и её выделения
   const scrollToRecord = async (recordId: string) => {
@@ -437,8 +441,8 @@ CatalogDataTable отвечает только за отображение да�
     await nextTick();
 
     // Используем метод дочернего компонента для прокрутки к строке
-    if (dataTable.value && typeof dataTable.value.scrollToRowByIndex === 'function') {
-      dataTable.value.scrollToRowByIndex(recordIndex);
+    if (dataTableRef.value && typeof dataTableRef.value.scrollToRowByIndex === 'function') {
+      dataTableRef.value.scrollToRowByIndex(recordIndex);
     } else {
       console.warn('Метод scrollToRowByIndex не найден в компоненте DataTable');
     }

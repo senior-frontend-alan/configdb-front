@@ -9,7 +9,11 @@
 ViewSetInlineLayout управляет состоянием и данными
 -->
 <template>
-  <div class="mb-1 p-2 border rounded-lg" :class="{ 'field-modified': props.isModified }">
+  <div
+    class="mb-1 p-2 border rounded-lg"
+    :style="{ backgroundColor: 'var(--p-content-background)' }"
+    :class="{ 'field-modified': props.isModified }"
+  >
     <div v-if="!props.modelValue || !props.options?.TABLE_COLUMNS" class="empty-container">
       <Message severity="info">Нет данных для отображения</Message>
     </div>
@@ -17,7 +21,9 @@ ViewSetInlineLayout управляет состоянием и данными
     <div v-else>
       <div class="flex align-items-center justify-content-between mb-2">
         <div class="flex align-items-center gap-2">
-          <label :for="fieldId">{{ fieldLabel }}</label>
+          <label :for="fieldId" :style="{ color: 'var(--p-floatlabel-color)' }">
+            {{ fieldLabel }}
+          </label>
           <Button
             icon="pi pi-plus"
             class="p-button-sm p-button-outlined p-button-icon"

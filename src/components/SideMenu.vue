@@ -1,13 +1,19 @@
 <template>
-  <div v-show="visible">
-    <div class="topbar-brand">
-      <span class="logo-letter">R</span>
+  <div v-show="visible" class="side-menu-container">
+    <div class="side-menu-content">
+      <div class="topbar-brand">
+        <img src="/favicon.jpg" alt="Logo" class="logo-icon" />
 
-      <span class="topbar-brand-text">
-        <span class="topbar-title">RSC Management Console</span>
-      </span>
+        <span class="topbar-brand-text">
+          <span class="topbar-title">{{ config?.appConfig?.siteTitle }}</span>
+        </span>
+      </div>
+      <PanelMenu :model="menuItems" :expandedKeys="openMenuItems" />
     </div>
-    <PanelMenu :model="menuItems" :expandedKeys="openMenuItems" />
+
+    <div class="user-menu-container">
+      <UserMenu />
+    </div>
   </div>
 </template>
 
@@ -19,6 +25,7 @@
   import type { CatalogGroup } from '../stores/types/moduleStore.type';
   import { useRouter, useRoute } from 'vue-router';
   import { useModuleName } from '../composables/useModuleName';
+  import UserMenu from './UserMenu.vue';
 
   // Определяем пропсы компонента
   defineProps({
@@ -30,9 +37,8 @@
 
   const router = useRouter();
   const route = useRoute();
-  const { moduleName: currentModuleName } = useModuleName();
-
   const { config } = useConfig();
+  const { moduleName: currentModuleName } = useModuleName();
 
   // Автоматическое управление открытыми пунктами меню на основе текущего moduleName
   const openMenuItems = computed(() => {
@@ -182,6 +188,23 @@
 
   // Примечание: Загрузка данных каталога теперь происходит при клике на пункт меню
 </script>
+
+<style scoped>
+  .side-menu-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .side-menu-content {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .user-menu-container {
+    border-top: 1px solid var(--p-surface-200);
+  }
+</style>
 
 <style>
   :root {
