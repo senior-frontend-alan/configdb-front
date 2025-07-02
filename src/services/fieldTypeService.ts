@@ -73,9 +73,6 @@ export const FRONTEND = {
   PRIMARY_KEY_RELATED: 'primary_key_related', // модальное окно с новой таблицей
   MANY_RELATED: 'many_related', // модальное окно с новой таблицей и возможность добавления нескольких записей (chips)
   VIEW_SET_INLINE_LAYOUT: 'view_set_inline_layout', // подчиненная вложенная в поле таблица/объект
-
-  SECTION: 'section',
-  ROW: 'row',
 } as const;
 
 // Теперь используем только BACKEND и FRONTEND константы

@@ -1,13 +1,24 @@
 <template>
-  <div class="field-boolean">
-    <Checkbox
-      :id="id"
-      v-model="value"
-      :binary="true"
-      :disabled="disabled"
-      :class="{ 'field-modified': props.isModified }"
-    />
-    <label :for="id" class="ml-2">{{ label }}</label>
+  <div>
+    <div class="flex align-items-center mb-1">
+      <Checkbox
+        :id="id"
+        v-model="value"
+        :binary="true"
+        :disabled="disabled"
+        :class="{ 'field-modified': props.isModified }"
+      />
+      <label :for="id" class="ml-2">{{ label }}</label>
+    </div>
+    <Message
+      v-if="help_text"
+      size="small"
+      severity="secondary"
+      variant="simple"
+      class="flex-grow-1 ml-8"
+    >
+      {{ help_text }}
+    </Message>
   </div>
 </template>
 
@@ -20,6 +31,7 @@
     name: string;
     label?: string;
     readonly?: boolean;
+    help_text?: string;
     // Другие возможные свойства
     [key: string]: any;
   }
@@ -34,6 +46,7 @@
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);
   const disabled = computed(() => props.options.readonly || false);
+  const help_text = computed(() => props.options.help_text);
 
   const emit = defineEmits<{
     (e: 'update:modelValue', value: boolean): void;

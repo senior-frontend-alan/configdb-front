@@ -1,14 +1,17 @@
 <template>
   <FloatLabel variant="in">
-    <DatePicker
+    <InputNumber
       :id="id"
       v-model="value"
       :disabled="disabled"
       :required="required"
       :placeholder="placeholder"
-      dateFormat="dd.mm.yy"
-      showTime
-      hourFormat="24"
+      :min="min"
+      :max="max"
+      :step="step"
+      :minFractionDigits="minFractionDigits"
+      :maxFractionDigits="maxFractionDigits"
+      :integerOnly="isInteger"
       class="w-full"
       :class="{ 'field-modified': props.isModified }"
     />
@@ -27,7 +30,7 @@
 
 <script setup lang="ts">
   import { computed } from 'vue';
-  import DatePicker from 'primevue/datepicker';
+  import InputNumber from 'primevue/inputnumber';
   import FloatLabel from 'primevue/floatlabel';
   import Message from 'primevue/message';
 
@@ -39,12 +42,16 @@
     readonly?: boolean;
     required?: boolean;
     help_text?: string;
+    min?: number;
+    max?: number;
+    decimal_places?: number;
+    field_class?: string; // Тип поля (INTEGER или DECIMAL)
     // Другие возможные свойства
     [key: string]: any;
   }
 
   const props = defineProps<{
-    modelValue?: Date | string;
+    modelValue?: number;
     options: FieldOptions;
     isModified: boolean;
   }>();
@@ -56,26 +63,37 @@
   const disabled = computed(() => props.options.readonly || false);
   const required = computed(() => props.options.required || false);
   const help_text = computed(() => props.options.help_text);
+  const min = computed(() => props.options.min);
+  const max = computed(() => props.options.max);
+
+  // Определяем, является ли поле целочисленным
+  const isInteger = computed(() => props.options.field_class === 'INTEGER');
+
+  // Настройки для десятичных чисел
+  const minFractionDigits = computed(() =>
+    isInteger.value ? 0 : props.options.decimal_places || 2,
+  );
+  const maxFractionDigits = computed(() =>
+    isInteger.value ? 0 : props.options.decimal_places || 6,
+  );
+
+  // Шаг для целых чисел - 1, для десятичных - 0.01 или меньше в зависимости от decimal_places
+  const step = computed(() =>
+    isInteger.value ? 1 : Math.pow(10, -(props.options.decimal_places || 2)),
+  );
 
   const emit = defineEmits<{
-    (e: 'update:modelValue', value: Date | null): void;
+    (e: 'update:modelValue', value: number | null): void;
+    (e: 'reset-field', fieldName: string): void;
   }>();
-
-  // Преобразование строки в объект Date, если необходимо
-  const parseDate = (value: Date | string | undefined): Date | null => {
-    if (!value) return null;
-    if (value instanceof Date) return value;
-    return new Date(value);
-  };
 
   // Используем вычисляемое свойство для двустороннего связывания
   const value = computed({
-    get: () => parseDate(props.modelValue),
-    set: (newValue: Date | null) => {
+    get: () => props.modelValue,
+    set: (newValue: number | null) => {
       emit('update:modelValue', newValue);
     },
   });
-  // Используем computed вместо watch
 </script>
 
 <style scoped>

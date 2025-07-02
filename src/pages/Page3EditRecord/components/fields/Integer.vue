@@ -3,7 +3,6 @@
     <InputNumber
       :id="id"
       v-model="value"
-      variant="filled"
       :disabled="disabled"
       :required="required"
       :placeholder="placeholder"

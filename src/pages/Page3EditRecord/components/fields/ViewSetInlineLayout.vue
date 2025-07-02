@@ -9,13 +9,9 @@
 ViewSetInlineLayout управляет состоянием и данными
 -->
 <template>
-  <div
-    class="mb-1 p-2 border rounded-lg"
-    :style="{ backgroundColor: 'var(--p-content-background)' }"
-    :class="{ 'field-modified': props.isModified }"
-  >
-    <div v-if="!props.modelValue || !props.options?.TABLE_COLUMNS" class="empty-container">
-      <Message severity="info">Нет данных для отображения</Message>
+  <div class="mb-1 p-2 border rounded-lg" :class="{ 'field-modified': props.isModified }">
+    <div v-if="!props.options?.TABLE_COLUMNS" class="empty-container">
+      <Message severity="info">Нет колонок для отображения</Message>
     </div>
 
     <div v-else>
@@ -90,8 +86,9 @@ ViewSetInlineLayout управляет состоянием и данными
   <!-- Модальное окно для добавления записи -->
   <Dialog
     v-model:visible="dialogVisible"
-    :style="{ width: '90vw' }"
+    :style="{ width: '80vw' }"
     :modal="true"
+    maximizable
     :closable="true"
     @hide="closeDialog"
   >

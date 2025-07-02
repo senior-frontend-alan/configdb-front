@@ -453,13 +453,15 @@ export class CatalogService {
     }
 
     // Обрабатываем элементы текущего уровня
-    elements.forEach((element) => {
-      if (!element.name) return;
+    elements.forEach((element, index) => {
+      // ! ИМЯ МОЖЕТ БЫТЬ ПУСТЫМ и тогда мы пропустим элемент
+      // Используем имя элемента или его индекс как ключ
+      const key = element.name || `unnamed_${index}`;
 
       element.FRONTEND_CLASS = FieldTypeService.getFieldType(element);
 
       // Добавляем элемент в Map текущего уровня
-      elementsIndex.set(element.name, element);
+      elementsIndex.set(key, element);
 
       // Если это ViewSetInlineLayout, создаем TABLE_COLUMNS
       if (element.class_name === 'ViewSetInlineLayout' && element.elements?.length > 0) {

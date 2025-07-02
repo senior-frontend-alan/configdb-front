@@ -61,8 +61,18 @@ function createAppTheme() {
         // Уменьшаем отступы в заголовке диалогового окна
         css: () => `
           .p-dialog .p-dialog-header {
-            padding: 0.5rem 0.5rem;
+            padding: 0.2rem 0.2rem;
             padding-left: 1rem;
+            border-radius: 12px 12px 0 0;
+            }
+          .p-dialog-content {
+            padding-top: 1rem;
+          }
+          .p-dialog {
+            background: #f8fafc;
+          }
+          .p-dialog-header {
+            background-color: #d5dce4bf;
           }
         `,
       },
@@ -120,7 +130,7 @@ async function initApp() {
     app.use(pinia);
     app.use(router);
     app.use(ToastService);
-    
+
     // Инициализация i18n
     const i18n = setupI18n();
     app.use(i18n);

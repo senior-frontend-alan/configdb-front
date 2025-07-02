@@ -36,12 +36,9 @@
     <!-- Модальное окно для выбора связанной записи -->
     <Dialog
       v-model:visible="dialogVisible"
-      :style="
-        isFullscreen
-          ? { width: '100vw', height: '100vh', maxWidth: '100vw', margin: '0' }
-          : { width: '90vw' }
-      "
+      :style="{ width: '80vw' }"
       :modal="true"
+      maximizable
       :closable="true"
       @hide="closeDialog"
     >
@@ -49,12 +46,6 @@
         <div class="dialog-header-container">
           <span class="dialog-title">{{ label }}</span>
           <div class="dialog-buttons">
-            <Button
-              :icon="isFullscreen ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"
-              class="p-button-rounded p-button-text mr-2"
-              @click="toggleFullscreen"
-              v-tooltip="isFullscreen ? 'Свернуть' : 'Развернуть на весь экран'"
-            />
             <Button
               v-if="currentModuleName && currentCatalogName"
               icon="pi pi-external-link"
@@ -190,7 +181,6 @@
   const error = ref<string | null>(null);
   // Используем ref для хранения временного состояния выбранных элементов
   const tempSelectedItems = ref<RelatedItem[]>([]);
-  const isFullscreen = ref(false);
 
   // Вычисляемые свойства для использования в шаблоне
   const isSelectionEmpty = computed(() => {
@@ -207,10 +197,6 @@
       const url = `/${currentModuleName.value}/${currentCatalogName.value}`;
       window.open(url, '_blank');
     }
-  };
-
-  const toggleFullscreen = () => {
-    isFullscreen.value = !isFullscreen.value;
   };
 
   // Инициализируем временное состояние при открытии диалога

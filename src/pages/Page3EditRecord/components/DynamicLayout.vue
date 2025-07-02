@@ -14,10 +14,25 @@ DynamicLayout: чисто презентационный компонент
 
 <template>
   <template v-if="elementsArray.length > 0">
+    <!-- Отображение в виде JSON для отладки -->
+    <pre
+      v-if="showDebugJson"
+      style="
+        background-color: #f5f5f5;
+        padding: 10px;
+        border-radius: 5px;
+        overflow: auto;
+        max-height: 300px;
+      "
+      >{{ JSON.stringify(elementsArray, null, 2) }}</pre
+    >
     <template v-for="(element, index) in elementsArray" :key="element.name || index">
       <!-- Если это секция (LayoutSection) -->
-      <div v-if="element.FRONTEND_CLASS === FRONTEND.SECTION" class="layout-section">
-        <h3 v-if="element.label" class="section-title">{{ element.label }}</h3>
+      <!-- {{ element.class_name }} -->
+      <div v-if="element.class_name === BACKEND.class_name.LAYOUT_SECTION" class="layout-section">
+        <h3 v-if="element.label" class="section-title-wrapper">
+          <span class="section-title">{{ element.label }}</span>
+        </h3>
         <!-- Рекурсивно обрабатываем вложенные элементы -->
         <DynamicLayout
           v-if="element.elements && element.elements.length > 0"
@@ -29,7 +44,7 @@ DynamicLayout: чисто презентационный компонент
       </div>
 
       <!-- Если это строка (LayoutRow) -->
-      <div v-else-if="element.FRONTEND_CLASS === FRONTEND.ROW" class="layout-row">
+      <div v-else-if="element.class_name === BACKEND.class_name.LAYOUT_ROW" class="layout-row">
         <!-- Рекурсивно обрабатываем вложенные элементы строки -->
         <DynamicLayout
           v-if="element.elements && element.elements.length > 0"
@@ -45,13 +60,14 @@ DynamicLayout: чисто презентационный компонент
         <div v-if="debugField(element)" class="debug-info">
           Поле: {{ element.name }}, Значение: {{ modelValue[element.name] }}
         </div>
+        <!-- v-on="..." событие reset-field передается только компоненту ViewSetInlineLayout, а не всем компонентам полей. -->
         <component
           :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
           :options="element"
           :model-value="modelValue[element.name]"
           :is-modified="isFieldModified(element.name) || false"
           @update:model-value="updateFieldValue(element.name, $event)"
-          @reset-field="(fieldName: string) => emit('reset-field', fieldName)"
+          v-on="element.FRONTEND_CLASS === FRONTEND.VIEW_SET_INLINE_LAYOUT ? { 'reset-field': (fieldName: string) => emit('reset-field', fieldName) } : {}"
         />
       </div>
     </template>
@@ -87,12 +103,13 @@ DynamicLayout: чисто презентационный компонент
 </script>
 
 <script setup lang="ts">
-  import { defineProps, defineEmits, computed } from 'vue';
+  import { defineProps, defineEmits, computed, ref } from 'vue';
   import { getComponent } from './fields';
-  import { FRONTEND } from '../../../services/fieldTypeService';
+  import { FRONTEND, BACKEND } from '../../../services/fieldTypeService';
   import Message from 'primevue/message';
 
   // Используем интерфейс FormElement из верхнего скрипта
+  const showDebugJson = ref(false); // Показывать ли JSON для отладки
 
   const props = defineProps<{
     layoutElements: Map<string, FormElement>;
@@ -140,12 +157,23 @@ DynamicLayout: чисто презентационный компонент
 </script>
 
 <style scoped>
+  .section-title-wrapper {
+    display: flex;
+    margin: 0;
+    position: relative;
+    top: -1.1rem;
+    margin-bottom: 0.5rem;
+  }
+
   .section-title {
     color: var(--text-color-secondary);
-    margin-bottom: 1rem;
+    background-color: #f8fafc;
+    padding: 0 1rem;
+    font-weight: 500;
   }
 
   .layout-section {
+    margin-top: 2rem;
     margin-bottom: 1.5rem;
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
@@ -153,6 +181,7 @@ DynamicLayout: чисто презентационный компонент
     padding-right: 1rem;
     border-radius: 4px;
     border: 1px solid var(--p-surface-300);
+    background-color: var(rgb(99, 99, 99));
   }
 
   .dynamic-form-layout {
