@@ -5,7 +5,7 @@
         <img src="/favicon.jpg" alt="Logo" class="logo-icon" />
 
         <span class="topbar-brand-text">
-          <span class="topbar-title">{{ config?.appConfig?.siteTitle }}</span>
+          <span class="topbar-title">{{ appConfigData.appConfig?.siteTitle }}</span>
         </span>
       </div>
       <PanelMenu :model="menuItems" :expandedKeys="openMenuItems" />
@@ -19,7 +19,7 @@
 
 <script setup lang="ts">
   import { computed } from 'vue';
-  import { useConfig, parseBackendApiUrl } from '../config-loader';
+  import appConfigData from '../../app.config.ts';
   import PanelMenu from 'primevue/panelmenu';
   import { useModuleStore } from '../stores/module-factory';
   import type { CatalogGroup } from '../stores/types/moduleStore.type';
@@ -37,7 +37,6 @@
 
   const router = useRouter();
   const route = useRoute();
-  const { config } = useConfig();
   const { moduleName: currentModuleName } = useModuleName();
 
   // Автоматическое управление открытыми пунктами меню на основе текущего moduleName
@@ -47,9 +46,9 @@
     // Проверяем, что есть текущий moduleName
     if (currentModuleName.value) {
       // Проверяем, что модуль существует в конфигурации
-      const moduleExists = config.value.modules.some((m) => {
-        const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
-        return extractedModuleName === currentModuleName.value;
+      const moduleExists = appConfigData.modules.some((m) => {
+        // Используем поле urlPath для проверки наличия модуля
+        return m.urlPath?.toLowerCase() === currentModuleName.value.toLowerCase();
       });
 
       // Если модуль существует, открываем его меню
@@ -63,6 +62,11 @@
 
   const handleMenuItemClick = async (event: any, path: string) => {
     console.log('Клик по пункту меню:', path);
+    
+    // Проверяем, находимся ли мы уже на этом маршруте
+    const currentPath = router.currentRoute.value.path;
+    console.log('Текущий маршрут:', currentPath);
+    console.log('Новый маршрут:', path);
 
     // Предотвращаем стандартное поведение ссылки
     if (event && event.originalEvent) {
@@ -70,7 +74,7 @@
     }
 
     // Просто выполняем переход по указанному пути
-    // Роутер сам загрузит данные через хуки beforeResolve/beforeEach
+    // Роутер сам загрузит данные через хуки beforeEnter
     router.push(path);
   };
 
@@ -111,7 +115,7 @@
   const menuItems = computed(() => {
     // Главный пункт меню
     const homeItem = {
-      label: config.value.appConfig.name,
+      label: appConfigData.appConfig?.siteTitle,
       icon: 'pi pi-home',
       command: (event: any) => handleMenuItemClick(event, '/'),
       style: isRouteActive('/')
@@ -136,13 +140,13 @@
     };
 
     // Пункты меню модулей из конфигурации
-    const moduleItems = config.value.modules.map((module) => {
+    const moduleItems = appConfigData.modules.map((module) => {
       // Получаем имя модуля из URL
-      const moduleName = parseBackendApiUrl(module.routes.getCatalog).moduleName;
+      const moduleName = module.urlPath;
       const path = `/${moduleName}`;
       const moduleItem: any = {
         label: module.label,
-        icon: module.icon || 'pi pi-folder',
+        icon: 'pi pi-folder',
         command: (event: any) => handleMenuItemClick(event, path),
         key: moduleName, // Уникальный ключ для пункта меню
         style: isRouteActive(path)

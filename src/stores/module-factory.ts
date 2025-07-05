@@ -1,11 +1,9 @@
 // src/stores/module-factory.ts
 import { defineStore, getActivePinia } from 'pinia';
-import { ref, reactive, shallowRef } from 'vue';
 import api from '../api';
 import { CatalogService } from '../services/CatalogService';
 import { RecordService } from '../services/RecordService';
-import { useConfig, parseBackendApiUrl } from '../config-loader';
-import type { ModuleConfig } from '../config-loader';
+import appConfigData, { type Module } from '../../app.config';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 
 // Типы для JS-функций модулей
@@ -108,25 +106,6 @@ export function useModuleStore(moduleName: string) {
     return null;
   }
 
-  const { config } = useConfig();
-
-  // Проверяем, что конфигурация загружена
-  if (!config.value) {
-    console.error('Конфигурация не загружена, невозможно получить модуль');
-    return null;
-  }
-
-  // Находим модуль напрямую в конфигурации
-  const moduleConfig = config.value.modules.find((m) => {
-    const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
-    return extractedModuleName === moduleName;
-  });
-
-  if (!moduleConfig) {
-    console.error(`Модуль с moduleName '${moduleName}' не найден в конфигурации`);
-    return null;
-  }
-
   // Получаем активный экземпляр Pinia
   const pinia = getActivePinia();
 
@@ -170,51 +149,36 @@ export async function ensureHierarchyLoaded(
   catalogName?: string,
   recordId?: string,
 ): Promise<boolean> {
+  console.log(
+    `Запущена загрузка иерархии для модуля: ${moduleName}, каталог: ${
+      catalogName || 'не указан'
+    }, запись: ${recordId || 'не указана'}`,
+  );
   try {
-    // Шаг 1: Загрузка модуля (A)
-    let moduleStore = useModuleStore(moduleName);
-    // Если стор не найден, попробуем создать его
-    // (когда открываем http://localhost:5173/inventory на новой странице нужно где-то создать стор)
+    // Шаг 1: Проверка существования модуля в конфигурации
+    const moduleConfig = appConfigData.modules.find((m) => m.urlPath === moduleName);
+    if (!moduleConfig) {
+      console.error(`Модуль ${moduleName} не найден в конфигурации`);
+      return false;
+    }
+    
+    // Шаг 2: Проверка наличия стора модуля
+    // Функция initializeModuleStores в main.ts отвечает за создание всех сторов при запуске приложения
+    const moduleStore = useModuleStore(moduleName);
+
+    // Если стор не найден, выдаем ошибку
     if (!moduleStore) {
-      console.log(`Стор для модуля ${moduleName} не найден, пробуем создать его`);
-
-      try {
-        const { config } = useConfig();
-
-        if (!config.value) {
-          console.error('Конфигурация не загружена, невозможно создать стор модуля');
-          return false;
-        }
-
-        // Находим конфигурацию модуля
-        const moduleConfig = config.value.modules.find((m) => {
-          const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
-          return extractedModuleName === moduleName;
-        });
-
-        if (!moduleConfig) {
-          console.error(`Модуль с именем '${moduleName}' не найден в конфигурации`);
-          return false;
-        }
-
-        // Создаем стор для модуля
-        const storeCreator = createModuleStore(moduleConfig);
-        storeCreator(); // Инициализируем стор (это регистрирует его в Pinia)
-        moduleStore = useModuleStore(moduleName); // Пробуем получить созданный стор
-
-        if (!moduleStore) {
-          console.error(`Не удалось создать стор для модуля ${moduleName}`);
-          return false;
-        }
-
-        console.log(`Стор для модуля ${moduleName} успешно создан`);
-      } catch (error) {
-        console.error(`Ошибка при создании стора для модуля ${moduleName}:`, error);
-        return false;
-      }
+      console.error(`Стор для модуля ${moduleName} не найден. Сторы должны быть созданы при инициализации приложения`);
+      return false;
     }
 
     // Проверяем, загружены ли группы каталогов
+    console.log(
+      `Проверка наличия групп каталогов для модуля ${moduleName}:`,
+      moduleStore.catalogGroups
+        ? `загружено ${moduleStore.catalogGroups.length} групп`
+        : 'не загружены',
+    );
     if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
       try {
         // Загружаем группы каталогов через специализированную функцию
@@ -287,37 +251,18 @@ export async function ensureHierarchyLoaded(
  * @returns Promise<any[]> Загруженные группы каталогов
  */
 async function loadCatalogGroups(moduleName: string): Promise<any[]> {
+  console.log(`Запущена загрузка групп каталогов для модуля: ${moduleName}`);
   try {
     // Получаем стор модуля
     const moduleStore = useModuleStore(moduleName);
+    console.log(`Получен стор для модуля ${moduleName}:`, moduleStore ? 'успешно' : 'не найден');
     if (!moduleStore) {
       console.error(`Не удалось получить стор для модуля ${moduleName}`);
       return [];
     }
 
-    // Формируем URL для запроса к API
-    const { config } = useConfig();
-
-    // Проверяем, что конфигурация загружена
-    if (!config.value) {
-      console.error('Конфигурация не загружена, невозможно получить URL для модуля');
-      return [];
-    }
-
-    const moduleConfig = config.value.modules.find((m) => {
-      const extractedModuleName = parseBackendApiUrl(m.routes.getCatalog).moduleName;
-      return extractedModuleName === moduleName;
-    });
-
-    if (!moduleConfig) {
-      console.error(`Модуль ${moduleName} не найден в конфигурации`);
-      return [];
-    }
-
-    const url = moduleConfig.routes.getCatalog;
-    console.log(`Отправка запроса на ${url}`);
-
-    const response = await api.get(url);
+    // Выполняем запрос к API для получения групп каталогов
+    const response = await api.get(moduleStore.getCatalog);
 
     // Создаем плоский индекс для быстрого доступа к элементам каталога по viewname
     const newcatalogGroupsIndex = new Map();
@@ -327,7 +272,19 @@ async function loadCatalogGroups(moduleName: string): Promise<any[]> {
         if (group.items && Array.isArray(group.items)) {
           group.items.forEach((item: any) => {
             if (item.viewname) {
+              // Добавляем в общий индекс
               newcatalogGroupsIndex.set(item.viewname, item);
+
+              // Добавляем в индекс по appl_name
+              if (item.appl_name) {
+                // Если индекса для этого appl_name еще нет, создаем его в объекте appl_name
+                if (!moduleStore.appl_name[item.appl_name]) {
+                  moduleStore.appl_name[item.appl_name] = new Map<string, any>();
+                }
+
+                // Добавляем в индекс по appl_name
+                moduleStore.appl_name[item.appl_name].set(item.viewname, item);
+              }
             }
           });
         }
@@ -421,14 +378,13 @@ export function initCatalogStructure(
   }
 }
 
-export function createModuleStore(moduleConfig: ModuleConfig) {
+export function createModuleStore(moduleConfig: Module) {
   // moduleName из URL конфига для использования в качестве идентификатора стора
-  const parsedUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog);
-  const moduleNameFromUrl = parsedUrl.moduleName;
+  const moduleNameFromUrl = moduleConfig.urlPath;
   console.log(
     'Создание стора для модуля:',
     moduleNameFromUrl,
-    'из URL:',
+    'из конфигурации, URL API:',
     moduleConfig.routes.getCatalog,
   );
 
@@ -443,9 +399,14 @@ export function createModuleStore(moduleConfig: ModuleConfig) {
   return defineStore(`${storeId}`, {
     // Определяем начальное состояние стора
     state: () => ({
-      url: moduleConfig.routes['getCatalog'],
+      getCatalog: moduleConfig.routes['getCatalog'],
       catalogGroups: [] as CatalogsAPIResponseGET,
       catalogGroupsIndex: new Map<string, any>(),
+      // т.к. В Pinia есть ограничения с динамическими полями в сторе.
+      // Динамически добавленные свойства не будут реактивными и не будут отображаться в Vue DevTools,
+      // если они не были объявлены в исходном состоянии стора.
+      // поэтому сохраняем в appl_name
+      appl_name: {} as Record<string, Map<string, any>>,
       jsInterface: {
         ...baseJSInterface,
         // Специфичные для модуля функции можно добавить здесь

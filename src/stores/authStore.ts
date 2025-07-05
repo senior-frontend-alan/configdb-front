@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import api from '../api';
-import { useConfig } from '../config-loader';
+import appConfigData from '../../app.config.ts';
 import type { AuthSessionData, AuthState, ApiErrorState, Session } from './types/authStoreTypes';
 
 // Механизм работы с CSRF-токеном:
@@ -83,18 +83,13 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(authData: AuthSessionData): Promise<boolean> {
     loading.value = true;
     resetError();
-    const { config } = useConfig();
 
     try {
-      if (!config.value) {
-        throw new Error('Конфигурация не загружена');
-      }
-
       // Очищаем предыдущую сессию перед новым логином (т.к. в куках могут оставаться данные)
       clearLocalSessionData();
 
-      // Получаем URL для авторизации
-      let loginUrl = config.value?.appConfig?.routes?.apiSession;
+      // Получаем URL для авторизации из конфигурации
+      let loginUrl = appConfigData?.appConfig?.routes?.apiSession;
 
       // Добавляем слеш в конец URL, если его там нет
       if (loginUrl && !loginUrl.endsWith('/')) {
@@ -173,13 +168,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout(): Promise<boolean> {
     loading.value = true;
     resetError();
-    const { config } = useConfig();
 
     try {
-      if (!config.value) {
-        throw new Error('Конфигурация не загружена');
-      }
-
       if (!session.value) {
         throw new Error('Нет активной сессии для выхода');
       }
@@ -188,7 +178,7 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error('Отсутствует session_key для выхода из системы');
       }
 
-      let baseSessionUrl = config.value?.appConfig?.routes?.apiSession;
+      let baseSessionUrl = appConfigData?.appConfig?.routes?.apiSession;
 
       // Проверяем и добавляем слеш в конец базового URL, если его там нет
       if (!baseSessionUrl) {
@@ -241,15 +231,10 @@ export const useAuthStore = defineStore('auth', () => {
   async function checkSession(): Promise<boolean> {
     loading.value = true;
     resetError();
-    const { config } = useConfig();
 
     try {
-      if (!config.value) {
-        throw new Error('Конфигурация не загружена');
-      }
-
       // Используем тот же URL, что и для авторизации
-      let sessionUrl = config.value?.appConfig?.routes?.apiSession;
+      let sessionUrl = appConfigData?.appConfig?.routes?.apiSession;
 
       // Добавляем слеш в конец URL, если его там нет
       if (sessionUrl && !sessionUrl.endsWith('/')) {

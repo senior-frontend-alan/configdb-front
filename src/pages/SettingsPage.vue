@@ -77,11 +77,10 @@
   import ToggleSwitch from 'primevue/toggleswitch';
   import Select from 'primevue/select';
   import { useSettingsStore } from '../stores/settingsStore';
-  import { useConfig } from '../config-loader';
+  import appConfigData from '../../app.config.ts';
   import { formatDateTime } from '../pages/Page2CatalogDetails/components/fields/DateTime.ts';
 
   const settingsStore = useSettingsStore();
-  const { config } = useConfig();
 
   // Текущая дата для примеров форматирования
   const currentDate = new Date();
@@ -102,7 +101,7 @@
 
   // Получение списка доступных локалей из конфигурации
   const localeOptions = computed(() => {
-    const locales = config.value?.appConfig?.i18n?.locales || {};
+    const locales = appConfigData.appConfig?.i18n?.locales || {};
     return Object.entries(locales).map(([code, name]) => ({
       code,
       name,
@@ -111,7 +110,7 @@
 
   // Функция для получения названия локали по коду
   const getLocaleName = (localeCode: string): string => {
-    const locales = config.value?.appConfig?.i18n?.locales || {};
+    const locales = appConfigData.appConfig?.i18n?.locales || {};
     return locales[localeCode] || localeCode;
   };
 

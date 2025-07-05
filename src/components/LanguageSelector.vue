@@ -20,20 +20,19 @@
   import Button from 'primevue/button';
   import Menu from 'primevue/menu';
   import { useSettingsStore } from '../stores/settingsStore';
-  import { useConfig } from '../config-loader';
+  import appConfigData from '../../app.config.ts';
 
   const { t } = useI18n();
 
-  // Получаем хранилище настроек и конфигурацию
+  // Получаем хранилище настроек
   const settingsStore = useSettingsStore();
-  const { config } = useConfig();
 
   // Ссылка на меню выбора языка
   const localeMenu = ref<any>(null);
 
   // Формируем пункты меню языков
   const localeMenuItems = computed(() => {
-    const locales = config.value?.appConfig?.i18n?.locales || {};
+    const locales = appConfigData.appConfig?.i18n?.locales || {};
     return Object.entries(locales).map(([code, name]) => ({
       label: name,
       command: () => {

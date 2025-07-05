@@ -1,15 +1,12 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { useConfig } from '../config-loader';
+import appConfigData from '../../app.config.ts';
 
 export const useSettingsStore = defineStore('settings', () => {
   // ===== Состояние стора =====
   const isInitialized = ref(false);
   const isLoading = ref(false);
   const error = ref<Error | null>(null);
-
-  // Получаем конфигурацию приложения
-  const { config } = useConfig();
 
   // ===== Настройки отображения (табы или список) =====
   const useTabMode = ref(false);
@@ -58,7 +55,7 @@ export const useSettingsStore = defineStore('settings', () => {
   };
 
   const setLanguage = (value: string) => {
-    const availableLocales = config.value?.appConfig?.i18n?.locales || {};
+    const availableLocales = appConfigData.appConfig?.i18n?.locales || {};
     // Если локаль существует в списке доступных, устанавливаем ее
     if (Object.keys(availableLocales).includes(value)) {
       language.value = value;
@@ -111,8 +108,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const initLanguage = () => {
     // Проверяем язык в куках
     const savedLocale = getCookie('django_language');
-    const availableLocales = config.value?.appConfig?.i18n?.locales || {};
-    const defaultLanguage = config.value?.appConfig?.i18n?.defaultLanguage || 'ru';
+    const availableLocales = appConfigData.appConfig?.i18n?.locales || {};
+    const defaultLanguage = appConfigData.appConfig?.i18n?.defaultLanguage || 'ru';
 
     if (savedLocale && Object.keys(availableLocales).includes(savedLocale)) {
       // Если в куках есть валидный язык, используем его

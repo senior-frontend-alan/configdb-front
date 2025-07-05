@@ -149,8 +149,8 @@
 
     // Специфичные свойства для LayoutRelatedField
     list_url: string; // URL для получения списка значений
-    view_name?: string; // Имя представления
-    appl_name?: string; // Имя приложения
+    view_name: string; // Имя представления
+    appl_name: string; // Имя приложения
     lookup?: boolean; // Является ли поле поисковым
 
     // Другие возможные свойства

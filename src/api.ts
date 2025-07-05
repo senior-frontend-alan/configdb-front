@@ -1,13 +1,6 @@
 // настройка axios для всего приложения
-import axios, {
-  AxiosInstance,
-  AxiosRequestConfig,
-  AxiosResponse,
-  AxiosError,
-  InternalAxiosRequestConfig,
-} from 'axios';
-import { useConfig } from './config-loader';
-import { useAuthStore } from './stores/authStore';
+import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import appConfigData from '../app.config.ts';
 import { ref } from 'vue';
 
 // Создаем экземпляр axios с базовыми настройками
@@ -29,15 +22,13 @@ const api: AxiosInstance = axios.create({
  * Должна быть вызвана после успешной загрузки конфигурации
  */
 export function setupApi(): void {
-  const { config } = useConfig();
-
-  if (!config.value) {
+  if (!appConfigData || !appConfigData.appConfig) {
     console.error('Невозможно настроить API: конфигурация не загружена');
     return;
   }
 
   // Настраиваем таймаут из конфигурации
-  api.defaults.timeout = config.value.appConfig.apiRetryTimeoutMs;
+  api.defaults.timeout = appConfigData.appConfig.apiRetryTimeoutMs;
   console.log('API таймаут установлен:', api.defaults.timeout, 'мс');
 }
 
@@ -106,7 +97,7 @@ api.interceptors.response.use(
       // Ошибка от сервера (статус не 2xx)
       status = error.response.status;
       data = error.response.data;
-      
+
       // Проверяем наличие поля detail в ответе
       if (data && typeof data === 'object' && 'detail' in data) {
         message = String(data.detail);

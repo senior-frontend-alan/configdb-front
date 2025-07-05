@@ -12,7 +12,7 @@ import Aura from '@primeuix/themes/aura';
 import { definePreset } from '@primeuix/themes';
 import App from './App.vue';
 import router, { initializeAuth } from './router';
-import { loadConfig, useConfig, parseBackendApiUrl } from './config-loader';
+import appConfigData from '../app.config.ts';
 import { setupApi } from './api';
 import { createModuleStore } from './stores/module-factory';
 import { useAuthStore } from './stores/authStore';
@@ -85,18 +85,17 @@ function createAppTheme() {
  */
 function initializeModuleStores() {
   try {
-    const { config } = useConfig();
-
-    if (!config.value) {
-      console.error('Конфигурация не загружена, невозможно инициализировать сторы модулей');
+    // Используем напрямую импортированную конфигурацию
+    if (!appConfigData || !appConfigData.modules) {
+      console.error(
+        'Конфигурация не загружена или неверного формата, невозможно инициализировать сторы модулей',
+      );
       return;
     }
 
-    // Создаем сторы для каждого модуля в конфигурации
-    config.value.modules.forEach((moduleConfig) => {
-      const parsedUrl = parseBackendApiUrl(moduleConfig.routes.getCatalog);
-      const moduleNameFromUrl = parsedUrl.moduleName;
-      const storeId = moduleNameFromUrl;
+    // Создаем сторы для каждого модуля в конфигурации с именем = urlPath
+    appConfigData.modules.forEach((moduleConfig) => {
+      const storeId = moduleConfig.urlPath;
 
       console.log(`Создание стора для модуля: ${storeId}`);
       const storeDefinition = createModuleStore(moduleConfig);
@@ -114,12 +113,9 @@ function initializeModuleStores() {
  */
 async function initApp() {
   try {
-    // Сначала загружаем конфигурацию
-    console.log('Инициализация приложения: загрузка конфигурации...');
-    await loadConfig();
-    console.log('Конфигурация успешно загружена, инициализация приложения...');
+    console.log('Инициализация приложения...');
 
-    // Настраиваем API с использованием загруженной конфигурации
+    // Настраиваем API с использованием импортированной конфигурации
     setupApi();
 
     // Создаем экземпляры приложения и хранилища
@@ -151,11 +147,12 @@ async function initApp() {
     useSettingsStore();
     console.log('Сторы авторизации и настроек успешно инициализированы');
 
+    // Инициализация модульных сторов - должна происходить до использования роутера
+    initializeModuleStores();
+    console.log('Модульные сторы успешно инициализированы');
+
     // Проверка сессии при загрузке приложения (только один раз)
     await initializeAuth();
-
-    // Инициализация модульных сторов
-    initializeModuleStores();
 
     // Монтируем приложение
     app.mount('#app');

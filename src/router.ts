@@ -16,7 +16,6 @@ import { ensureHierarchyLoaded } from './stores/module-factory';
 // Защита маршрутов - проверка прав доступа
 // Обработка ошибок навигации - перенаправления при ошибках
 
-// Роутер не должен отвечать за извлечение имени модуля из URL (это делает config-loader)
 // Пользователь остается на том же URL, который он ввел, даже если возникла ошибка
 // компоненты могут обрабатывать ситуации, когда данные не загружены
 
@@ -52,29 +51,6 @@ routes.push({
   name: 'CatalogList',
   component: () => import('./pages/Page1CatalogList/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
-  beforeEnter: async (to, _from, next) => {
-    const moduleName = to.params.moduleName as string;
-
-    if (!moduleName) {
-      console.error('Параметр moduleName не указан в маршруте');
-      next('/');
-      return;
-    }
-
-    // Загружаем данные модуля через единую функцию
-    console.log(`Загрузка данных для модуля: ${moduleName}`);
-
-    try {
-      const success = await ensureHierarchyLoaded(moduleName);
-      if (!success) {
-        console.error(`Не удалось загрузить модуль ${moduleName}`);
-      }
-    } catch (error) {
-      console.error('Неожиданная ошибка при загрузке модуля:', error);
-    } finally {
-      next(); // Продолжаем навигацию в любом случае
-    }
-  },
 });
 
 // Страница 2 - Отображение деталей элемента каталога
@@ -83,23 +59,6 @@ routes.push({
   name: 'CatalogDetails',
   component: () => import('./pages/Page2CatalogDetails/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
-  beforeEnter: async (to, _from, next) => {
-    const moduleName = to.params.moduleName as string;
-    const catalogName = to.params.catalogName as string;
-
-    console.log(`Загрузка данных каталога: ${moduleName}/${catalogName}`);
-
-    try {
-      const success = await ensureHierarchyLoaded(moduleName, catalogName);
-      if (!success) {
-        console.error(`Не удалось загрузить каталог ${catalogName}`);
-      }
-    } catch (error) {
-      console.error('Неожиданная ошибка при загрузке каталога:', error);
-    } finally {
-      next(); // Продолжаем навигацию в любом случае
-    }
-  },
 });
 
 // Страница 3 - Редактирование записи
@@ -107,25 +66,7 @@ routes.push({
   path: '/:moduleName/:catalogName/edit/:id',
   name: 'EditRecord',
   component: () => import('./pages/Page3EditRecord/index.vue'),
-  props: true, // Автоматически передаем параметры маршрута как props,
-  beforeEnter: async (to, _from, next) => {
-    const moduleName = to.params.moduleName as string;
-    const catalogName = to.params.catalogName as string;
-    const recordId = to.params.id as string;
-
-    console.log(`Загрузка данных записи: ${moduleName}/${catalogName}/${recordId}`);
-
-    try {
-      const success = await ensureHierarchyLoaded(moduleName, catalogName, recordId);
-      if (!success) {
-        console.error(`Не удалось загрузить запись ${recordId}`);
-      }
-    } catch (error) {
-      console.error('Неожиданная ошибка при загрузке записи:', error);
-    } finally {
-      next(); // Продолжаем навигацию в любом случае
-    }
-  },
+  props: true, // Автоматически передаем параметры маршрута как props
 });
 
 // Страница 3 - Добавление новой записи
@@ -134,29 +75,52 @@ routes.push({
   name: 'AddRecord',
   component: () => import('./pages/Page3EditRecord/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
-  beforeEnter: async (to, _from, next) => {
-    const moduleName = to.params.moduleName as string;
-    const catalogName = to.params.catalogName as string;
-
-    console.log(`Подготовка к добавлению новой записи: ${moduleName}/${catalogName}`);
-
-    try {
-      // Загружаем только иерархию модуля и каталога, без записи
-      const success = await ensureHierarchyLoaded(moduleName, catalogName);
-      if (!success) {
-        console.error(`Не удалось загрузить иерархию для ${moduleName}/${catalogName}`);
-      }
-    } catch (error) {
-      console.error('Неожиданная ошибка при подготовке к добавлению записи:', error);
-    } finally {
-      next(); // Продолжаем навигацию в любом случае
-    }
-  },
 });
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+// beforeEnter не вызывается при каждой навигации
+// Vue Router оптимизирует навигацию:
+// переход с /catalog1 на /inventory считается переходом между
+// одинаковыми маршрутами (/:moduleName), только с разными параметрами
+// Vue Router по умолчанию повторно использует экземпляр компонента при изменении только параметров маршрута
+// компонент не пересоздается, а его хуки жизненного цикла не вызываются заново
+// Защитники маршрута beforeEnter вызываются только при первоначальном переходе на маршрут
+// При изменении только параметров маршрута защитники не вызываются повторно
+
+// Добавляем глобальный навигационный хук beforeEach
+// Этот хук будет вызываться при любой навигации, включая изменение параметров маршрута
+router.beforeEach(async (to, from, next) => {
+  console.log('Глобальный хук beforeEach вызван');
+  console.log('to:', to);
+  console.log('from:', from);
+
+  const moduleName = to.params.moduleName as string;
+  const catalogName = to.params.catalogName as string;
+  const recordId = to.params.id as string;
+
+  console.log(`Загрузка данных записи: ${moduleName}/${catalogName}/${recordId}`);
+
+  // Проверяем наличие необходимых параметров перед загрузкой данных
+  if (!moduleName) {
+    console.log('Параметр moduleName отсутствует, пропускаем загрузку данных');
+    next();
+    return;
+  }
+
+  try {
+    const success = await ensureHierarchyLoaded(moduleName, catalogName, recordId);
+    if (!success) {
+      console.error(`Не удалось загрузить запись ${recordId}`);
+    }
+  } catch (error) {
+    console.error('Неожиданная ошибка при загрузке записи:', error);
+  } finally {
+    next(); // Продолжаем навигацию в любом случае
+  }
 });
 
 // Для загрузки данных используйте ensureHierarchyLoaded из module-factory.ts

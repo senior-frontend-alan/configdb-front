@@ -2,7 +2,7 @@
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
   import { useAuthStore } from '../stores/authStore';
-  import { useConfig } from '../config-loader';
+  import appConfigData from '../../app.config.ts';
   import InputGroup from 'primevue/inputgroup';
   import InputGroupAddon from 'primevue/inputgroupaddon';
   import FloatLabel from 'primevue/floatlabel';
@@ -13,7 +13,6 @@
 
   const router = useRouter();
   const authStore = useAuthStore();
-  const { config } = useConfig();
   const username = ref('');
   const password = ref('');
   const isLocalAuthAllowed = true;
@@ -61,8 +60,8 @@
   <div class="login-page">
     <div class="login-header">
       <div class="logo">
-        <img src="/favicon.jpg" alt="Logo" style="border-radius: 8px;" /> &nbsp;
-        <span class="logo-text">{{ config?.appConfig?.siteTitle }}</span>
+        <img src="/favicon.jpg" alt="Logo" style="border-radius: 8px" /> &nbsp;
+        <span class="logo-text">{{ appConfigData.appConfig?.siteTitle }}</span>
       </div>
     </div>
 
@@ -202,7 +201,7 @@
     align-items: center;
     color: white;
   }
-  
+
   .logo-icon {
     border-radius: 8px;
   }
