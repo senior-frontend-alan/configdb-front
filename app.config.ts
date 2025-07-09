@@ -37,7 +37,7 @@ const config: Config = {
   modules: [
     {
       label: 'Catalog1',
-      urlPath: 'catalog1', // URL-путь для модуля/Название Cтора в котором хранятся данные на UI
+      urlPath: 'module_catalog', // URL-путь для модуля/Название Cтора в котором хранятся данные на UI
       routes: {
         getCatalog: 'http://localhost:7008/catalog/api/v1/-catalog/',
         getJSIFunctions: '/js/modules/catalog.js',
@@ -45,14 +45,14 @@ const config: Config = {
     },
     {
       label: 'Inventory',
-      urlPath: 'inventory',
+      urlPath: 'module_inventory',
       routes: {
         getCatalog: 'http://localhost:7008/inventory/api/v1/-catalog/',
       },
     },
     {
       label: 'OCS Manage',
-      urlPath: 'ocs_manage',
+      urlPath: 'module_ocs_manage',
       routes: {
         getCatalog: 'http://localhost:7008/ocsmanage/api/v1/-catalog/',
       },

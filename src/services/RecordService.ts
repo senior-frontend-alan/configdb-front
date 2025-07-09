@@ -2,6 +2,7 @@
 import api from '../api';
 import { useModuleStore, initCatalogStructure } from '../stores/module-factory';
 import { useAuthStore } from '../stores/authStore';
+import { CatalogService } from './CatalogService';
 
 // Маршрутизатор → Стор → Компоненты
 
@@ -24,57 +25,51 @@ import { useAuthStore } from '../stores/authStore';
 export class RecordService {
   static async GET(
     moduleName: string,
+    applName: string,
     catalogName: string,
     recordId: string | number,
-  ): Promise<any[]> {
-    const moduleStore = useModuleStore(moduleName);
-    let url = '';
+  ): Promise<any> {
+    console.log(
+      `RecordService.GET: Запрос записи ${recordId} для ${moduleName}/${applName}/${catalogName}`,
+    );
 
-    // Если каталог уже есть в сторе и у него есть URL, используем его
-    if (moduleStore.catalogsByName?.[catalogName]?.url) {
-      url = moduleStore.catalogsByName[catalogName].url;
-      console.log(`Используем сохраненный URL для каталога ${catalogName}: ${url}`);
-    } else {
-      // Иначе ищем URL в индексе элементов каталога
-      const catalogItem = moduleStore.catalogGroupsIndex.get(catalogName);
+    try {
+      // ШАГ 1: Получаем URL для загрузки каталога через CatalogService
+      const url = CatalogService.findCatalogUrl(moduleName, applName, catalogName);
 
-      if (!catalogItem || !catalogItem.href) {
-        throw new Error(`URL для каталога ${catalogName} не найден в индексе`);
+      // ШАГ 2: Инициализируем структуру каталога в сторе и получаем ссылку на нее
+      const currentCatalog = initCatalogStructure(moduleName, applName, catalogName);
+
+      // ШАГ 3: Проверяем, есть ли запись в кэше
+      if (currentCatalog?.GET?.resultsIndex?.has(String(recordId))) {
+        const record = currentCatalog.GET.resultsIndex.get(String(recordId));
+        console.log(`RecordService.GET: Запись ${recordId} найдена в кэше каталога ${catalogName}`);
+        return record;
       }
 
-      url = catalogItem.href;
-      console.log(`Найден URL для каталога ${catalogName} в индексе: ${url}`);
+      // ШАГ 4: Загрузка записи через GET-запрос
+      const recordUrl = url.includes('?') ? `${url}&mode=short` : `${url}?mode=short`;
+      const fullRecordUrl = `${recordUrl}${recordId}/`;
+      console.log(
+        `RecordService.GET: Загрузка записи ${recordId} из каталога ${catalogName}: ${fullRecordUrl}`,
+      );
+
+      const response = await api.get<any>(fullRecordUrl);
+      const recordData = response.data;
+
+      // ШАГ 5: Сохраняем запись в сторе
+      if (!currentCatalog.GET.resultsIndex) {
+        currentCatalog.GET.resultsIndex = new Map<string, any>();
+      }
+
+      currentCatalog.GET.resultsIndex.set(String(recordId), recordData);
+
+      console.log(`RecordService.GET: Запись ${recordId} успешно загружена и сохранена в сторе`);
+      return recordData;
+    } catch (error) {
+      console.error(`RecordService.GET: Ошибка при загрузке записи ${recordId}:`, error);
+      throw error;
     }
-
-    // ШАГ 2: Проверяем, есть ли запись в сторе
-    if (
-      moduleStore.catalogsByName[catalogName] &&
-      moduleStore.catalogsByName[catalogName].GET?.resultsIndex &&
-      moduleStore.catalogsByName[catalogName].GET.resultsIndex.has(String(recordId))
-    ) {
-      // Если запись уже есть в сторе, возвращаем её
-      const record = moduleStore.catalogsByName[catalogName].GET.resultsIndex.get(String(recordId));
-      console.log(`Запись ${recordId} найдена в кэше каталога ${catalogName}`);
-      return record;
-    }
-
-    // ШАГ 3: Загрузка записи через GET-запрос
-    const recordUrl = `${url}${recordId}/?mode=short`;
-    console.log(`Загрузка записи ${recordId} из каталога ${catalogName}: ${recordUrl}`);
-
-    const response = await api.get<any>(recordUrl);
-    const recordData = response.data;
-
-    // ШАГ 4: Сохраняем запись в сторе
-    // Если каталог еще не существует в сторе, создаем его
-    // Инициализируем структуру каталога в сторе с помощью функции initCatalogStructure
-    initCatalogStructure(moduleName, catalogName, url);
-
-    // Добавляем запись в индекс
-    moduleStore.catalogsByName[catalogName].GET.resultsIndex.set(String(recordId), recordData);
-
-    console.log(`Запись ${recordId} успешно загружена и сохранена в сторе`);
-    return recordData;
   }
 
   /**
@@ -83,6 +78,7 @@ export class RecordService {
    */
   static updateInStore(
     moduleName: string,
+    applName: string,
     catalogName: string,
     recordId: string,
     updatedData: any,
@@ -91,14 +87,14 @@ export class RecordService {
       const moduleStore = useModuleStore(moduleName);
 
       if (
-        !moduleStore.catalogsByName[catalogName] ||
-        !moduleStore.catalogsByName[catalogName].GET
+        !moduleStore.loadedCatalogsByApplName[applName][catalogName] ||
+        !moduleStore.loadedCatalogsByApplName[applName][catalogName].GET
       ) {
         console.warn(`Невозможно обновить запись в сторе: данные для ${catalogName} не загружены`);
         return false;
       }
 
-      const currentData = moduleStore.catalogsByName[catalogName].GET;
+      const currentData = moduleStore.loadedCatalogsByApplName[applName][catalogName].GET;
 
       // Проверяем, что есть Map resultsIndex
       if (!currentData.resultsIndex || !(currentData.resultsIndex instanceof Map)) {
@@ -145,20 +141,30 @@ export class RecordService {
    * Создает новую запись в каталоге
    * @returns Данные созданной записи
    */
-  static async sendPostRequest(moduleName: string, catalogName: string, data: any): Promise<any> {
+  static async sendPostRequest(
+    moduleName: string,
+    applName: string,
+    catalogName: string,
+    data: any,
+  ): Promise<any> {
     const moduleStore = useModuleStore(moduleName);
 
-    if (!moduleStore || !moduleStore.catalogsByName || !moduleStore.catalogsByName[catalogName]) {
+    if (
+      !moduleStore ||
+      !moduleStore.loadedCatalogsByApplName[applName] ||
+      !moduleStore.loadedCatalogsByApplName[applName][catalogName]
+    ) {
       throw new Error(`Не найден каталог ${catalogName} в модуле ${moduleName}`);
     }
-    // URL не из конфиге! (из конфига мы загружаем только список справочников)
-    // URL в соотвествующем ModuleStore модуля и имени каталога ()
-    let baseUrl = moduleStore.catalogsByName[catalogName].url || '';
+
+    // Получаем корректный URL из CatalogService
+    let baseUrl = CatalogService.findCatalogUrl(moduleName, applName, catalogName);
 
     // Проверяем и обеспечиваем наличие символа / в конце baseUrl
     if (!baseUrl.endsWith('/')) {
       baseUrl += '/';
     }
+
     // Добавляем параметр mode=short
     if (!baseUrl.includes('?mode=short')) {
       baseUrl += '?mode=short';
@@ -169,16 +175,17 @@ export class RecordService {
     const csrfToken = authStore.csrfToken;
     const headers = csrfToken ? { 'X-CSRFToken': csrfToken } : {};
 
-    const response = await api.post(baseUrl, data, { headers });
     console.log(`Отправка POST запроса на: ${baseUrl}`);
     console.log('Данные для отправки:', data);
+
+    const response = await api.post(baseUrl, data, { headers });
     console.log('Ответ сервера (создание):', response.data);
 
     // Получаем ID новой записи из ответа
     const newRecordId = response.data.id || response.data.ID;
 
     // Обновляем запись в сторе
-    this.updateInStore(moduleName, catalogName, String(newRecordId), response.data);
+    this.updateInStore(moduleName, applName, catalogName, String(newRecordId), response.data);
 
     return response.data;
   }
@@ -189,18 +196,23 @@ export class RecordService {
    */
   static async sendPatchRequest(
     moduleName: string,
+    applName: string,
     catalogName: string,
     recordId: string | number,
     data: any,
   ): Promise<any> {
     const moduleStore = useModuleStore(moduleName);
 
-    if (!moduleStore || !moduleStore.catalogsByName || !moduleStore.catalogsByName[catalogName]) {
+    if (
+      !moduleStore ||
+      !moduleStore.loadedCatalogsByApplName[applName] ||
+      !moduleStore.loadedCatalogsByApplName[applName][catalogName]
+    ) {
       throw new Error(`Не найден каталог ${catalogName} в модуле ${moduleName}`);
     }
-    // URL не из конфиге! (из конфига мы загружаем только список справочников)
-    // URL в соотвествующем ModuleStore модуля и имени каталога ()
-    let baseUrl = moduleStore.catalogsByName[catalogName].url || '';
+
+    // Получаем корректный URL из CatalogService
+    let baseUrl = CatalogService.findCatalogUrl(moduleName, applName, catalogName);
 
     // Проверяем и обеспечиваем наличие символа / в конце baseUrl
     if (!baseUrl.endsWith('/')) {
@@ -219,12 +231,13 @@ export class RecordService {
     const csrfToken = authStore.csrfToken;
     const headers = csrfToken ? { 'X-CSRFToken': csrfToken } : {};
 
-    const response = await api.patch(url, data, { headers });
     console.log(`Отправка PATCH запроса на: ${url}`);
     console.log('Данные для отправки:', data);
+
+    const response = await api.patch(url, data, { headers });
     console.log('Ответ сервера (обновление):', response.data);
 
-    this.updateInStore(moduleName, catalogName, String(recordId), response.data);
+    this.updateInStore(moduleName, applName, catalogName, String(recordId), response.data);
 
     return response.data;
   }

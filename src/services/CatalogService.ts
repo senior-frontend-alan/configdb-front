@@ -2,13 +2,13 @@
 import { ref, computed } from 'vue';
 import { FieldTypeService, FRONTEND } from '../services/fieldTypeService';
 import api from '../api';
-import { useModuleStore, initCatalogStructure } from '../stores/module-factory';
+import { useModuleStore, initCatalogStructure, Catalog } from '../stores/module-factory';
 import type { CatalogDetailsAPIResponseGET } from '../stores/types/catalogDetailsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseOPTIONS } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { Layout } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { CatalogItem } from '../stores/types/catalogsAPIResponseGET.type';
 
-// Сервисы отвечают за API-запросы и обновление соответствующих сторов
+// Сервисы отвечают за API-запросы, кэширование и обновление соответствующих сторов
 // Сторы предоставляют интерфейс для доступа к данным и их изменения
 
 // Маршрутизатор → Стор (Сервисы) → Компоненты
@@ -98,9 +98,9 @@ export interface CatalogGroup {
  * Структура стора модуля
  */
 export interface ModuleStore {
-  catalogsByName: Record<string, CatalogData>;
+  loadedCatalogsByApplName: Record<string, Record<string, Catalog>>;
   catalogGroups: CatalogGroup[];
-  catalogItemsIndex?: Map<string, any>; // Индекс для быстрого доступа к элементам каталога
+  indexCatalogsByApplName: Record<string, Map<string, any>>;
   loading: boolean;
   error: string | null;
   url?: string;
@@ -125,25 +125,78 @@ interface ExtendedLayout extends Layout {
  * Позволяет эффективно управлять кэшированием и загрузкой данных по страницам
  */
 export class CatalogService {
+  /**
+   * Поиск URL для каталога в сторе или в индексе
+   * @param moduleName Имя модуля
+   * @param applName Имя приложения
+   * @param catalogName Имя каталога
+   * @returns URL каталога, выбрасывает ошибку, если URL не найден
+   */
+  static findCatalogUrl(moduleName: string, applName: string, catalogName: string): string {
+    const moduleStore = useModuleStore(moduleName);
+    let url: string;
+
+    // Проверяем наличие индекса
+    if (!moduleStore.indexCatalogsByApplName) {
+      const errorMessage = `Индекс каталогов не найден. Загрузите сперва группы каталогов.`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    // Пробуем получить URL из индекса
+    const applCatalogs = moduleStore.indexCatalogsByApplName[applName.toLowerCase()];
+    if (!applCatalogs) {
+      const errorMessage = `Приложение ${applName} не найдено в индексе каталогов. Загрузите сперва группы каталогов.`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    const catalogItem = applCatalogs.get(catalogName.toLowerCase());
+    if (!catalogItem || !catalogItem.href) {
+      const errorMessage = `Не найден URL для каталога ${moduleName}/${applName}/${catalogName}. Загрузите сперва группы каталогов.`;
+      console.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    url = catalogItem.href;
+    console.log(
+      `Найден URL для каталога ${moduleName}/${applName}/${catalogName} в индексе: ${url}`,
+    );
+    return url;
+  }
+
   // Максимальное количество записей в кэше
-  private static readonly MAX_CACHED_ITEMS = 1000;
+  // Максимальное количество элементов в кэше было удалено, так как не используется
 
   /**
-   * Проверяет, загружен ли указанный диапазон данных
+   * загружен ли указанный диапазон данных в GET
    */
   static isRangeLoaded(
     moduleName: string,
+    applName: string,
     catalogName: string,
     startIndex: number,
     endIndex: number,
   ): boolean {
     const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET) {
+
+    if (
+      !moduleStore ||
+      !moduleStore.loadedCatalogsByApplName ||
+      !moduleStore.loadedCatalogsByApplName[applName] ||
+      !moduleStore.loadedCatalogsByApplName[applName][catalogName]?.GET
+    ) {
       return false;
     }
 
+    // Явное приведение типов для работы с индексированными свойствами
+    const catalogData = moduleStore.loadedCatalogsByApplName[applName][catalogName] as Record<
+      string,
+      any
+    >;
+
     // Проверяем наличие информации о загруженных диапазонах
-    const loadedRanges = moduleStore.catalogsByName[catalogName].GET.loadedRanges;
+    const loadedRanges = catalogData.GET?.loadedRanges;
     if (!loadedRanges) return false;
 
     // Сначала проверяем точное совпадение по ключу (O(1))
@@ -158,73 +211,54 @@ export class CatalogService {
    */
   static async GET(
     moduleName: string,
+    applName: string,
     catalogName: string,
     offset: number,
     limit: number = 20,
   ): Promise<any[]> {
     console.log(
-      `CatalogService.GET: Запрос данных для ${moduleName}/${catalogName}, offset ${offset}, limit ${limit}`,
+      `CatalogService.GET: !Запрос данных для ${moduleName}/${applName}/${catalogName}, offset ${offset}, limit ${limit}`,
     );
     try {
-      const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-      if (!moduleStore) {
-        throw new Error(`Не удалось получить стор для модуля ${moduleName}`);
-      }
+      // Получаем URL для загрузки каталога
+      const url = CatalogService.findCatalogUrl(moduleName, applName, catalogName);
 
-      // проверяем наличие данных в сторе и проверяем, загружен ли запрошенный диапазон
-      if (
-        moduleStore.catalogsByName?.[catalogName]?.GET?.results &&
-        moduleStore.catalogsByName?.[catalogName]?.GET?.loadedRanges
-      ) {
-        if (this.isRangeLoaded(moduleName, catalogName, offset, offset + limit - 1)) {
+      // Инициализируем структуру каталога в сторе и получаем ссылку на нее
+      const currentCatalog = initCatalogStructure(moduleName, applName, catalogName);
+
+      // Проверяем наличие данных и загружен ли запрошенный диапазон
+      if (currentCatalog?.GET?.results && currentCatalog?.GET?.loadedRanges) {
+        // Если запрашиваем конкретный диапазон, проверяем его наличие в кэше
+        if (this.isRangeLoaded(moduleName, applName, catalogName, offset, offset + limit - 1)) {
           console.log(
-            `CatalogService.GET: Данные для ${moduleName}/${catalogName} с offset=${offset}, limit=${limit} уже загружены в стор, используем кэш`,
+            `CatalogService.GET: Данные для ${moduleName}/${applName}/${catalogName} с offset=${offset}, limit=${limit} уже загружены в стор, используем кэш`,
           );
 
           // Возвращаем только запрошенный диапазон из кэша
-          const allResults = moduleStore.catalogsByName[catalogName].GET?.results || [];
+          const allResults = currentCatalog.GET.results;
           return allResults.slice(offset, offset + limit);
         } else {
           console.log(
-            `CatalogService.GET: Данные для ${moduleName}/${catalogName} с offset=${offset}, limit=${limit} не найдены в кэше, загружаем с сервера`,
+            `CatalogService.GET: Данные для ${moduleName}/${applName}/${catalogName} с offset=${offset}, limit=${limit} не найдены в кэше, загружаем с сервера`,
           );
         }
-      }
-
-      // ШАГ 1: Поиск URL для загрузки каталога
-      let url = '';
-
-      // Если каталог уже есть в сторе и у него есть URL, используем его
-      if (moduleStore.catalogsByName?.[catalogName]?.url) {
-        url = moduleStore.catalogsByName[catalogName].url;
-        console.log(`Используем сохраненный URL для каталога ${catalogName}: ${url}`);
       } else {
-        // Иначе ищем URL в индексе элементов каталога
-        const catalogItem = moduleStore.catalogGroupsIndex.get(catalogName);
-
-        if (!catalogItem || !catalogItem.href) {
-          throw new Error(`URL для каталога ${catalogName} не найден в индексе`);
-        }
-
-        url = catalogItem.href;
-        console.log(`Найден URL для каталога ${catalogName} в индексе: ${url}`);
+        console.log(
+          `CatalogService.GET: Структура каталога ${catalogName} инициализирована, но данных еще нет, загружаем с сервера`,
+        );
       }
 
       // Примечание: при использовании offset мы не проверяем кэш, так как при бесконечном скролле
       // нам нужно добавлять новые данные к уже загруженным
-
-      // Формируем URL с параметрами пагинации
       const queryChar = url.includes('?') ? '&' : '?';
       const paginatedUrl = `${url}${queryChar}limit=${limit}&offset=${offset}&mode=short`;
 
       console.log(`CatalogService.GET: Запрос к API: ${paginatedUrl}`);
       const response = await api.get<CatalogDetailsAPIResponseGET>(paginatedUrl);
       const data = response.data;
-      // Инициализируем структуру каталога в сторе с помощью функции initCatalogStructure
-      initCatalogStructure(moduleName, catalogName, url);
 
       // Сохраняем ответ API в стор, объединяя результаты
-      const existingResults = moduleStore.catalogsByName[catalogName].GET?.results || [];
+      const existingResults = currentCatalog.GET?.results || [];
       const newResults = data.results || [];
 
       // Если это первая загрузка (offset = 0), заменяем результаты
@@ -234,18 +268,18 @@ export class CatalogService {
       // Добавление новых данных к существующим при подгрузке при скролле (offset > 0)
       const combinedResults = offset === 0 ? newResults : [...existingResults, ...newResults];
 
-      moduleStore.catalogsByName[catalogName].GET = {
-        ...moduleStore.catalogsByName[catalogName].GET, // Сохраняем существующие данные (например, resultsIndex и loadedRanges)
+      currentCatalog.GET = {
+        ...currentCatalog.GET, // Сохраняем существующие данные (например, resultsIndex и loadedRanges)
         ...data, // Добавляем все поля из ответа API
         results: combinedResults, // Явно указываем объединенные результаты
         pageSize: limit, // Добавляем размер страницы
-        recordIdToScroll: moduleStore.catalogsByName[catalogName].GET?.recordIdToScroll || null, // ID записи для скроллинга
+        recordIdToScroll: currentCatalog.GET?.recordIdToScroll || null, // ID записи для скроллинга
       };
 
       if (data?.results && Array.isArray(data.results)) {
         data.results.forEach((item: any) => {
           if (item.id !== undefined) {
-            const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
+            const resultsMap = currentCatalog.GET.resultsIndex;
             if (resultsMap) {
               resultsMap.set(String(item.id), item);
             }
@@ -253,7 +287,7 @@ export class CatalogService {
         });
       }
 
-      const loadedRanges = moduleStore.catalogsByName[catalogName].GET.loadedRanges;
+      const loadedRanges = currentCatalog.GET.loadedRanges;
       if (loadedRanges) {
         // Формируем ключ для диапазона в формате "start-end"
         const start = offset;
@@ -292,41 +326,25 @@ export class CatalogService {
   // Загрузка метаданных каталога через OPTIONS-запрос и формирование структуры OPTIONS в сторе
   static async OPTIONS(
     moduleName: string,
+    applName: string,
     catalogName: string,
   ): Promise<CatalogDetailsAPIResponseOPTIONS> {
     const moduleStore = useModuleStore(moduleName);
-    if (!moduleStore) {
-      throw new Error(`Стор для модуля ${moduleName} не найден`);
-    }
 
-    // Проверяем, загружены ли уже метаданные OPTIONS для этого каталога
-    if (moduleStore.catalogsByName?.[catalogName]?.OPTIONS) {
+    // Возвращаем OPTIONS из кэша если он есть
+    if (
+      moduleStore.loadedCatalogsByApplName &&
+      moduleStore.loadedCatalogsByApplName[applName] &&
+      moduleStore.loadedCatalogsByApplName[applName][catalogName]?.OPTIONS
+    ) {
       console.log(
-        `CatalogService.OPTIONS: Метаданные для ${moduleName}/${catalogName} уже загружены в стор, используем кэш`,
+        `CatalogService.OPTIONS: Метаданные для ${moduleName}/${applName}/${catalogName} уже загружены в стор, используем кэш`,
       );
-
-      // Возвращаем сами данные OPTIONS из стора
-      return moduleStore.catalogsByName[catalogName].OPTIONS;
+      return moduleStore.loadedCatalogsByApplName[applName][catalogName].OPTIONS;
     }
 
-    // ШАГ 1: Поиск URL для загрузки каталога
-    let url = '';
-
-    // Если каталог уже есть в сторе и у него есть URL, используем его
-    if (moduleStore.catalogsByName?.[catalogName]?.url) {
-      url = moduleStore.catalogsByName[catalogName].url;
-      console.log(`Используем сохраненный URL для каталога ${catalogName}: ${url}`);
-    } else {
-      // Иначе ищем URL в индексе элементов каталога
-      const catalogItem = moduleStore.catalogGroupsIndex.get(catalogName);
-
-      if (!catalogItem || !catalogItem.href) {
-        throw new Error(`URL для каталога ${catalogName} не найден в индексе`);
-      }
-
-      url = catalogItem.href;
-      console.log(`Найден URL для каталога ${catalogName} в индексе: ${url}`);
-    }
+    // findCatalogUrl выбросит ошибку, если URL не найден
+    const url = CatalogService.findCatalogUrl(moduleName, applName, catalogName);
 
     // ШАГ 2: Загрузка метаданных через OPTIONS-запрос
     const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
@@ -334,7 +352,6 @@ export class CatalogService {
 
     // Добавляем наши вычисляемые поля в OPTIONS для удобства
     if (optionsResponseData?.layout) {
-      // Приводим layout к расширенному типу ExtendedLayout
       const layout = optionsResponseData.layout as ExtendedLayout;
 
       // Создаем таблицу колонок с учетом порядка из display_list
@@ -344,9 +361,9 @@ export class CatalogService {
       layout.elementsIndex = CatalogService.createElementsMap(layout.elements);
     }
 
-    initCatalogStructure(moduleName, catalogName, url);
-
-    moduleStore.catalogsByName[catalogName].OPTIONS = optionsResponseData;
+    // Инициализируем структуру каталога и получаем ссылку на нее
+    const currentCatalog = initCatalogStructure(moduleName, applName, catalogName);
+    currentCatalog.OPTIONS = optionsResponseData;
 
     console.log(
       `Метаданные каталога ${catalogName} успешно загружены через OPTIONS и сохранены в сторе`,
@@ -489,15 +506,15 @@ export class CatalogService {
   //   maxItems: number = this.MAX_CACHED_ITEMS,
   // ): void {
   //   const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-  //   if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.resultsIndex) {
+  //   if (!moduleStore || !moduleStore.loadedCatalogsByApplName[applName][catalogName]?.GET?.resultsIndex) {
   //     return;
   //   }
 
-  //   const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
+  //   const resultsMap = moduleStore.loadedCatalogsByApplName[applName][catalogName].GET.resultsIndex;
   //   if (!resultsMap || resultsMap.size <= maxItems) return;
 
   //   // Если превышен лимит, удаляем самые старые загруженные диапазоны
-  //   const loadedRanges = moduleStore.catalogsByName[catalogName].GET.loadedRanges;
+  //   const loadedRanges = moduleStore.loadedCatalogsByApplName[applName][catalogName].GET.loadedRanges;
   //   if (!loadedRanges || loadedRanges.length <= 1) return;
 
   //   // Сортируем диапазоны по времени загрузки (от старых к новым)
@@ -510,7 +527,7 @@ export class CatalogService {
   //   if (!oldestRange) return;
 
   //   // Удаляем самый старый диапазон из списка
-  //   moduleStore.catalogsByName[catalogName].GET.loadedRanges = loadedRanges.filter(
+  //   moduleStore.loadedCatalogsByApplName[applName][catalogName].GET.loadedRanges = loadedRanges.filter(
   //     (range) => range.timestamp !== oldestRange.timestamp,
   //   );
 
@@ -521,99 +538,51 @@ export class CatalogService {
   // }
 
   /**
-   * Получает элементы для указанной страницы из кэша
-   */
-  static getItemsForPage(
-    moduleName: string,
-    catalogName: string,
-    page: number,
-    pageSize: number = 10,
-  ): any[] {
-    const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET) {
-      return [];
-    }
-
-    // Проверяем, есть ли в кэше результаты в виде Map (новый формат)
-    if (moduleStore.catalogsByName[catalogName].GET.resultsIndex) {
-      const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
-      if (!resultsMap) return [];
-
-      const startIndex = (page - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-
-      // Преобразуем Map в массив и берем нужный диапазон
-      const resultsArray = Array.from(resultsMap.values());
-      return resultsArray.slice(startIndex, Math.min(endIndex, resultsArray.length));
-    }
-
-    // Если есть массив results, используем его напрямую (обратная совместимость)
-    if (
-      moduleStore.catalogsByName[catalogName].GET.results &&
-      Array.isArray(moduleStore.catalogsByName[catalogName].GET.results)
-    ) {
-      const results = moduleStore.catalogsByName[catalogName].GET.results;
-      if (!results) return [];
-
-      const startIndex = (page - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      return results.slice(startIndex, Math.min(endIndex, results.length));
-    }
-
-    return [];
-  }
-
-  /**
    * Получает общее количество элементов
    */
-  static getTotalCount(moduleName: string, catalogName: string): number {
-    console.log(`CatalogService.getTotalCount: Запрос для ${moduleName}/${catalogName}`);
-    const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET) {
+  static getTotalCount(moduleName: string, applName: string, catalogName: string): number {
+    console.log(
+      `CatalogService.getTotalCount: Запрос для ${moduleName}/${applName}/${catalogName}`,
+    );
+    const moduleStore = useModuleStore(moduleName);
+
+    // Проверяем наличие структуры в сторе
+    if (
+      !moduleStore ||
+      !moduleStore.loadedCatalogsByApplName ||
+      !moduleStore.loadedCatalogsByApplName[applName] ||
+      !moduleStore.loadedCatalogsByApplName[applName][catalogName]?.GET
+    ) {
       console.log('CatalogService.getTotalCount: Нет данных в сторе');
       return 0;
     }
 
-    const count = moduleStore.catalogsByName[catalogName].GET.count || 0;
+    // Явное приведение типов для работы с индексированными свойствами
+    const catalogData = moduleStore.loadedCatalogsByApplName[applName][catalogName] as Record<
+      string,
+      any
+    >;
+    const count = catalogData.GET?.count || 0;
     console.log(`CatalogService.getTotalCount: Возвращаем count: ${count}`);
     return count;
   }
 
   /**
-   * Получает текущие результаты из стора
-   */
-  static getResults(moduleName: string, catalogName: string): any[] {
-    const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.results) {
-      return [];
-    }
-    return moduleStore.catalogsByName[catalogName].GET.results || [];
-  }
-
-  /**
-   * Получает элемент по ID из кэша
-   */
-  static getItemById(moduleName: string, catalogName: string, id: string | number): any | null {
-    const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]?.GET?.resultsIndex) {
-      return null;
-    }
-
-    const resultsMap = moduleStore.catalogsByName[catalogName].GET.resultsIndex;
-    return resultsMap ? resultsMap.get(String(id)) || null : null;
-  }
-
-  /**
    * Очищает кэш для указанного каталога
    */
-  static clearCache(moduleName: string, catalogName: string): void {
-    const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-    if (!moduleStore || !moduleStore.catalogsByName?.[catalogName]) {
+  static clearCache(moduleName: string, applName: string, catalogName: string): void {
+    const moduleStore = useModuleStore(moduleName);
+    if (
+      !moduleStore ||
+      !moduleStore.loadedCatalogsByApplName ||
+      !moduleStore.loadedCatalogsByApplName[applName] ||
+      !moduleStore.loadedCatalogsByApplName[applName][catalogName]
+    ) {
       return;
     }
 
     // Сбрасываем данные GET
-    moduleStore.catalogsByName[catalogName].GET = {
+    moduleStore.loadedCatalogsByApplName[applName][catalogName].GET = {
       resultsIndex: new Map(),
       loadedRanges: {},
       metadata: {
@@ -631,7 +600,12 @@ export class CatalogService {
 /**
  * Композабл для использования ленивой загрузки в компонентах Vue
  */
-export function useLazyLoad(moduleName: string, catalogName: string, initialPageSize: number = 10) {
+export function useLazyLoad(
+  moduleName: string,
+  applName: string,
+  catalogName: string,
+  initialPageSize: number = 10,
+) {
   const currentPage = ref(1);
   const pageSize = ref(initialPageSize);
   const loading = ref(false);
@@ -649,6 +623,7 @@ export function useLazyLoad(moduleName: string, catalogName: string, initialPage
     try {
       const result = await CatalogService.GET(
         moduleName,
+        applName,
         catalogName,
         currentPage.value,
         pageSize.value,
@@ -657,7 +632,7 @@ export function useLazyLoad(moduleName: string, catalogName: string, initialPage
       items.value = result;
 
       // Обновляем общее количество элементов
-      totalItems.value = CatalogService.getTotalCount(moduleName, catalogName);
+      totalItems.value = CatalogService.getTotalCount(moduleName, applName, catalogName);
     } catch (error) {
       console.error('CatalogService.GET error:', error);
       console.trace('CatalogService.GET error stack trace');
@@ -699,7 +674,7 @@ export function useLazyLoad(moduleName: string, catalogName: string, initialPage
 
   // Обновление данных (принудительная перезагрузка)
   const refresh = () => {
-    CatalogService.clearCache(moduleName, catalogName);
+    CatalogService.clearCache(moduleName, applName, catalogName);
     loadCurrentPage();
   };
 

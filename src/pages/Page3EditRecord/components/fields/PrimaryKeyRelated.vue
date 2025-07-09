@@ -43,7 +43,7 @@
           <span class="dialog-title">{{ label }}</span>
           <div class="dialog-buttons">
             <Button
-              v-if="currentModuleName && currentCatalogName"
+              v-if="props.moduleName && props.options.appl_name && props.options.view_name"
               icon="pi pi-external-link"
               class="p-button-rounded p-button-text"
               @click="openInNewTab"
@@ -57,14 +57,15 @@
         <div>Загрузка данных...</div>
       </div>
       <div v-else-if="error" class="p-4 text-center">
-        <Message severity="error" :life="5000">{{ error }}</Message>
+        <Message severity="error">{{ error }}</Message>
       </div>
       <div v-else class="catalog-details-container">
         <!-- Встраиваем компонент Page2CatalogDetails с передачей необходимых параметров -->
         <Page2CatalogDetails
-          v-if="currentModuleName && currentCatalogName"
-          :moduleName="currentModuleName"
-          :catalogName="currentCatalogName"
+          v-if="props.moduleName && props.options.appl_name && props.options.view_name"
+          :moduleName="props.moduleName"
+          :applName="props.options.appl_name"
+          :catalogName="props.options.view_name"
           :isModalMode="true"
           selectionMode="single"
           @row-click="customRowClick"
@@ -89,7 +90,6 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue';
   import { CatalogService } from '../../../../services/CatalogService';
-  import { parseBackendApiUrl } from '../../../../config-loader';
   import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import Select from 'primevue/select';
@@ -143,6 +143,7 @@
   }
 
   const props = defineProps<{
+    moduleName: string;
     modelValue?: RelatedItem | number | string | null;
     options: PrimaryKeyRelatedFieldOptions;
     isModified: boolean;
@@ -166,14 +167,11 @@
   const error = ref<string | null>(null);
   const selectedItem = ref<RelatedItem | null>(null);
 
-  const currentModuleName = ref('');
-  const currentCatalogName = ref('');
-
   // Состояние загрузки данных
 
   const openInNewTab = () => {
-    if (currentModuleName.value && currentCatalogName.value) {
-      const url = `/${currentModuleName.value}/${currentCatalogName.value}`;
+    if (props.moduleName && props.options.appl_name && props.options.view_name) {
+      const url = `/${props.moduleName}/${props.options.appl_name}/${props.options.view_name}`;
       window.open(url, '_blank');
     }
   };
@@ -187,46 +185,54 @@
     }
   };
 
-  // Открытие диалога и загрузка данных
+  // Функция для открытия диалога выбора связанной записи
   const openDialog = async () => {
-    if (disabled.value) return;
+    dialogVisible.value = true;
+
+    const moduleName = props.moduleName;
+    const applName = props.options?.appl_name;
+    const catalogName = props.options?.view_name;
 
     loading.value = true;
     error.value = null;
 
-    // Если есть URL для загрузки связанных данных
-    if (relatedTableUrl.value) {
-      try {
-        console.log('Загрузка данных каталога:', relatedTableUrl.value);
+    console.log('Загрузка данных каталога:', moduleName, applName, catalogName);
 
-        // Парсим URL для получения информации о модуле и каталоге
-        const urlInfo = parseBackendApiUrl(relatedTableUrl.value);
-        currentModuleName.value = urlInfo.moduleName || '';
-        currentCatalogName.value = urlInfo.catalogName || '';
+    // Проверяем наличие всех необходимых параметров
+    if (!moduleName) {
+      error.value = 'Не указано имя модуля';
+      loading.value = false;
+      return;
+    }
 
-        // Загружаем данные в соответствующий стор через CatalogService
-        if (urlInfo.moduleName && urlInfo.catalogName) {
-          await Promise.all([
-            CatalogService.GET(urlInfo.moduleName, urlInfo.catalogName, 0),
-            CatalogService.OPTIONS(urlInfo.moduleName, urlInfo.catalogName),
-          ]);
-        } else {
-          throw new Error(
-            `Не удалось определить модуль или каталог из URL: ${relatedTableUrl.value}`,
-          );
-        }
-        console.log('Данные каталога загружены успешно');
+    if (!applName) {
+      error.value = 'Не указано имя приложения (appl_name)';
+      loading.value = false;
+      return;
+    }
 
-        // Открываем диалог после успешной загрузки данных
-        dialogVisible.value = true;
-      } catch (err) {
-        console.error('Ошибка при загрузке данных каталога:', err);
-        error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';
-      } finally {
-        loading.value = false;
-      }
-    } else {
-      error.value = 'Не указан URL для загрузки связанных данных';
+    if (!catalogName) {
+      error.value = 'Не указано имя каталога (view_name)';
+      loading.value = false;
+      return;
+    }
+
+    // Проверяем, не отключено ли поле
+    if (disabled.value) {
+      loading.value = false;
+      return;
+    }
+
+    try {
+      // Загружаем данные в соответствующий стор через CatalogService
+      await Promise.all([
+        CatalogService.GET(moduleName, applName, catalogName, 0),
+        CatalogService.OPTIONS(moduleName, applName, catalogName),
+      ]);
+    } catch (err) {
+      console.error('Ошибка при загрузке данных каталога:', err);
+      error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';
+    } finally {
       loading.value = false;
     }
   };

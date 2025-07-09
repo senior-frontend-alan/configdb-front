@@ -61,21 +61,14 @@
   });
 
   const handleMenuItemClick = async (event: any, path: string) => {
-    console.log('Клик по пункту меню:', path);
-    
-    // Проверяем, находимся ли мы уже на этом маршруте
-    const currentPath = router.currentRoute.value.path;
-    console.log('Текущий маршрут:', currentPath);
-    console.log('Новый маршрут:', path);
-
     // Предотвращаем стандартное поведение ссылки
     if (event && event.originalEvent) {
       event.originalEvent.preventDefault();
     }
 
-    // Просто выполняем переход по указанному пути
+    // Выполняем переход по нормализованному пути
     // Роутер сам загрузит данные через хуки beforeEnter
-    router.push(path);
+    router.push(path.toLowerCase());
   };
 
   const moduleName = computed(() => {

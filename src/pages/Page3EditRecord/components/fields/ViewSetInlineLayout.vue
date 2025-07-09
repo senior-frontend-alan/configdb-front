@@ -71,6 +71,7 @@ ViewSetInlineLayout управляет состоянием и данными
         selectionMode="multiple"
         :selectedItems="selectedItems"
         :isTableScrollable="isTableScrollable"
+        locale="ru"
         @row-click="handleRowClick"
         @update:selectedItems="handleSelectedItemsChange"
       />
@@ -105,6 +106,7 @@ ViewSetInlineLayout управляет состоянием и данными
       <!-- Используем компонент DynamicLayout для редактирования записи -->
       <DynamicLayout
         v-if="props.options?.elementsIndex"
+        :moduleName="props.moduleName"
         :layout-elements="props.options.elementsIndex"
         :model-value="newRecord"
         :patch-data="{}"
@@ -158,12 +160,13 @@ ViewSetInlineLayout управляет состоянием и данными
   }
 
   const props = defineProps<{
+    moduleName: string; // Добавляем проп moduleName
     id?: string;
     name?: string;
     label?: string;
     help_text?: string;
     options: FieldOptions;
-    modelValue?: any[];
+    modelValue?: Array<any>;
     isModified: boolean;
   }>();
 

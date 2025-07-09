@@ -99,32 +99,39 @@ const baseJSInterface: ModuleJSInterface = {
 // Отслеживание состояния загрузки (loading, error)
 
 // Функция для получения стора модуля по moduleName
-export function useModuleStore(moduleName: string) {
-  // Проверка на пустое значение moduleName
+// с жесткой проверкой (выбрасываем exeption)
+export function useModuleStore(moduleName: string): ModuleStore {
   if (!moduleName || moduleName.trim() === '') {
-    console.error('Невозможно получить стор: moduleName не указан или пуст');
-    return null;
+    throw new Error('Невозможно получить стор: moduleName не указан или пуст');
   }
 
-  // Получаем активный экземпляр Pinia
   const pinia = getActivePinia();
 
   if (!pinia) {
-    console.error('Не найден активный экземпляр Pinia');
-    return null;
+    throw new Error('Не найден активный экземпляр Pinia');
   }
 
-  // ID стора формируется на основе имени модуля
-  // МодульНейм уже является идентификатором стора
+  // ID стора = имя модуля
   const storeId = `${moduleName}`;
 
   try {
     // Используем стандартную функцию Pinia для получения стора по ID
     // @ts-ignore - игнорируем ошибку типизации, так как мы знаем, что стор существует
-    return pinia._s.get(storeId);
+    const store = pinia._s.get(storeId);
+
+    // жесткая проверка на существование стора и выбрасываем исключение, если стор не найден:
+    if (!store) {
+      throw new Error(`Стор для модуля ${moduleName} не найден`);
+    }
+
+    return store;
   } catch (err) {
     console.error(`Ошибка при получении стора ${storeId}:`, err);
-    return null;
+    throw new Error(
+      `Ошибка при получении стора для модуля ${moduleName}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
   }
 }
 // подход с иерархическими зависимостями
@@ -138,14 +145,134 @@ export function useModuleStore(moduleName: string) {
 // Для маршрута /module/catalog/record загрузит всю иерархию
 
 /**
+ * Проверяет существование модуля в конфигурации
+ * @param moduleName Имя модуля
+ * @returns Конфигурация модуля или null, если модуль не найден
+ */
+function validateModuleConfig(moduleName: string): any | null {
+  const moduleConfig = appConfigData.modules.find((m) => m.urlPath === moduleName);
+  if (!moduleConfig) {
+    console.error(`Модуль ${moduleName} не найден в конфигурации`);
+    return null;
+  }
+  return moduleConfig;
+}
+
+/**
+ * Загружает группы каталогов для модуля, если они еще не загружены
+ * @param moduleName Имя модуля
+ * @returns Успешность загрузки
+ */
+async function ensureCatalogGroupsLoaded(moduleName: string): Promise<boolean> {
+  // Получаем стор модуля
+  const moduleStore = useModuleStore(moduleName);
+
+  if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
+    try {
+      const result = await loadCatalogGroups(moduleName);
+      if (result && result.length > 0) {
+        console.log(`getCatalog для ${moduleName} успешно загружен`);
+        return true;
+      } else {
+        console.error(`Не удалось загрузить getCatalog для модуля ${moduleName}`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`Ошибка при загрузке getCatalog ${moduleName}:`, error);
+      return false;
+    }
+  } else {
+    console.log(`catalogGroups для ${moduleName} уже загружен, используем кэш`);
+    return true;
+  }
+}
+
+/**
+ * Загружает данные каталога, если они еще не загружены
+ * @param moduleName Имя модуля
+ * @param applName Имя приложения
+ * @param catalogName Имя каталога
+ * @returns Успешность загрузки
+ */
+async function ensureCatalogDataLoaded(
+  moduleName: string,
+  applName: string,
+  catalogName: string,
+): Promise<boolean> {
+  // Получаем стор модуля
+  const moduleStore = useModuleStore(moduleName);
+
+  // Инициализируем структуру для applName, если её еще нет
+  if (!moduleStore.loadedCatalogsByApplName) {
+    moduleStore.loadedCatalogsByApplName = {};
+  }
+
+  if (!moduleStore.loadedCatalogsByApplName[applName]) {
+    moduleStore.loadedCatalogsByApplName[applName] = {};
+  }
+
+  // Проверяем, загружен ли каталог
+  if (!moduleStore.loadedCatalogsByApplName[applName][catalogName]) {
+    try {
+      const pageSize = 20; // Стандартный размер страницы
+
+      const [firstPageData] = await Promise.all([
+        CatalogService.GET(moduleName, applName, catalogName, 1, pageSize),
+        CatalogService.OPTIONS(moduleName, applName, catalogName),
+      ]);
+
+      if (firstPageData && firstPageData.length > 0) {
+        console.log(`Каталог ${catalogName} успешно загружен`);
+        return true;
+      } else {
+        console.warn(`Предупреждение: Не удалось загрузить данные для каталога ${catalogName}`);
+        return true; // Возвращаем true, так как это предупреждение, а не ошибка
+      }
+    } catch (error) {
+      console.error(`Ошибка при загрузке каталога ${catalogName}:`, error);
+      return false;
+    }
+  } else {
+    console.log(`Каталог ${catalogName} уже загружен, используем кэш`);
+    return true;
+  }
+}
+
+/**
+ * Загружает данные записи
+ * @param moduleName Имя модуля
+ * @param applName Имя приложения
+ * @param catalogName Имя каталога
+ * @param recordId ID записи
+ * @returns Успешность загрузки
+ */
+async function loadRecordData(
+  moduleName: string,
+  applName: string,
+  catalogName: string,
+  recordId: string,
+): Promise<boolean> {
+  try {
+    await RecordService.GET(moduleName, applName, catalogName, recordId);
+    console.log(`Запись ${recordId} успешно загружена`);
+    return true;
+  } catch (error) {
+    console.error(`Ошибка при загрузке записи ${recordId}:`, error);
+    return false;
+  }
+}
+
+/**
  * Обеспечивает загрузку иерархии данных: модуль -> каталог -> запись
  * @param moduleName Имя модуля
+ * @param applName Имя приложения
  * @param catalogName Опционально: имя каталога
  * @param recordId Опционально: ID записи
  * @returns Promise<boolean> Успешность загрузки
  */
 export async function ensureHierarchyLoaded(
   moduleName: string,
+  applName: string,
   catalogName?: string,
   recordId?: string,
 ): Promise<boolean> {
@@ -154,92 +281,28 @@ export async function ensureHierarchyLoaded(
       catalogName || 'не указан'
     }, запись: ${recordId || 'не указана'}`,
   );
+
   try {
     // Шаг 1: Проверка существования модуля в конфигурации
-    const moduleConfig = appConfigData.modules.find((m) => m.urlPath === moduleName);
-    if (!moduleConfig) {
-      console.error(`Модуль ${moduleName} не найден в конфигурации`);
-      return false;
-    }
-    
-    // Шаг 2: Проверка наличия стора модуля
-    // Функция initializeModuleStores в main.ts отвечает за создание всех сторов при запуске приложения
-    const moduleStore = useModuleStore(moduleName);
+    const moduleConfig = validateModuleConfig(moduleName);
+    if (!moduleConfig) return false;
 
-    // Если стор не найден, выдаем ошибку
-    if (!moduleStore) {
-      console.error(`Стор для модуля ${moduleName} не найден. Сторы должны быть созданы при инициализации приложения`);
-      return false;
-    }
-
-    // Проверяем, загружены ли группы каталогов
-    console.log(
-      `Проверка наличия групп каталогов для модуля ${moduleName}:`,
-      moduleStore.catalogGroups
-        ? `загружено ${moduleStore.catalogGroups.length} групп`
-        : 'не загружены',
-    );
-    if (!moduleStore.catalogGroups || moduleStore.catalogGroups.length === 0) {
-      try {
-        // Загружаем группы каталогов через специализированную функцию
-        const result = await loadCatalogGroups(moduleName);
-
-        if (result && result.length > 0) {
-          console.log(`Модуль ${moduleName} успешно загружен`);
-        } else {
-          console.error(`Не удалось загрузить данные для модуля ${moduleName}`);
-          return false;
-        }
-      } catch (error) {
-        console.error(`Ошибка при загрузке модуля ${moduleName}:`, error);
-        return false;
-      }
-    } else {
-      console.log(`Модуль ${moduleName} уже загружен, используем кэш`);
-    }
+    // Шаг 2: Загрузка групп каталогов
+    const catalogGroupsLoaded = await ensureCatalogGroupsLoaded(moduleName);
+    if (!catalogGroupsLoaded) return false;
 
     // Если нужно загрузить только модуль, возвращаем успех
     if (!catalogName) return true;
 
-    // Шаг 2: Загрузка каталога (B)
-    // Проверяем, загружен ли каталог
-    if (!moduleStore.catalogsByName?.[catalogName]) {
-      try {
-        // Загружаем каталог через отдельные функции
-        const pageSize = 20; // Стандартный размер страницы
-
-        // Загружаем данные через CatalogService и OPTIONS запрос параллельно
-        const [firstPageData] = await Promise.all([
-          CatalogService.GET(moduleName, catalogName, 1, pageSize),
-          CatalogService.OPTIONS(moduleName, catalogName),
-        ]);
-
-        if (firstPageData && firstPageData.length > 0) {
-          console.log(`Каталог ${catalogName} успешно загружен`);
-        } else {
-          console.warn(`Предупреждение: Не удалось загрузить данные для каталога ${catalogName}`);
-        }
-      } catch (error) {
-        console.error(`Ошибка при загрузке каталога ${catalogName}:`, error);
-        return false;
-      }
-    } else {
-      console.log(`Каталог ${catalogName} уже загружен, используем кэш`);
-    }
+    // Шаг 3: Загрузка данных каталога
+    const catalogLoaded = await ensureCatalogDataLoaded(moduleName, applName, catalogName);
+    if (!catalogLoaded) return false;
 
     // Если нужно загрузить только каталог, возвращаем успех
     if (!recordId) return true;
 
-    // Шаг 3: Загрузка записи (C) с использованием RecordService
-    try {
-      // Используем RecordService вместо прямого вызова moduleStore.loadRecord
-      await RecordService.GET(moduleName, catalogName, recordId);
-      console.log(`Запись ${recordId} успешно загружена`);
-      return true;
-    } catch (error) {
-      console.error(`Ошибка при загрузке записи ${recordId}:`, error);
-      return false;
-    }
+    // Шаг 4: Загрузка данных записи
+    return await loadRecordData(moduleName, applName, catalogName, recordId);
   } catch (error) {
     console.error(`Ошибка при загрузке иерархии данных:`, error);
     return false;
@@ -256,34 +319,29 @@ async function loadCatalogGroups(moduleName: string): Promise<any[]> {
     // Получаем стор модуля
     const moduleStore = useModuleStore(moduleName);
     console.log(`Получен стор для модуля ${moduleName}:`, moduleStore ? 'успешно' : 'не найден');
-    if (!moduleStore) {
-      console.error(`Не удалось получить стор для модуля ${moduleName}`);
-      return [];
-    }
 
     // Выполняем запрос к API для получения групп каталогов
     const response = await api.get(moduleStore.getCatalog);
-
-    // Создаем плоский индекс для быстрого доступа к элементам каталога по viewname
-    const newcatalogGroupsIndex = new Map();
 
     if (response.data && Array.isArray(response.data)) {
       response.data.forEach((group: any) => {
         if (group.items && Array.isArray(group.items)) {
           group.items.forEach((item: any) => {
             if (item.viewname) {
-              // Добавляем в общий индекс
-              newcatalogGroupsIndex.set(item.viewname, item);
-
-              // Добавляем в индекс по appl_name
+              // Добавляем в индекс по appl_name, используя нижний регистр для ключей
               if (item.appl_name) {
-                // Если индекса для этого appl_name еще нет, создаем его в объекте appl_name
-                if (!moduleStore.appl_name[item.appl_name]) {
-                  moduleStore.appl_name[item.appl_name] = new Map<string, any>();
+                const applNameLower = item.appl_name.toLowerCase();
+
+                // Если индекса для этого appl_name еще нет, создаем его
+                if (!moduleStore.indexCatalogsByApplName[applNameLower]) {
+                  moduleStore.indexCatalogsByApplName[applNameLower] = new Map<string, any>();
                 }
 
-                // Добавляем в индекс по appl_name
-                moduleStore.appl_name[item.appl_name].set(item.viewname, item);
+                // Также используем нижний регистр для имени каталога
+                const viewnameLower = item.viewname.toLowerCase();
+
+                // Сохраняем элемент в индексе с ключами в нижнем регистре
+                moduleStore.indexCatalogsByApplName[applNameLower].set(viewnameLower, item);
               }
             }
           });
@@ -295,13 +353,8 @@ async function loadCatalogGroups(moduleName: string): Promise<any[]> {
     // При прямом присваивании нового массива, shallowRef триггерит реактивность
     // и обновление в DevTools
     moduleStore.catalogGroups = response.data;
-    moduleStore.catalogGroupsIndex = newcatalogGroupsIndex;
 
     console.log('Группы каталогов обновлены:', moduleStore.catalogGroups);
-    console.log(
-      'Индекс каталога обновлен, количество элементов:',
-      moduleStore.catalogGroupsIndex.size,
-    );
 
     return response.data;
   } catch (err) {
@@ -310,75 +363,81 @@ async function loadCatalogGroups(moduleName: string): Promise<any[]> {
   }
 }
 
-interface Catalog {
+export interface Catalog {
   GET: {
     resultsIndex: Map<string, any>;
-    loadedRanges?: Array<{ start: number; end: number }>;
+    loadedRanges?: Record<string, { start: number; end: number; page: number; timestamp: number }>;
     [key: string]: any;
   };
   OPTIONS: any;
   unsavedChanges: any;
   moduleName: string;
-  url: string;
   [key: string]: any;
 }
 
 /**
- * Инициализирует структуру каталога в сторе
+ * Инициализирует структуру каталога в сторе, если она отсутствует
  * @param moduleName Имя модуля
+ * @param applName Имя приложения
  * @param catalogName Имя каталога
- * @param url URL каталога (опционально)
+ * @returns Ссылка на структуру каталога в сторе
  */
 export function initCatalogStructure(
   moduleName: string,
+  applName: string,
   catalogName: string,
-  url: string = '',
-): void {
+): Catalog {
   const moduleStore = useModuleStore(moduleName);
+  // Приводим название каталога к нижнему регистру для унификации
+  const catalog = catalogName.toLowerCase();
 
-  // Инициализируем catalogsByName, если его еще нет
-  if (!moduleStore.catalogsByName) {
-    moduleStore.catalogsByName = {};
+  // Инициализируем вложенные объекты, если они отсутствуют
+  if (!moduleStore.loadedCatalogsByApplName) {
+    moduleStore.loadedCatalogsByApplName = {};
   }
 
-  // Создаем структуру для каталога, если её нет
-  if (!moduleStore.catalogsByName[catalogName]) {
-    moduleStore.catalogsByName[catalogName] = {
+  if (!moduleStore.loadedCatalogsByApplName[applName]) {
+    moduleStore.loadedCatalogsByApplName[applName] = {};
+  }
+
+  // Проверяем существование структуры каталога
+  const catalogExists = moduleStore.loadedCatalogsByApplName[applName][catalog] !== undefined;
+
+  // Если каталог не существует, создаем его с нуля
+  if (!catalogExists) {
+    moduleStore.loadedCatalogsByApplName[applName][catalog] = {
       GET: {
+        results: [],
+        totalCount: 0,
         resultsIndex: new Map<string, any>(),
         loadedRanges: {},
       },
-      OPTIONS: {},
-      unsavedChanges: {},
+      OPTIONS: null,
+      unsavedChanges: null,
       moduleName,
-      url,
     } as Catalog;
-  } else {
-    // Если структура существует, но нет GET
-    if (!moduleStore.catalogsByName[catalogName].GET) {
-      moduleStore.catalogsByName[catalogName].GET = {
-        resultsIndex: new Map<string, any>(),
-        loadedRanges: {},
-      };
-    } else {
-      // Если есть GET, но нет необходимых полей
-      if (!moduleStore.catalogsByName[catalogName].GET.resultsIndex) {
-        moduleStore.catalogsByName[catalogName].GET.resultsIndex = new Map<string, any>();
-      }
-
-      if (!moduleStore.catalogsByName[catalogName].GET.loadedRanges) {
-        moduleStore.catalogsByName[catalogName].GET.loadedRanges = [];
-      }
-    }
-
-    // Обновляем URL, если он не был установлен ранее или передан новый
-    if (!moduleStore.catalogsByName[catalogName].url && url) {
-      moduleStore.catalogsByName[catalogName].url = url;
-    }
   }
+
+  // Возвращаем ссылку на структуру каталога
+  return moduleStore.loadedCatalogsByApplName[applName][catalog];
 }
 
-export function createModuleStore(moduleConfig: Module) {
+/**
+ * Тип, описывающий структуру стора модуля
+ */
+export interface ModuleStore {
+  getCatalog: string;
+  catalogGroups: CatalogsAPIResponseGET;
+  indexCatalogsByApplName: Record<string, Map<string, any>>;
+  jsInterface: ModuleJSInterface;
+  loading: boolean;
+  error: any | null;
+  loadedCatalogsByApplName: Record<string, Record<string, Catalog>>;
+  loadCatalogGroups: (moduleName: string) => Promise<any[]>;
+  initCatalogStructure: (moduleName: string, applName: string, catalogName: string) => Catalog;
+}
+
+export function createModuleStore(moduleConfig: Module): ModuleStore {
   // moduleName из URL конфига для использования в качестве идентификатора стора
   const moduleNameFromUrl = moduleConfig.urlPath;
   console.log(
@@ -401,19 +460,18 @@ export function createModuleStore(moduleConfig: Module) {
     state: () => ({
       getCatalog: moduleConfig.routes['getCatalog'],
       catalogGroups: [] as CatalogsAPIResponseGET,
-      catalogGroupsIndex: new Map<string, any>(),
       // т.к. В Pinia есть ограничения с динамическими полями в сторе.
       // Динамически добавленные свойства не будут реактивными и не будут отображаться в Vue DevTools,
       // если они не были объявлены в исходном состоянии стора.
-      // поэтому сохраняем в appl_name
-      appl_name: {} as Record<string, Map<string, any>>,
+      // поэтому сохраняем в indexCatalogsByApplName
+      indexCatalogsByApplName: {} as Record<string, Map<string, any>>, // индекс каталогов по приложению
       jsInterface: {
         ...baseJSInterface,
         // Специфичные для модуля функции можно добавить здесь
       } as ModuleJSInterface,
       loading: false,
       error: null as any | null,
-      catalogsByName: {} as Record<string, Catalog>,
+      loadedCatalogsByApplName: {} as Record<string, Record<string, Catalog>>, // каталоги сгруппированы по имени приложения
     }),
 
     // Добавляем раздел геттеров

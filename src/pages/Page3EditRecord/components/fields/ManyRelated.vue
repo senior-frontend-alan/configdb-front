@@ -47,7 +47,7 @@
           <span class="dialog-title">{{ label }}</span>
           <div class="dialog-buttons">
             <Button
-              v-if="currentModuleName && currentCatalogName"
+              v-if="currentModuleName && currentApplName && currentCatalogName"
               icon="pi pi-external-link"
               class="p-button-rounded p-button-text"
               @click="openInNewTab"
@@ -76,8 +76,9 @@
         </div> -->
 
         <Page2CatalogDetails
-          v-if="currentModuleName && currentCatalogName"
+          v-if="currentModuleName && currentApplName && currentCatalogName"
           :moduleName="currentModuleName"
+          :applName="currentApplName"
           :catalogName="currentCatalogName"
           :isModalMode="true"
           selectionMode="multiple"
@@ -104,7 +105,6 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue';
   import { CatalogService } from '../../../../services/CatalogService';
-  import { parseBackendApiUrl } from '../../../../config-loader';
   import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import MultiSelect from 'primevue/multiselect';
@@ -158,6 +158,7 @@
   }
 
   const props = defineProps<{
+    moduleName: string;
     modelValue?: RelatedItem[] | null;
     options: ManyRelatedFieldOptions;
     isModified: boolean;
@@ -188,13 +189,14 @@
   });
 
   const currentModuleName = ref('');
+  const currentApplName = ref('');
   const currentCatalogName = ref('');
 
   // Состояние загрузки данных
 
   const openInNewTab = () => {
-    if (currentModuleName.value && currentCatalogName.value) {
-      const url = `/${currentModuleName.value}/${currentCatalogName.value}`;
+    if (currentModuleName.value && currentApplName.value && currentCatalogName.value) {
+      const url = `/${currentModuleName.value}/${currentApplName.value}/${currentCatalogName.value}`;
       window.open(url, '_blank');
     }
   };
@@ -237,25 +239,34 @@
     // Инициализируем временное состояние при открытии диалога
     initTempSelectedItems();
 
-    // Если есть URL для загрузки связанных данных
-    if (relatedTableUrl.value) {
-      try {
-        // Парсим URL для получения информации о модуле и каталоге
-        const urlInfo = parseBackendApiUrl(relatedTableUrl.value);
-        currentModuleName.value = urlInfo.moduleName || '';
-        currentCatalogName.value = urlInfo.catalogName || '';
+    const moduleName = props.moduleName;
+    const applName = props.options.appl_name;
+    const catalogName = props.options.view_name;
 
+    console.log('Загрузка данных каталога:', moduleName, applName, catalogName);
+
+    // Если есть URL для загрузки связанных данных
+    if (moduleName && applName && catalogName) {
+      try {
+        console.log('Загрузка данных каталога:', relatedTableUrl.value);
         // Загружаем данные в соответствующий стор через CatalogService
-        if (urlInfo.moduleName && urlInfo.catalogName) {
-          await Promise.all([
-            CatalogService.GET(urlInfo.moduleName, urlInfo.catalogName, 0),
-            CatalogService.OPTIONS(urlInfo.moduleName, urlInfo.catalogName),
-          ]);
-        } else {
-          throw new Error(
-            `Не удалось определить модуль или каталог из URL: ${relatedTableUrl.value}`,
-          );
-        }
+
+        await Promise.all([
+          CatalogService.GET(
+            moduleName,
+            applName,
+            catalogName,
+            0,
+          ),
+          CatalogService.OPTIONS(
+            moduleName,
+            applName,
+            catalogName,
+          ),
+        ]);
+        console.log('Данные каталога загружены успешно');
+        // Открываем диалог после успешной загрузки данных
+        dialogVisible.value = true;
       } catch (err) {
         console.error('Ошибка при загрузке данных каталога:', err);
         error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';

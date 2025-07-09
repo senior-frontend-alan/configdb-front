@@ -37,6 +37,7 @@
   }
 
   const props = defineProps<{
+    moduleName: string;
     modelValue?: boolean;
     options: FieldOptions;
     isModified: boolean;

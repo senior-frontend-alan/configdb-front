@@ -53,9 +53,17 @@ routes.push({
   props: true, // Автоматически передаем параметры маршрута как props
 });
 
+// Страница 1 добавлением applName - Отображение списка справочников только с выбранным applName
+routes.push({
+  path: '/:moduleName/:applName',
+  name: 'CatalogListByApplName',
+  component: () => import('./pages/Page1CatalogList/index.vue'),
+  props: true, // Автоматически передаем параметры маршрута как props
+});
+
 // Страница 2 - Отображение деталей элемента каталога
 routes.push({
-  path: '/:moduleName/:catalogName',
+  path: '/:moduleName/:applName/:catalogName',
   name: 'CatalogDetails',
   component: () => import('./pages/Page2CatalogDetails/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
@@ -63,7 +71,7 @@ routes.push({
 
 // Страница 3 - Редактирование записи
 routes.push({
-  path: '/:moduleName/:catalogName/edit/:id',
+  path: '/:moduleName/:applName/:catalogName/edit/:id',
   name: 'EditRecord',
   component: () => import('./pages/Page3EditRecord/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
@@ -71,7 +79,7 @@ routes.push({
 
 // Страница 3 - Добавление новой записи
 routes.push({
-  path: '/:moduleName/:catalogName/add',
+  path: '/:moduleName/:applName/:catalogName/add',
   name: 'AddRecord',
   component: () => import('./pages/Page3EditRecord/index.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
@@ -99,10 +107,11 @@ router.beforeEach(async (to, from, next) => {
   console.log('from:', from);
 
   const moduleName = to.params.moduleName as string;
+  const applName = to.params.applName as string;
   const catalogName = to.params.catalogName as string;
   const recordId = to.params.id as string;
 
-  console.log(`Загрузка данных записи: ${moduleName}/${catalogName}/${recordId}`);
+  console.log(`Загрузка данных записи: ${moduleName}/${applName}/${catalogName}/${recordId}`);
 
   // Проверяем наличие необходимых параметров перед загрузкой данных
   if (!moduleName) {
@@ -112,7 +121,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   try {
-    const success = await ensureHierarchyLoaded(moduleName, catalogName, recordId);
+    const success = await ensureHierarchyLoaded(moduleName, applName, catalogName, recordId);
     if (!success) {
       console.error(`Не удалось загрузить запись ${recordId}`);
     }

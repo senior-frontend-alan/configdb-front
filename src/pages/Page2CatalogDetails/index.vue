@@ -125,6 +125,7 @@ CatalogDataTable отвечает только за отображение да�
 
   const props = defineProps<{
     moduleName: string; // Обязательный параметр
+    applName: string; // Обязательный параметр
     catalogName: string; // Обязательный параметр
     selectedItems?: any[]; // Опциональный массив выделенных строк
     isModalMode?: boolean; // Флаг, указывающий, что компонент отображается в модальном окне
@@ -151,11 +152,12 @@ CatalogDataTable отвечает только за отображение да�
 
   // Из props
   const moduleName = computed(() => props.moduleName);
+  const applName = computed(() => props.applName);
   const catalogName = computed(() => props.catalogName);
 
   const moduleStore = computed(() => useModuleStore(moduleName.value));
   const currentCatalog = computed(() => {
-    return moduleStore.value?.catalogsByName[catalogName.value];
+    return moduleStore.value?.loadedCatalogsByApplName[applName.value][catalogName.value];
   });
 
   // Вычисляемое свойство для определения режима выбора строк
@@ -252,7 +254,7 @@ CatalogDataTable отвечает только за отображение да�
     // Переход на страницу редактирования только если компонент не в модальном режиме
     if (!props.isModalMode && rowData && rowData.id) {
       // Формируем URL для перехода
-      const editUrl = `/${moduleName.value}/${catalogName.value}/edit/${rowData.id}`;
+      const editUrl = `/${moduleName.value}/${applName.value}/${catalogName.value}/edit/${rowData.id}`;
       console.log('Переход по URL:', editUrl);
 
       router.push(editUrl);
@@ -269,7 +271,7 @@ CatalogDataTable отвечает только за отображение да�
 
   // Переход на страницу добавления новой записи
   const goToAddRecord = () => {
-    const addUrl = `/${moduleName.value}/${catalogName.value}/add`;
+    const addUrl = `/${moduleName.value}/${applName.value}/${catalogName.value}/add`;
 
     router.push(addUrl);
   };
@@ -312,9 +314,21 @@ CatalogDataTable отвечает только за отображение да�
     // await new Promise((resolve) => setTimeout(resolve, 5000));
 
     try {
-      console.log('Загружаем данные для:', moduleName.value, catalogName.value, 'offset:', offset);
+      console.log(
+        'Загружаем данные для:',
+        moduleName.value,
+        applName.value,
+        catalogName.value,
+        'offset:',
+        offset,
+      );
 
-      const items = await CatalogService.GET(moduleName.value, catalogName.value, offset);
+      const items = await CatalogService.GET(
+        moduleName.value,
+        applName.value,
+        catalogName.value,
+        offset,
+      );
       console.log('Получены данные:', items);
 
       // Если это первая загрузка, заменяем все данные
@@ -329,7 +343,7 @@ CatalogDataTable отвечает только за отображение да�
       console.log('lazyItems после обновления:', lazyItems.value);
 
       // Получаем общее количество записей
-      totalRecords.value = CatalogService.getTotalCount(moduleName.value, catalogName.value);
+      totalRecords.value = CatalogService.getTotalCount(moduleName.value, applName.value, catalogName.value);
       console.log('totalRecords после обновления:', totalRecords.value);
     } catch (err) {
       console.error('Ошибка при загрузке данных:', err);
@@ -455,14 +469,15 @@ CatalogDataTable отвечает только за отображение да�
       if (lazyItems.value.length > 0) {
         // Проверяем наличие ID для скроллинга в хранилище
         const recordIdToScroll =
-          moduleStore.value.catalogsByName?.[catalogName.value]?.GET?.recordIdToScroll;
+          moduleStore.value.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET
+            ?.recordIdToScroll;
 
         if (recordIdToScroll) {
           console.log(`Найден recordIdToScroll в хранилище: ${recordIdToScroll}`);
           await scrollToRecord(recordIdToScroll);
 
           // Очищаем ID после скроллинга, чтобы избежать повторной прокрутки
-          // moduleStore.value.catalogsByName[catalogName.value].GET.recordIdToScroll = null;
+          // moduleStore.value.loadedCatalogsByApplName[applName][catalogName.value].GET.recordIdToScroll = null;
         }
       }
     },

@@ -44,6 +44,7 @@
   }
 
   const props = defineProps<{
+    moduleName: string;
     modelValue?: Date | string;
     options: FieldOptions;
     isModified: boolean;

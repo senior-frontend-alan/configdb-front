@@ -163,11 +163,11 @@
 
   const handleCardClick = async (item: any) => {
     try {
-      if (item && item.viewname) {
-        const currentModuleId = route.params.moduleName as string;
+      if (item && item.appl_name && item.viewname) {
+        const moduleName = route.params.moduleName as string;
 
         // Формируем новый URL для перехода к деталям элемента
-        const newPath = `/${currentModuleId}/${item.viewname}`;
+        const newPath = `/${moduleName}/${item.appl_name}/${item.viewname.toLowerCase()}`;
 
         // Загрузка данных будет инициирована роутером через хук beforeResolve
         console.log(`Переход по пути: ${newPath}`);

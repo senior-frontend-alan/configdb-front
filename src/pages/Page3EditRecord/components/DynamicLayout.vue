@@ -36,6 +36,7 @@ DynamicLayout: чисто презентационный компонент
         <!-- Рекурсивно обрабатываем вложенные элементы -->
         <DynamicLayout
           v-if="element.elements && element.elements.length > 0"
+          :moduleName="props.moduleName"
           :layout-elements="element.elementsIndex"
           :model-value="modelValue"
           :patch-data="patchData"
@@ -48,6 +49,7 @@ DynamicLayout: чисто презентационный компонент
         <!-- Рекурсивно обрабатываем вложенные элементы строки -->
         <DynamicLayout
           v-if="element.elements && element.elements.length > 0"
+          :moduleName="props.moduleName"
           :layout-elements="element.elementsIndex"
           :model-value="modelValue"
           :patch-data="patchData"
@@ -60,9 +62,11 @@ DynamicLayout: чисто презентационный компонент
         <div v-if="debugField(element)" class="debug-info">
           Поле: {{ element.name }}, Значение: {{ modelValue[element.name] }}
         </div>
+        {{ element.FRONTEND_CLASS }}
         <!-- v-on="..." событие reset-field передается только компоненту ViewSetInlineLayout, а не всем компонентам полей. -->
         <component
           :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
+          :moduleName="props.moduleName"
           :options="element"
           :model-value="modelValue[element.name]"
           :is-modified="isFieldModified(element.name) || false"
@@ -112,6 +116,7 @@ DynamicLayout: чисто презентационный компонент
   const showDebugJson = ref(false); // Показывать ли JSON для отладки
 
   const props = defineProps<{
+    moduleName: string;
     layoutElements: Map<string, FormElement>;
     modelValue: Record<string, any>;
     patchData?: Record<string, any>; // Данные о измененных полях (PATCH)
@@ -120,8 +125,6 @@ DynamicLayout: чисто презентационный компонент
   // В шаблоне Vue директива v-for работает с массивами
   const elementsArray = computed(() => {
     const elements = Array.from(props.layoutElements.values());
-    console.log('DynamicLayout - элементы макета:', elements);
-    console.log('DynamicLayout - полученные данные:', props.modelValue);
     return elements;
   });
 

@@ -51,6 +51,7 @@
   }
 
   const props = defineProps<{
+    moduleName: string;
     modelValue?: number;
     options: FieldOptions;
     isModified: boolean;

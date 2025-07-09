@@ -33,6 +33,7 @@ URL для создания новой записи: http://localhost:5173/catal
       <!-- Используем DynamicLayout для рекурсивного отображения элементов формы -->
       <DynamicLayout
         v-if="storeOptions && storeOptions.layout.elementsIndex"
+        :moduleName="moduleName"
         :layout-elements="storeOptions.layout.elementsIndex"
         :model-value="mergedData"
         :patch-data="getUnsavedChanges()"
@@ -84,8 +85,9 @@ URL для создания новой записи: http://localhost:5173/catal
 
   // Определяем props компонента
   const props = defineProps<{
-    moduleName?: string;
-    catalogName?: string;
+    moduleName: string;
+    applName: string;
+    catalogName: string;
     id?: string;
   }>();
 
@@ -96,6 +98,7 @@ URL для создания новой записи: http://localhost:5173/catal
 
   // Используем props с фолбэком на параметры маршрута
   const moduleName = computed(() => props.moduleName || (route.params.moduleName as string));
+  const applName = computed(() => props.applName || (route.params.applName as string));
   const catalogName = computed(() => props.catalogName || (route.params.catalogName as string));
   const recordId = computed(() => props.id || (route.params.id as string));
 
@@ -125,9 +128,9 @@ URL для создания новой записи: http://localhost:5173/catal
     }
     const moduleStore = getModuleStore();
     return (
-      moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex?.get(
-        String(recordId.value),
-      ) || {}
+      moduleStore.loadedCatalogsByApplName[applName.value][
+        catalogName.value
+      ]?.GET?.resultsIndex?.get(String(recordId.value)) || {}
     );
   });
 
@@ -153,7 +156,8 @@ URL для создания новой записи: http://localhost:5173/catal
     try {
       const moduleStore = getModuleStore();
       const unsavedChanges = {
-        ...(moduleStore.catalogsByName?.[catalogName.value]?.unsavedChanges || {}),
+        ...(moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]
+          ?.unsavedChanges || {}),
       };
 
       // Обрабатываем каждое поле в обновленных данных
@@ -172,7 +176,8 @@ URL для создания новой записи: http://localhost:5173/catal
       }
 
       // Обновляем PATCH в сторе
-      moduleStore.catalogsByName[catalogName.value].unsavedChanges = unsavedChanges;
+      moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges =
+        unsavedChanges;
       console.log('Обновлены PATCH данные:', unsavedChanges);
 
       // Проверяем положение прокрутки после изменения данных
@@ -190,9 +195,9 @@ URL для создания новой записи: http://localhost:5173/catal
   const resetAllFields = () => {
     try {
       const moduleStore = getModuleStore();
-      if (moduleStore.catalogsByName?.[catalogName.value]) {
+      if (moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]) {
         // Очищаем PATCH в сторе
-        moduleStore.catalogsByName[catalogName.value].unsavedChanges = {};
+        moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges = {};
 
         // Показываем сообщение об успешной отмене изменений
         toast.add({
@@ -211,9 +216,13 @@ URL для создания новой записи: http://localhost:5173/catal
   const resetField = (fieldName: string) => {
     try {
       const moduleStore = getModuleStore();
-      if (moduleStore.catalogsByName?.[catalogName.value]?.unsavedChanges) {
-        if (fieldName in moduleStore.catalogsByName[catalogName.value].unsavedChanges) {
-          delete moduleStore.catalogsByName[catalogName.value].unsavedChanges[fieldName];
+      if (moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.unsavedChanges) {
+        if (
+          fieldName in
+          moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges
+        ) {
+          delete moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]
+            .unsavedChanges[fieldName];
 
           toast.add({
             severity: 'info',
@@ -234,7 +243,10 @@ URL для создания новой записи: http://localhost:5173/catal
   const getUnsavedChanges = () => {
     try {
       const moduleStore = getModuleStore();
-      return moduleStore.catalogsByName?.[catalogName.value]?.unsavedChanges || {};
+      return (
+        moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.unsavedChanges ||
+        {}
+      );
     } catch {
       return {};
     }
@@ -281,16 +293,15 @@ URL для создания новой записи: http://localhost:5173/catal
 
   // Функция для возврата к списку
   const goBack = () => {
-    const moduleName = route.params.moduleName as string;
-    const catalogName = route.params.catalogName as string;
-
     try {
       // Получаем стор модуля
       const moduleStore = getModuleStore();
 
       // Устанавливаем ID записи для скроллинга в хранилище
-      if (moduleStore.catalogsByName?.[catalogName]?.GET) {
-        moduleStore.catalogsByName[catalogName].GET.recordIdToScroll = recordId.value;
+      if (moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET) {
+        moduleStore.loadedCatalogsByApplName[applName.value][
+          catalogName.value
+        ].GET.recordIdToScroll = recordId.value;
         console.log(`Установлен recordIdToScroll: ${recordId.value}`);
       }
     } catch (error) {
@@ -299,7 +310,7 @@ URL для создания новой записи: http://localhost:5173/catal
 
     // Переходим на страницу деталей каталога
     router.push({
-      path: `/${moduleName}/${catalogName}`,
+      path: `/${moduleName.value}/${applName.value}/${catalogName.value}`,
     });
   };
 
@@ -313,13 +324,15 @@ URL для создания новой записи: http://localhost:5173/catal
 
       // Проверяем, загружены ли данные каталога
       if (
-        !moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex &&
+        !moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET
+          ?.resultsIndex &&
         !isCreateMode.value
       ) {
         throw new Error(`Данные для каталога ${catalogName.value} не загружены. Проверьте роутер.`);
       }
 
-      const options = moduleStore.catalogsByName?.[catalogName.value]?.OPTIONS;
+      const options =
+        moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.OPTIONS;
       if (!options || !options.layout) {
         throw new Error(`Метаданные для представления ${catalogName.value} не найдены`);
       }
@@ -331,14 +344,17 @@ URL для создания новой записи: http://localhost:5173/catal
       if (isCreateMode.value) {
         console.log('Режим создания новой записи');
         // Инициализируем пустой PATCH для новой записи, если его еще нет
-        if (!moduleStore.catalogsByName[catalogName.value].unsavedChanges) {
-          moduleStore.catalogsByName[catalogName.value].unsavedChanges = {};
+        if (
+          !moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges
+        ) {
+          moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges =
+            {};
         }
       } else {
         // Получаем данные записи из GET.resultsIndex для быстрого доступа по id
-        const recordData = moduleStore.catalogsByName?.[catalogName.value]?.GET?.resultsIndex?.get(
-          String(recordId.value),
-        );
+        const recordData = moduleStore.loadedCatalogsByApplName[applName.value][
+          catalogName.value
+        ]?.GET?.resultsIndex?.get(String(recordId.value));
 
         // Проверяем, найдена ли запись
         if (!recordData) {
@@ -409,7 +425,7 @@ URL для создания новой записи: http://localhost:5173/catal
     try {
       // Получаем стор модуля
       const moduleStore = getModuleStore();
-      const catalogData = moduleStore.catalogsByName?.[catalogName.value];
+      const catalogData = moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value];
 
       if (!catalogData?.unsavedChanges || Object.keys(catalogData.unsavedChanges).length === 0) {
         throw new Error('Нет данных для сохранения');
@@ -432,6 +448,7 @@ URL для создания новой записи: http://localhost:5173/catal
             // Создание новой записи
             response = await RecordService.sendPostRequest(
               moduleName.value,
+              applName.value,
               catalogName.value,
               cleanData,
             );
@@ -441,6 +458,7 @@ URL для создания новой записи: http://localhost:5173/catal
             // Обновление существующей записи
             response = await RecordService.sendPatchRequest(
               moduleName.value,
+              applName.value,
               catalogName.value,
               recordId.value,
               cleanData,

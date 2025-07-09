@@ -54,6 +54,7 @@
   }
 
   const props = defineProps<{
+    moduleName: string;
     modelValue?: any; // !!!Вообще должно быть String но Vue проверяет типы пропсов перед отрисовкой и выводит ошибку в консоль если там не String
     options: FieldOptions;
     isModified: boolean;
