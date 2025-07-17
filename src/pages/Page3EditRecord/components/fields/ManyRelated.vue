@@ -104,7 +104,7 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue';
-  import { CatalogService } from '../../../../services/CatalogService';
+  import { getOrfetchCatalog } from '../../../../stores/data-loaders';
   import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import MultiSelect from 'primevue/multiselect';
@@ -169,7 +169,6 @@
   const label = computed(() => props.options.label || props.options.name);
   const disabled = computed(() => Boolean(props.options.read_only));
   const required = computed(() => !props.options.allow_null);
-  const relatedTableUrl = computed(() => props.options.list_url);
   const help_text = computed(() => props.options.help_text);
 
   const emit = defineEmits<{
@@ -188,11 +187,10 @@
     return !tempSelectedItems.value || tempSelectedItems.value.length === 0;
   });
 
-  const currentModuleName = ref('');
-  const currentApplName = ref('');
-  const currentCatalogName = ref('');
-
-  // Состояние загрузки данных
+  // Используем computed для автоматического обновления при изменении props
+  const currentModuleName = computed(() => props.moduleName);
+  const currentApplName = computed(() => props.options.appl_name);
+  const currentCatalogName = computed(() => props.options.view_name);
 
   const openInNewTab = () => {
     if (currentModuleName.value && currentApplName.value && currentCatalogName.value) {
@@ -235,48 +233,30 @@
     dialogVisible.value = true;
     loading.value = true;
     error.value = null;
-
-    // Инициализируем временное состояние при открытии диалога
     initTempSelectedItems();
 
-    const moduleName = props.moduleName;
-    const applName = props.options.appl_name;
-    const catalogName = props.options.view_name;
-
-    console.log('Загрузка данных каталога:', moduleName, applName, catalogName);
-
-    // Если есть URL для загрузки связанных данных
-    if (moduleName && applName && catalogName) {
-      try {
-        console.log('Загрузка данных каталога:', relatedTableUrl.value);
-        // Загружаем данные в соответствующий стор через CatalogService
-
-        await Promise.all([
-          CatalogService.GET(
-            moduleName,
-            applName,
-            catalogName,
-            0,
-          ),
-          CatalogService.OPTIONS(
-            moduleName,
-            applName,
-            catalogName,
-          ),
-        ]);
-        console.log('Данные каталога загружены успешно');
-        // Открываем диалог после успешной загрузки данных
-        dialogVisible.value = true;
-      } catch (err) {
-        console.error('Ошибка при загрузке данных каталога:', err);
-        error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';
-      } finally {
-        loading.value = false;
-      }
-    } else {
+    // Проверяем наличие необходимых параметров
+    if (!currentModuleName.value || !currentApplName.value || !currentCatalogName.value) {
       error.value = 'Не указан URL для загрузки связанных данных';
       loading.value = false;
+      return;
     }
+
+    const catalogResult = await getOrfetchCatalog(
+      currentModuleName.value,
+      currentApplName.value,
+      currentCatalogName.value,
+      0,
+    );
+
+    if (!catalogResult.success) {
+      error.value = `Не удалось загрузить данные каталога ${currentApplName.value}/${currentCatalogName.value}`;
+      loading.value = false;
+      return;
+    }
+
+    // Если дошли до этой точки, значит загрузка успешна
+    loading.value = false;
   };
 
   const onRecordSelected = (record: any) => {

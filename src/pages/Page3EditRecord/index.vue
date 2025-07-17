@@ -76,7 +76,7 @@ URL для создания новой записи: http://localhost:5173/catal
   import { ref, computed, onMounted, onUnmounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
-  import { RecordService } from '../../services/RecordService';
+  import { createRecord, updateRecord } from '../../stores/data-loaders';
   import { useToast } from 'primevue/usetoast';
   import DynamicLayout from './components/DynamicLayout.vue';
   import Button from 'primevue/button';
@@ -439,33 +439,40 @@ URL для создания новой записи: http://localhost:5173/catal
         const cleanData = cleanObject(rawData);
         console.log('Данные для отправки:', cleanData);
 
-        let response;
-        let newRecordId; // Объявляем переменную для хранения ID новой записи
+        let recordIdentifier: string | null = null;
 
         try {
-          // В зависимости от режима используем POST или PATCH
+          // Выполняем сохранение данных в зависимости от режима
           if (isCreateMode.value) {
-            // Создание новой записи
-            response = await RecordService.sendPostRequest(
+            // Создание в сторе новой записи
+            const result = await createRecord(
               moduleName.value,
               applName.value,
               catalogName.value,
               cleanData,
             );
 
-            newRecordId = response.id || response.ID;
+            if (!result.success || !result.recordId) {
+              throw result.error || new Error('Не удалось создать запись');
+            }
+
+            recordIdentifier = result.recordId;
           } else {
-            // Обновление существующей записи
-            response = await RecordService.sendPatchRequest(
+            // Обновление в сторе существующей записи
+            const result = await updateRecord(
               moduleName.value,
               applName.value,
               catalogName.value,
               recordId.value,
               cleanData,
             );
-          }
 
-          console.log('Ответ сервера:', response);
+            if (!result.success) {
+              throw result.error || new Error(`Не удалось обновить запись ${recordId.value}`);
+            }
+
+            recordIdentifier = String(recordId.value);
+          }
         } catch (error) {
           console.error('Ошибка при сохранении данных:', error);
           throw error;
@@ -473,15 +480,12 @@ URL для создания новой записи: http://localhost:5173/catal
 
         // Показываем сообщение об успешном сохранении
         let successMessage = '';
-        let recordIdentifier = '';
 
         if (isCreateMode.value) {
           // Для операции POST
-          recordIdentifier = newRecordId || response?.id || response?.ID;
           successMessage = `Запись успешно создана (ID: ${recordIdentifier})`;
         } else {
           // Для операции PATCH
-          recordIdentifier = recordId.value;
           successMessage = `Данные успешно обновлены (ID: ${recordIdentifier})`;
         }
 

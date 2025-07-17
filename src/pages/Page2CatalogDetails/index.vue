@@ -67,10 +67,10 @@ CatalogDataTable отвечает только за отображение да�
     <div class="catalog-details">
       <DataTable
         ref="dataTableRef"
-        :tableRows="lazyItems"
+        :tableRows="tableRows"
         :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
-        :selectionMode="computedSelectionMode"
+        :selectionMode="currentCatalog?.OPTIONS?.permitted_actions?.batch ? 'multiple' : undefined"
         :selectedItems="tableSelection"
         :onColumnReorder="onColumnReorder"
         :loading="loading"
@@ -111,7 +111,7 @@ CatalogDataTable отвечает только за отображение да�
   import { useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
-  import { CatalogService } from '../../services/CatalogService';
+  import { getOrfetchCatalog } from '../../stores/data-loaders';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import DataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
@@ -135,7 +135,8 @@ CatalogDataTable отвечает только за отображение да�
   // Состояние компонента
   const loading = ref(true);
   const error = ref<string | null>(null);
-  const lazyItems = ref<any[]>([]);
+  // Используем ref для оптимизации обновления данных при пагинации
+  const tableRows = ref<any[]>([]);
   const tableSelection = ref<any[]>([]);
   const isTableScrollable = ref(false);
   const totalRecords = ref(0);
@@ -147,7 +148,7 @@ CatalogDataTable отвечает только за отображение да�
   const loadingMore = ref(false);
   // Проверяем, есть ли еще данные для загрузки
   const hasMoreData = computed(() => {
-    return totalRecords.value > 0 && lazyItems.value.length < totalRecords.value;
+    return totalRecords.value > 0 && tableRows.value.length < totalRecords.value;
   });
 
   // Из props
@@ -159,47 +160,6 @@ CatalogDataTable отвечает только за отображение да�
   const currentCatalog = computed(() => {
     return moduleStore.value?.loadedCatalogsByApplName[applName.value][catalogName.value];
   });
-
-  // Вычисляемое свойство для определения режима выбора строк
-  const computedSelectionMode = computed(() => {
-    // Если явно указан режим выбора, используем его
-    if (props.selectionMode) {
-      return props.selectionMode;
-    }
-
-    // Иначе определяем режим на основе прав доступа
-    return !!currentCatalog.value?.OPTIONS?.permitted_actions?.batch ? 'multiple' : 'single';
-  });
-
-  // Проверка наличия данных и метаданных и инициализация из стора
-  const initializeDataFromStore = () => {
-    if (!currentCatalog.value) {
-      error.value = 'Нет данных каталога';
-      return false;
-    }
-
-    if (
-      !currentCatalog.value.OPTIONS ||
-      !currentCatalog.value.OPTIONS.layout ||
-      !currentCatalog.value.OPTIONS.layout.TABLE_COLUMNS
-    ) {
-      error.value = 'Не удалось получить метаданные для отображения каталога';
-      return false;
-    }
-
-    if (currentCatalog.value?.GET?.results && Array.isArray(currentCatalog.value.GET.results)) {
-      // Если в сторе уже есть данные, используем их
-      lazyItems.value = [...currentCatalog.value.GET.results];
-      console.log('Данные инициализированы из стора:', lazyItems.value);
-
-      // Обновляем общее количество записей
-      if (currentCatalog.value.GET.count !== undefined) {
-        totalRecords.value = currentCatalog.value.GET.count;
-      }
-    }
-
-    return true;
-  };
 
   // НЕ удалять!
   // const refreshData = async () => {
@@ -304,53 +264,46 @@ CatalogDataTable отвечает только за отображение да�
     { immediate: true },
   );
 
-  // Функция загрузки данных каталога с пагинацией
   const loadCatalogData = async (offset: number) => {
     if (!moduleName.value || !catalogName.value) return;
 
     loading.value = true;
 
-    // Добавляем задержку в 2 секунды для имитации загрузки
-    // await new Promise((resolve) => setTimeout(resolve, 5000));
+    const catalogResult = await getOrfetchCatalog(
+      moduleName.value,
+      applName.value,
+      catalogName.value,
+      offset,
+    );
 
-    try {
-      console.log(
-        'Загружаем данные для:',
-        moduleName.value,
-        applName.value,
-        catalogName.value,
-        'offset:',
-        offset,
-      );
+    loading.value = false;
 
-      const items = await CatalogService.GET(
-        moduleName.value,
-        applName.value,
-        catalogName.value,
-        offset,
-      );
-      console.log('Получены данные:', items);
-
-      // Если это первая загрузка, заменяем все данные
-      if (offset === 0) {
-        lazyItems.value = items;
-      } else {
-        // Если это дозагрузка, добавляем новые данные к существующим
-        // Используем push вместо создания нового массива, чтобы избежать перерисовки всей таблицы
-        items.forEach((item) => lazyItems.value.push(item));
-      }
-
-      console.log('lazyItems после обновления:', lazyItems.value);
-
-      // Получаем общее количество записей
-      totalRecords.value = CatalogService.getTotalCount(moduleName.value, applName.value, catalogName.value);
-      console.log('totalRecords после обновления:', totalRecords.value);
-    } catch (err) {
-      console.error('Ошибка при загрузке данных:', err);
-      error.value = err instanceof Error ? err.message : 'Ошибка загрузки данных';
-    } finally {
-      loading.value = false;
+    if (!catalogResult.success) {
+      console.error('Ошибка при загрузке каталога !catalogResult.success');
+      return;
     }
+
+    const { catalog, newItems } = catalogResult;
+
+    if (!catalog) {
+      console.error('Каталог не найден в результате');
+      return;
+    }
+
+    console.log('Новые записи:', newItems);
+
+    // Если это первая загрузка, заменяем все данные
+    if (offset === 0) {
+      tableRows.value = catalog.GET.results || [];
+    } else if (newItems && newItems.length > 0) {
+      // Если это дозагрузка, добавляем только новые данные к существующим
+      // Используем push вместо создания нового массива, чтобы избежать перерисовки всей таблицы
+      newItems.forEach((item: any) => tableRows.value.push(item));
+    }
+
+    totalRecords.value = catalog.GET.count;
+    console.log('tableRows после обновления:', tableRows.value);
+    console.log('totalRecords после обновления:', totalRecords.value);
   };
 
   // Обработчик события load-more для ленивой загрузки при скролле
@@ -359,7 +312,7 @@ CatalogDataTable отвечает только за отображение да�
     const { first } = event;
 
     // Если загружены все данные, не загружаем больше
-    if (totalRecords.value && lazyItems.value.length >= totalRecords.value) {
+    if (totalRecords.value && tableRows.value.length >= totalRecords.value) {
       console.log('Все данные уже загружены');
       loadingMore.value = false;
       return;
@@ -371,10 +324,6 @@ CatalogDataTable отвечает только за отображение да�
     loadingMore.value = false;
   };
 
-  const onInitialLoad = async () => {
-    await loadCatalogData(0);
-  };
-
   // Функция для обработки пересечения элемента с областью видимости
   const handleIntersection = (entries: IntersectionObserverEntry[]) => {
     const entry = entries[0];
@@ -383,7 +332,7 @@ CatalogDataTable отвечает только за отображение да�
     if (entry.isIntersecting && !loadingMore.value && hasMoreData.value) {
       loadingMore.value = true;
 
-      const currentLength = lazyItems.value.length;
+      const currentLength = tableRows.value.length;
       const rows = 20; // Количество записей для загрузки
 
       // Вызываем функцию загрузки данных с текущим смещением
@@ -394,20 +343,8 @@ CatalogDataTable отвечает только за отображение да�
   // Создаем и настраиваем Intersection Observer
   let observer: IntersectionObserver | null = null;
 
-  // Начальная загрузка данных при монтировании компонента
   onMounted(async () => {
-    if (!initializeDataFromStore()) {
-      loading.value = false;
-      return;
-    }
-
-    // Если данных нет или их недостаточно, загружаем с сервера
-    if (lazyItems.value.length === 0) {
-      await onInitialLoad();
-    } else {
-      // Если данные уже есть, просто снимаем флаг загрузки
-      loading.value = false;
-    }
+    await loadCatalogData(0);
 
     // Создаем наблюдатель, если браузер поддерживает IntersectionObserver
     if ('IntersectionObserver' in window) {
@@ -436,12 +373,12 @@ CatalogDataTable отвечает только за отображение да�
 
   // Функция для прокрутки к записи и её выделения
   const scrollToRecord = async (recordId: string) => {
-    if (!recordId || !lazyItems.value.length) return;
+    if (!recordId || !tableRows.value.length) return;
 
     console.log('Прокрутка к записи:', recordId);
 
     // Находим запись в массиве данных по ID
-    const recordIndex = lazyItems.value.findIndex((item) => String(item.id) === String(recordId));
+    const recordIndex = tableRows.value.findIndex((item) => String(item.id) === String(recordId));
 
     if (recordIndex === -1) {
       console.warn('Запись не найдена в текущих данных:', recordId);
@@ -449,7 +386,7 @@ CatalogDataTable отвечает только за отображение да�
     }
 
     // Устанавливаем выбранную запись
-    tableSelection.value = [lazyItems.value[recordIndex]];
+    tableSelection.value = [tableRows.value[recordIndex]];
 
     // Ждем следующего цикла рендеринга
     await nextTick();
@@ -464,9 +401,9 @@ CatalogDataTable отвечает только за отображение да�
 
   // Проверяем наличие recordIdToScroll в хранилище после загрузки данных
   watch(
-    () => lazyItems.value.length,
+    () => tableRows.value.length,
     async () => {
-      if (lazyItems.value.length > 0) {
+      if (tableRows.value.length > 0) {
         // Проверяем наличие ID для скроллинга в хранилище
         const recordIdToScroll =
           moduleStore.value.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET

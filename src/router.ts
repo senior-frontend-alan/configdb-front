@@ -1,7 +1,7 @@
 // src/router.ts
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
-import { ensureHierarchyLoaded } from './stores/module-factory';
+import { ensureHierarchyLoaded } from './stores/data-loaders';
 
 // Маршрутизатор → Стор → Компоненты
 
@@ -120,15 +120,25 @@ router.beforeEach(async (to, from, next) => {
     return;
   }
 
+  // Дожидаемся полной загрузки данных перед вызовом next()
   try {
+    console.log(`Загрузка иерархии данных: ${moduleName}/${applName}/${catalogName}/${recordId}`);
     const success = await ensureHierarchyLoaded(moduleName, applName, catalogName, recordId);
-    if (!success) {
-      console.error(`Не удалось загрузить запись ${recordId}`);
+
+    if (success) {
+      console.log(
+        `Данные успешно загружены для ${moduleName}/${applName}/${catalogName}/${recordId}`,
+      );
+      next(); // Продолжаем навигацию только после успешной загрузки
+    } else {
+      console.error(
+        `Не удалось загрузить данные для ${moduleName}/${applName}/${catalogName}/${recordId}`,
+      );
+      next(); // Продолжаем навигацию даже в случае ошибки, но после завершения попытки загрузки
     }
   } catch (error) {
-    console.error('Неожиданная ошибка при загрузке записи:', error);
-  } finally {
-    next(); // Продолжаем навигацию в любом случае
+    console.error('Неожиданная ошибка при загрузке данных:', error);
+    next(); // Продолжаем навигацию в случае ошибки
   }
 });
 
@@ -137,7 +147,7 @@ router.beforeEach(async (to, from, next) => {
 // В зависимости от переданных параметров загружает только необходимые уровни иерархии:
 // - ensureHierarchyLoaded(moduleName) - загружает только модуль
 // - ensureHierarchyLoaded(moduleName, catalogName) - загружает модуль и каталог
-// - ensureHierarchyLoaded(moduleName, catalogName, recordId) - загружает всю иерархию
+// - ensureHierarchyLoaded(moduleName, catalogName, recordId) - загружает модуль, каталог и конкретную запись
 
 // Для загрузки связанных данных для вложенных компонентов используйте отдельную функцию в компоненте
 

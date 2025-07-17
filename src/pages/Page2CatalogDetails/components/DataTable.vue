@@ -48,12 +48,13 @@ onLazyLoad вызывается при прокрутке таблицы
           :value="props.tableRows"
           stripedRows
           responsiveLayout="scroll"
+          :rowClass="getRowClass"
           reorderableColumns
           removableSort
           @column-reorder="onColumnReorder"
           class="p-datatable-sm transparent-header inner-shadow"
           v-model:selection="tableSelection"
-          :selection-mode="props.selectionMode || 'multiple'"
+          :selectionMode="props.selectionMode"
           :dataKey="primaryKey"
           :scrollable="true"
           :resizableColumns="true"
@@ -258,6 +259,13 @@ onLazyLoad вызывается при прокрутке таблицы
     }, 0);
   };
 
+  // Функция для определения класса строки
+  const getRowClass = (data: any) => {
+    return {
+      'new-record': data.isNew === true,
+    };
+  };
+
   // Экспортируем метод для использования в родительском компоненте
   defineExpose({
     scrollToRowByIndex,
@@ -266,10 +274,24 @@ onLazyLoad вызывается при прокрутке таблицы
 
 <style scoped>
   .catalog-data-table {
-    width: 100%;
-    height: 100%;
     display: flex;
     flex-direction: column;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* Стиль для подсветки новых записей */
+  :deep(.new-record) > td {
+    background-color: rgba(255, 183, 77, 0.1) !important;
+  }
+
+  :deep(.new-record) {
+    outline: 2px solid #ffb74d !important;
+    outline-offset: -1px;
+  }
+
+  :deep(.new-record:hover) {
+    outline-color: #ff9800 !important;
   }
 
   /* Делаем оверлей загрузки прозрачным */

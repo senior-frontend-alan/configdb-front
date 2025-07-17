@@ -1,22 +1,14 @@
 // src/services/CatalogService.ts
-import { ref, computed } from 'vue';
 import { FieldTypeService, FRONTEND } from '../services/fieldTypeService';
 import api from '../api';
-import { useModuleStore, initCatalogStructure, Catalog } from '../stores/module-factory';
+import { useModuleStore, Catalog } from '../stores/module-factory';
 import type { CatalogDetailsAPIResponseGET } from '../stores/types/catalogDetailsAPIResponseGET.type';
 import type { CatalogDetailsAPIResponseOPTIONS } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { Layout } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { CatalogItem } from '../stores/types/catalogsAPIResponseGET.type';
 
-// Сервисы отвечают за API-запросы, кэширование и обновление соответствующих сторов
-// Сторы предоставляют интерфейс для доступа к данным и их изменения
-
-// Маршрутизатор → Стор (Сервисы) → Компоненты
-
-// Сервисы с обновлением стора
-// Сервисы отвечают за:
-// формирование API-запросов
-// обновление соответствующих сторов
+// Сервис отвечает только за коммуникацию с API (не отвечают за кэширование и обновление соответствующих сторов)
+// Маршрутизатор → Стор → Сервисы → Компоненты
 
 // Сторы отвечают за:
 // хранение состояния
@@ -120,54 +112,7 @@ interface ExtendedLayout extends Layout {
   elementsIndex: Map<string, any>; // Соответствует возвращаемому значению createElementsMap
 }
 
-/**
- * Сервис для ленивой загрузки данных с использованием гибридного подхода
- * Позволяет эффективно управлять кэшированием и загрузкой данных по страницам
- */
 export class CatalogService {
-  /**
-   * Поиск URL для каталога в сторе или в индексе
-   * @param moduleName Имя модуля
-   * @param applName Имя приложения
-   * @param catalogName Имя каталога
-   * @returns URL каталога, выбрасывает ошибку, если URL не найден
-   */
-  static findCatalogUrl(moduleName: string, applName: string, catalogName: string): string {
-    const moduleStore = useModuleStore(moduleName);
-    let url: string;
-
-    // Проверяем наличие индекса
-    if (!moduleStore.indexCatalogsByApplName) {
-      const errorMessage = `Индекс каталогов не найден. Загрузите сперва группы каталогов.`;
-      console.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    // Пробуем получить URL из индекса
-    const applCatalogs = moduleStore.indexCatalogsByApplName[applName.toLowerCase()];
-    if (!applCatalogs) {
-      const errorMessage = `Приложение ${applName} не найдено в индексе каталогов. Загрузите сперва группы каталогов.`;
-      console.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    const catalogItem = applCatalogs.get(catalogName.toLowerCase());
-    if (!catalogItem || !catalogItem.href) {
-      const errorMessage = `Не найден URL для каталога ${moduleName}/${applName}/${catalogName}. Загрузите сперва группы каталогов.`;
-      console.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    url = catalogItem.href;
-    console.log(
-      `Найден URL для каталога ${moduleName}/${applName}/${catalogName} в индексе: ${url}`,
-    );
-    return url;
-  }
-
-  // Максимальное количество записей в кэше
-  // Максимальное количество элементов в кэше было удалено, так как не используется
-
   /**
    * загружен ли указанный диапазон данных в GET
    */
@@ -208,167 +153,54 @@ export class CatalogService {
 
   /**
    * Загружает данные с указанным смещением
+   * @description Только взаимодействие с API, без работы со стором
    */
-  static async GET(
-    moduleName: string,
-    applName: string,
-    catalogName: string,
-    offset: number,
-    limit: number = 20,
-  ): Promise<any[]> {
-    console.log(
-      `CatalogService.GET: !Запрос данных для ${moduleName}/${applName}/${catalogName}, offset ${offset}, limit ${limit}`,
-    );
+  static async GET(url: string, offset: number, limit: number = 20): Promise<any> {
     try {
-      // Получаем URL для загрузки каталога
-      const url = CatalogService.findCatalogUrl(moduleName, applName, catalogName);
-
-      // Инициализируем структуру каталога в сторе и получаем ссылку на нее
-      const currentCatalog = initCatalogStructure(moduleName, applName, catalogName);
-
-      // Проверяем наличие данных и загружен ли запрошенный диапазон
-      if (currentCatalog?.GET?.results && currentCatalog?.GET?.loadedRanges) {
-        // Если запрашиваем конкретный диапазон, проверяем его наличие в кэше
-        if (this.isRangeLoaded(moduleName, applName, catalogName, offset, offset + limit - 1)) {
-          console.log(
-            `CatalogService.GET: Данные для ${moduleName}/${applName}/${catalogName} с offset=${offset}, limit=${limit} уже загружены в стор, используем кэш`,
-          );
-
-          // Возвращаем только запрошенный диапазон из кэша
-          const allResults = currentCatalog.GET.results;
-          return allResults.slice(offset, offset + limit);
-        } else {
-          console.log(
-            `CatalogService.GET: Данные для ${moduleName}/${applName}/${catalogName} с offset=${offset}, limit=${limit} не найдены в кэше, загружаем с сервера`,
-          );
-        }
-      } else {
-        console.log(
-          `CatalogService.GET: Структура каталога ${catalogName} инициализирована, но данных еще нет, загружаем с сервера`,
-        );
+      if (!url) {
+        throw new Error(`URL каталога не указан.`);
       }
 
-      // Примечание: при использовании offset мы не проверяем кэш, так как при бесконечном скролле
-      // нам нужно добавлять новые данные к уже загруженным
+      // Формируем URL с параметрами пагинации
       const queryChar = url.includes('?') ? '&' : '?';
       const paginatedUrl = `${url}${queryChar}limit=${limit}&offset=${offset}&mode=short`;
 
       console.log(`CatalogService.GET: Запрос к API: ${paginatedUrl}`);
       const response = await api.get<CatalogDetailsAPIResponseGET>(paginatedUrl);
-      const data = response.data;
-
-      // Сохраняем ответ API в стор, объединяя результаты
-      const existingResults = currentCatalog.GET?.results || [];
-      const newResults = data.results || [];
-
-      // Если это первая загрузка (offset = 0), заменяем результаты
-      // При offset === 0 мы ожидаем, что это новая загрузка с самого начала, поэтому нам нужно заменить все существующие данные новыми, а не добавлять новые данные к старым.
-      // Текущая реализация с условием обеспечивает:
-      // Очистку старых данных при новой загрузке с начала (offset === 0)
-      // Добавление новых данных к существующим при подгрузке при скролле (offset > 0)
-      const combinedResults = offset === 0 ? newResults : [...existingResults, ...newResults];
-
-      currentCatalog.GET = {
-        ...currentCatalog.GET, // Сохраняем существующие данные (например, resultsIndex и loadedRanges)
-        ...data, // Добавляем все поля из ответа API
-        results: combinedResults, // Явно указываем объединенные результаты
-        pageSize: limit, // Добавляем размер страницы
-        recordIdToScroll: currentCatalog.GET?.recordIdToScroll || null, // ID записи для скроллинга
-      };
-
-      if (data?.results && Array.isArray(data.results)) {
-        data.results.forEach((item: any) => {
-          if (item.id !== undefined) {
-            const resultsMap = currentCatalog.GET.resultsIndex;
-            if (resultsMap) {
-              resultsMap.set(String(item.id), item);
-            }
-          }
-        });
-      }
-
-      const loadedRanges = currentCatalog.GET.loadedRanges;
-      if (loadedRanges) {
-        // Формируем ключ для диапазона в формате "start-end"
-        const start = offset;
-        const end = offset + (data.results?.length || 0) - 1;
-        const rangeKey = `${start}-${end}`;
-
-        // Сохраняем объект диапазона по этому ключу
-        loadedRanges[rangeKey] = {
-          start,
-          end,
-          page: Math.floor(offset / limit) + 1,
-          timestamp: Date.now(),
-        };
-      }
-
-      // TODO:
-      // Ограничиваем размер кэша при необходимости
-      // this.limitCacheSize(moduleName, catalogName);
-
-      // Возвращаем данные с сервера
-      console.log(
-        `CatalogService.GET: Возвращаем ${
-          data.results?.length || 0
-        } элементов с сервера (от ${offset} до ${offset + limit})`,
-      );
-      return data.results || [];
+      return response.data;
     } catch (error) {
-      console.error(
-        `Ошибка при загрузке данных с offset ${offset} для каталога ${catalogName}:`,
-        error,
-      );
+      console.error(`Ошибка при загрузке данных с offset ${offset} для URL ${url}:`, error);
       throw error;
     }
   }
 
-  // Загрузка метаданных каталога через OPTIONS-запрос и формирование структуры OPTIONS в сторе
-  static async OPTIONS(
-    moduleName: string,
-    applName: string,
-    catalogName: string,
-  ): Promise<CatalogDetailsAPIResponseOPTIONS> {
-    const moduleStore = useModuleStore(moduleName);
+  // Загрузка метаданных каталога через OPTIONS-запрос
+  static async OPTIONS(url: string): Promise<CatalogDetailsAPIResponseOPTIONS> {
+    try {
+      if (!url) {
+        throw new Error(`URL каталога не указан.`);
+      }
 
-    // Возвращаем OPTIONS из кэша если он есть
-    if (
-      moduleStore.loadedCatalogsByApplName &&
-      moduleStore.loadedCatalogsByApplName[applName] &&
-      moduleStore.loadedCatalogsByApplName[applName][catalogName]?.OPTIONS
-    ) {
-      console.log(
-        `CatalogService.OPTIONS: Метаданные для ${moduleName}/${applName}/${catalogName} уже загружены в стор, используем кэш`,
-      );
-      return moduleStore.loadedCatalogsByApplName[applName][catalogName].OPTIONS;
+      const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
+      const optionsResponseData = optionsResponse.data;
+
+      // Добавляем наши вычисляемые поля в OPTIONS для удобства
+      if (optionsResponseData?.layout) {
+        const layout = optionsResponseData.layout as ExtendedLayout;
+
+        // Создаем таблицу колонок с учетом порядка из display_list
+        layout.TABLE_COLUMNS = CatalogService.createTableColumns(layout);
+
+        // Создаем иерархическую структуру элементов
+        layout.elementsIndex = CatalogService.createElementsMap(layout.elements);
+      }
+
+      console.log(`CatalogService.OPTIONS: Метаданные успешно загружены для ${url}`);
+      return optionsResponseData;
+    } catch (error) {
+      console.error(`Ошибка при загрузке метаданных для URL ${url}:`, error);
+      throw error;
     }
-
-    // findCatalogUrl выбросит ошибку, если URL не найден
-    const url = CatalogService.findCatalogUrl(moduleName, applName, catalogName);
-
-    // ШАГ 2: Загрузка метаданных через OPTIONS-запрос
-    const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
-    const optionsResponseData = optionsResponse.data;
-
-    // Добавляем наши вычисляемые поля в OPTIONS для удобства
-    if (optionsResponseData?.layout) {
-      const layout = optionsResponseData.layout as ExtendedLayout;
-
-      // Создаем таблицу колонок с учетом порядка из display_list
-      layout.TABLE_COLUMNS = CatalogService.createTableColumns(layout);
-
-      // Создаем иерархическую структуру элементов
-      layout.elementsIndex = CatalogService.createElementsMap(layout.elements);
-    }
-
-    // Инициализируем структуру каталога и получаем ссылку на нее
-    const currentCatalog = initCatalogStructure(moduleName, applName, catalogName);
-    currentCatalog.OPTIONS = optionsResponseData;
-
-    console.log(
-      `Метаданные каталога ${catalogName} успешно загружены через OPTIONS и сохранены в сторе`,
-    );
-    return optionsResponseData;
   }
 
   // Функция для создания плоской Map-структуры со всеми полями из elements и их вложенных элементов
@@ -595,104 +427,4 @@ export class CatalogService {
 
     console.log(`Кэш для каталога ${catalogName} очищен`);
   }
-}
-
-/**
- * Композабл для использования ленивой загрузки в компонентах Vue
- */
-export function useLazyLoad(
-  moduleName: string,
-  applName: string,
-  catalogName: string,
-  initialPageSize: number = 10,
-) {
-  const currentPage = ref(1);
-  const pageSize = ref(initialPageSize);
-  const loading = ref(false);
-  const items = ref<any[]>([]);
-  const totalItems = ref(0);
-
-  // Вычисляемое свойство для общего количества страниц
-  const totalPages = computed(() => {
-    return Math.ceil(totalItems.value / pageSize.value);
-  });
-
-  // Загрузка данных для текущей страницы
-  const loadCurrentPage = async () => {
-    loading.value = true;
-    try {
-      const result = await CatalogService.GET(
-        moduleName,
-        applName,
-        catalogName,
-        currentPage.value,
-        pageSize.value,
-      );
-
-      items.value = result;
-
-      // Обновляем общее количество элементов
-      totalItems.value = CatalogService.getTotalCount(moduleName, applName, catalogName);
-    } catch (error) {
-      console.error('CatalogService.GET error:', error);
-      console.trace('CatalogService.GET error stack trace');
-      throw error;
-    } finally {
-      console.log('CatalogService.GET: Загрузка данных завершена');
-      loading.value = false;
-    }
-  };
-
-  // Переход на указанную страницу
-  const goToPage = async (page: number) => {
-    if (page < 1 || (totalPages.value > 0 && page > totalPages.value)) return;
-
-    currentPage.value = page;
-    await loadCurrentPage();
-  };
-
-  // Переход на следующую страницу
-  const nextPage = () => {
-    if (currentPage.value < totalPages.value) {
-      goToPage(currentPage.value + 1);
-    }
-  };
-
-  // Переход на предыдущую страницу
-  const prevPage = () => {
-    if (currentPage.value > 1) {
-      goToPage(currentPage.value - 1);
-    }
-  };
-
-  // Изменение размера страницы
-  const changePageSize = async (newSize: number) => {
-    pageSize.value = newSize;
-    currentPage.value = 1; // Сбрасываем на первую страницу при изменении размера
-    await loadCurrentPage();
-  };
-
-  // Обновление данных (принудительная перезагрузка)
-  const refresh = () => {
-    CatalogService.clearCache(moduleName, applName, catalogName);
-    loadCurrentPage();
-  };
-
-  // Загружаем первую страницу при инициализации
-  loadCurrentPage();
-
-  return {
-    currentPage,
-    pageSize,
-    loading,
-    items,
-    totalItems,
-    totalPages,
-    loadCurrentPage,
-    goToPage,
-    nextPage,
-    prevPage,
-    changePageSize,
-    refresh,
-  };
 }

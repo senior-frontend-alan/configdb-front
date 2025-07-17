@@ -95,7 +95,7 @@ ViewSetInlineLayout управляет состоянием и данными
   >
     <template #header>
       <div class="dialog-header-container">
-        <span class="dialog-title">{{ dialogTitle }}</span>
+        <span class="dialog-title">{{ dialogTitle }}: {{ props.options.name }}</span>
       </div>
     </template>
 
