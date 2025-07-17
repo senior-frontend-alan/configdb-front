@@ -50,7 +50,12 @@ export default {
     "resetFieldDetail": "Changes to field \"{fieldName}\" have been canceled",
     "saveSuccess": "Record saved successfully",
     "saveError": "Error saving record: {error}",
-    "confirmLeave": "You have unsaved changes. Are you sure you want to leave this page?"
+    "confirmLeave": "You have unsaved changes. Are you sure you want to leave this page?",
+    "select": "Select",
+    "cancel": "Cancel",
+    "clear": "Clear",
+    "close": "Close",
+    "loading": "Loading data..."
   },
   "settings": {
     "title": "Settings",

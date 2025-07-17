@@ -9,8 +9,8 @@
       <FloatLabel variant="in">
         <Select
           :id="id"
-          v-model="selectedItem"
-          :options="[selectedItem].filter(Boolean)"
+          :modelValue="selectedRecord"
+          :options="selectedRecord ? [selectedRecord] : []"
           optionLabel="name"
           :disabled="disabled"
           :required="required"
@@ -40,10 +40,10 @@
     >
       <template #header>
         <div class="dialog-header-container">
-          <span class="dialog-title">{{ label }}</span>
+          <span class="dialog-title">{{ $t('page3EditRecord.select') }}: {{ label }}</span>
           <div class="dialog-buttons">
             <Button
-              v-if="props.moduleName && props.options.appl_name && props.options.view_name"
+              v-if="currentModuleName && currentApplName && currentCatalogName"
               icon="pi pi-external-link"
               class="p-button-rounded p-button-text"
               @click="openInNewTab"
@@ -52,35 +52,36 @@
           </div>
         </div>
       </template>
-      <div v-if="loading" class="p-4 text-center">
-        <ProgressSpinner style="width: 50px; height: 50px" />
-        <div>Загрузка данных...</div>
-      </div>
-      <div v-else-if="error" class="p-4 text-center">
+      <div v-if="error" class="p-4 text-center">
         <Message severity="error">{{ error }}</Message>
       </div>
       <div v-else class="catalog-details-container">
-        <!-- Встраиваем компонент Page2CatalogDetails с передачей необходимых параметров -->
+        <!-- Встраиваем компонент Page2CatalogDetails с передачей необходимых параметров 
+              Он сам загружает данные при монтировании
+        -->
         <Page2CatalogDetails
-          v-if="props.moduleName && props.options.appl_name && props.options.view_name"
-          :moduleName="props.moduleName"
-          :applName="props.options.appl_name"
-          :catalogName="props.options.view_name"
+          v-if="currentModuleName && currentApplName && currentCatalogName"
+          :moduleName="currentModuleName"
+          :applName="currentApplName"
+          :catalogName="currentCatalogName"
           :isModalMode="true"
-          selectionMode="single"
+          :selectionMode="undefined"
           @row-click="customRowClick"
-          @record-selected="onRecordSelected"
         />
       </div>
 
       <template #footer>
-        <Button label="Отмена" icon="pi pi-times" @click="closeDialog" class="p-button-text" />
         <Button
-          label="Выбрать"
-          icon="pi pi-check"
-          @click="selectItem"
-          :disabled="!selectedItem"
-          autofocus
+          :label="$t('page3EditRecord.cancel')"
+          icon="pi pi-times"
+          @click="closeDialog"
+          class="p-button-text"
+        />
+        <Button
+          :label="$t('page3EditRecord.clear')"
+          icon="pi pi-trash"
+          @click="clearSelection"
+          class="p-button-text"
         />
       </template>
     </Dialog>
@@ -88,8 +89,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue';
-  import { CatalogService } from '../../../../services/CatalogService';
+  import { ref, computed, onMounted } from 'vue';
   import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import Select from 'primevue/select';
@@ -97,9 +97,9 @@
   import InputGroup from 'primevue/inputgroup';
   import InputGroupAddon from 'primevue/inputgroupaddon';
   import Dialog from 'primevue/dialog';
-  import ProgressSpinner from 'primevue/progressspinner';
   import Message from 'primevue/message';
   import { FRONTEND } from '../../../../services/fieldTypeService';
+  import { getOrFetchRecord } from '../../../../stores/data-loaders';
 
   interface RelatedItem {
     id: number | string;
@@ -154,24 +154,27 @@
   const label = computed(() => props.options.label || props.options.name);
   const disabled = computed(() => Boolean(props.options.read_only));
   const required = computed(() => !props.options.allow_null);
-  const relatedTableUrl = computed(() => props.options.list_url);
   const help_text = computed(() => props.options.help_text);
 
+  // Используем computed для автоматического обновления при изменении props
+  const currentModuleName = computed(() => props.moduleName);
+  const currentApplName = computed(() => props.options.appl_name);
+  const currentCatalogName = computed(() => props.options.view_name);
+
   const emit = defineEmits<{
-    (e: 'update:modelValue', value: RelatedItem | number | string | null): void;
+    (e: 'update:modelValue', value: string | number | null): void;
   }>();
 
   // Состояние компонента
   const dialogVisible = ref(false);
-  const loading = ref(false);
   const error = ref<string | null>(null);
-  const selectedItem = ref<RelatedItem | null>(null);
 
-  // Состояние загрузки данных
+  // Сохраняем полные данные о выбранной записи
+  const selectedRecord = ref<RelatedItem | null>(null);
 
   const openInNewTab = () => {
-    if (props.moduleName && props.options.appl_name && props.options.view_name) {
-      const url = `/${props.moduleName}/${props.options.appl_name}/${props.options.view_name}`;
+    if (currentModuleName.value && currentApplName.value && currentCatalogName.value) {
+      const url = `/${currentModuleName.value}/${currentApplName.value}/${currentCatalogName.value}`;
       window.open(url, '_blank');
     }
   };
@@ -179,97 +182,91 @@
   const customRowClick = (event: any) => {
     const rowData = event.data;
 
-    // Выбираем запись и вызываем onRecordSelected
-    if (rowData) {
-      onRecordSelected(rowData);
+    if (rowData && typeof rowData === 'object' && 'id' in rowData && 'name' in rowData) {
+      const rowItem: RelatedItem = {
+        id: rowData.id,
+        name: rowData.name,
+      };
+
+      selectedRecord.value = rowItem;
+      emit('update:modelValue', rowItem.id);
+      dialogVisible.value = false;
     }
   };
 
-  // Функция для открытия диалога выбора связанной записи
   const openDialog = async () => {
+    if (disabled.value) return;
+
     dialogVisible.value = true;
-
-    const moduleName = props.moduleName;
-    const applName = props.options?.appl_name;
-    const catalogName = props.options?.view_name;
-
-    loading.value = true;
     error.value = null;
 
-    console.log('Загрузка данных каталога:', moduleName, applName, catalogName);
-
-    // Проверяем наличие всех необходимых параметров
-    if (!moduleName) {
-      error.value = 'Не указано имя модуля';
-      loading.value = false;
+    if (!currentModuleName.value || !currentApplName.value || !currentCatalogName.value) {
+      error.value = 'Не указан URL для загрузки связанных данных';
       return;
     }
 
-    if (!applName) {
-      error.value = 'Не указано имя приложения (appl_name)';
-      loading.value = false;
-      return;
-    }
-
-    if (!catalogName) {
-      error.value = 'Не указано имя каталога (view_name)';
-      loading.value = false;
-      return;
-    }
-
-    // Проверяем, не отключено ли поле
-    if (disabled.value) {
-      loading.value = false;
-      return;
-    }
-
-    try {
-      // Загружаем данные в соответствующий стор через CatalogService
-      await Promise.all([
-        CatalogService.GET(moduleName, applName, catalogName, 0),
-        CatalogService.OPTIONS(moduleName, applName, catalogName),
-      ]);
-    } catch (err) {
-      console.error('Ошибка при загрузке данных каталога:', err);
-      error.value = err instanceof Error ? err.message : 'Неизвестная ошибка';
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  // Обработка выбора записи из компонента Page2CatalogDetails
-  const onRecordSelected = (record: any) => {
-    console.log('Выбрана запись:', record);
-    selectedItem.value = record;
+    // Не вызываем getOrfetchCatalog здесь, так как Page2CatalogDetails
+    // сам загрузит данные при монтировании
   };
 
   const closeDialog = () => {
     dialogVisible.value = false;
   };
 
-  // Выбор элемента и закрытие диалога
-  const selectItem = () => {
-    if (selectedItem.value) {
-      emit('update:modelValue', selectedItem.value);
-      closeDialog();
+  // Очистка выбранного элемента и закрытие диалога
+  const clearSelection = () => {
+    selectedRecord.value = null;
+    emit('update:modelValue', null);
+    closeDialog();
+  };
+
+  const createMinimalRecord = (id: string | number): RelatedItem => ({
+    id,
+    name: String(id),
+  });
+
+  // Для отображения name в компоненте Select нужно загрузить полные данные записи
+  // Функция для загрузки данных записи по ID т.к. modelValue приходит только ID связанной записи (число или строка),
+  // а не полный объект с данными (в базе данных связи между таблицами хранятся как внешние ключи (просто ID)
+  // При сохранении формы нам нужно отправить на сервер только ID связанной записи
+  const loadRecordData = async (id: string | number) => {
+    if (!id || !currentModuleName.value || !currentApplName.value || !currentCatalogName.value) {
+      return;
+    }
+
+    const result = await getOrFetchRecord(
+      currentModuleName.value,
+      currentApplName.value,
+      currentCatalogName.value,
+      String(id),
+    );
+
+    if (result.success && result.recordData) {
+      // Создаем объект RelatedItem из полученных данных
+      selectedRecord.value = {
+        id: result.recordData.id,
+        name: result.recordData.name,
+        ...result.recordData,
+      };
+    } else if (result.error) {
+      console.error('Ошибка при загрузке данных записи:', result.error);
+      // Если не удалось загрузить данные, создаем минимальный объект с ID
+      selectedRecord.value = createMinimalRecord(id);
     }
   };
 
-  // Инициализация selectedItem на основе modelValue
-  if (props.modelValue) {
-    if (typeof props.modelValue === 'object' && props.modelValue !== null) {
-      // Если передан объект, используем его как есть
-      selectedItem.value = props.modelValue as RelatedItem;
+  // При монтировании компонента загружаем данные записи, если есть ID
+  onMounted(() => {
+    if (props.modelValue) {
+      const id =
+        typeof props.modelValue === 'object'
+          ? (props.modelValue as RelatedItem).id
+          : props.modelValue;
+      loadRecordData(id);
     } else {
-      // Если передан ID, создаем объект с этим ID
-      selectedItem.value = {
-        id: props.modelValue,
-        name: String(props.modelValue),
-      };
+      selectedRecord.value = null;
     }
-  }
-
-  // Наблюдение за изменениями modelValue происходит автоматически через v-model
+  });
 </script>
 
 <style scoped>
@@ -281,10 +278,7 @@
   }
 
   .dialog-title {
-    font-size: 1.25rem;
+    font-size: 1rem;
     font-weight: 600;
   }
-
-  /* Используются общие стили из tailwind.css */
-  /* При необходимости можно добавить дополнительные стили */
 </style>

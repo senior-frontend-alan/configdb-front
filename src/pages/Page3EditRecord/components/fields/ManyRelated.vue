@@ -44,7 +44,7 @@
     >
       <template #header>
         <div class="dialog-header-container">
-          <span class="dialog-title">{{ label }}</span>
+          <span class="dialog-title">{{ $t('page3EditRecord.select') }}: {{ label }}</span>
           <div class="dialog-buttons">
             <Button
               v-if="currentModuleName && currentApplName && currentCatalogName"
@@ -58,7 +58,7 @@
       </template>
       <div v-if="loading" class="p-4 text-center">
         <ProgressSpinner style="width: 50px; height: 50px" />
-        <div>Загрузка данных...</div>
+        <div>{{ $t('page3EditRecord.loading') }}</div>
       </div>
       <div v-else-if="error" class="p-4 text-center">
         <Message severity="error" :life="5000">{{ error }}</Message>
@@ -89,9 +89,9 @@
       </div>
 
       <template #footer>
-        <Button label="Отмена" icon="pi pi-times" @click="closeDialog" class="p-button-text" />
+        <Button :label="$t('page3EditRecord.cancel')" icon="pi pi-times" @click="closeDialog" class="p-button-text" />
         <Button
-          label="Выбрать"
+          :label="$t('page3EditRecord.select')"
           icon="pi pi-check"
           @click="saveSelection"
           :disabled="isSelectionEmpty"

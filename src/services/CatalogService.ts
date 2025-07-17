@@ -50,7 +50,7 @@ export interface CatalogGetData {
   pageSize: number;
   next: string | null;
   previous: string | null;
-  recordIdToScroll?: string | null; // ID записи для автоматического скроллинга до нее
+  lastEditedID?: string | null; // ID записи для автоматического скроллинга до нее
 }
 
 /**
@@ -144,9 +144,22 @@ export class CatalogService {
     const loadedRanges = catalogData.GET?.loadedRanges;
     if (!loadedRanges) return false;
 
-    // Сначала проверяем точное совпадение по ключу (O(1))
+    // Проверяем точное совпадение ключа
     const exactKey = `${startIndex}-${endIndex}`;
     if (loadedRanges[exactKey]) return true;
+
+    // Проверяем, входит ли запрашиваемый диапазон в уже загруженные диапазоны
+    for (const key in loadedRanges) {
+      const [rangeStart, rangeEnd] = key.split('-').map(Number);
+
+      // Если запрашиваемый диапазон полностью входит в уже загруженный диапазон
+      if (rangeStart <= startIndex && rangeEnd >= endIndex) {
+        console.log(
+          `Диапазон ${startIndex}-${endIndex} входит в уже загруженный диапазон ${rangeStart}-${rangeEnd}`,
+        );
+        return true;
+      }
+    }
 
     return false;
   }

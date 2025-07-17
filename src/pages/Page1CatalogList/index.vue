@@ -52,11 +52,11 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref } from 'vue';
+  import { computed, ref, onMounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
-  import type { CatalogGroup, CatalogItem } from '../../stores/types/moduleStore.type';
+  import { getOrFetchModuleCatalogs } from '../../stores/data-loaders';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import P1_TabView from './components/P1_TabView.vue';
@@ -178,6 +178,15 @@
       error.value = `Ошибка при переходе: ${err instanceof Error ? err.message : String(err)}`;
     }
   };
+
+  onMounted(async () => {
+    if (moduleName.value) {
+      const result = await getOrFetchModuleCatalogs(moduleName.value);
+      if (!result.success && result.error) {
+        console.error(`Ошибка при загрузке каталогов: ${result.error.message}`);
+      }
+    }
+  });
 </script>
 
 <style scoped>

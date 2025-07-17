@@ -214,7 +214,7 @@ export async function getOrfetchCatalog(
       ...responseGET, // Добавляем все поля из ответа API
       results: combinedResults, // Явно указываем объединенные результаты
       pageSize: limit, // Добавляем размер страницы
-      recordIdToScroll: currentCatalog.GET?.recordIdToScroll || null, // ID записи для скроллинга
+      lastEditedID: currentCatalog.GET?.lastEditedID || null, // ID записи для скроллинга
     };
 
     // Если это первая загрузка, инициализируем индекс результатов и загруженные диапазоны
@@ -323,6 +323,16 @@ export async function getOrFetchRecord(
     }
 
     const currentCatalog = catalogResult.catalog;
+    
+    // Специальная обработка для параметра 'options_only'
+    if (recordId === 'options_only') {
+      console.log(`Запрошены только метаданные каталога ${applName}/${catalogName}`);
+      return {
+        success: true,
+        catalogUrl: catalogResult.catalogUrl,
+        catalog: currentCatalog,
+      };
+    }
 
     try {
       // Проверяем, есть ли запись в кэше

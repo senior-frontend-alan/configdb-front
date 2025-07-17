@@ -70,7 +70,7 @@ CatalogDataTable отвечает только за отображение да�
         :tableRows="tableRows"
         :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
-        :selectionMode="currentCatalog?.OPTIONS?.permitted_actions?.batch ? 'multiple' : undefined"
+        :selectionMode="getSelectionMode()"
         :selectedItems="tableSelection"
         :onColumnReorder="onColumnReorder"
         :loading="loading"
@@ -109,7 +109,7 @@ CatalogDataTable отвечает только за отображение да�
 <script setup lang="ts">
   import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
-  import { useModuleStore } from '../../stores/module-factory';
+  import { useModuleStore, type Catalog } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
   import { getOrfetchCatalog } from '../../stores/data-loaders';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
@@ -117,6 +117,7 @@ CatalogDataTable отвечает только за отображение да�
   import Message from 'primevue/message';
   import Button from 'primevue/button';
   import InputText from 'primevue/inputtext';
+  import ProgressSpinner from 'primevue/progressspinner';
 
   const router = useRouter();
 
@@ -129,8 +130,21 @@ CatalogDataTable отвечает только за отображение да�
     catalogName: string; // Обязательный параметр
     selectedItems?: any[]; // Опциональный массив выделенных строк
     isModalMode?: boolean; // Флаг, указывающий, что компонент отображается в модальном окне
-    selectionMode?: 'single' | 'multiple'; // Режим выбора строк: одиночный или множественный
+    selectionMode?: 'single' | 'multiple' | undefined; // Режим выбора строк: одиночный или множественный, или undefined для отключения выбора
   }>();
+
+  // Определение режима выбора строк
+  function getSelectionMode() {
+    // Если компонент используется в модальном окне то selectionMode должен быть явно передан из родительского компонента
+    // например в PrimaryKeyRelated.vue
+    if (props.isModalMode) {
+      // В модальном режиме используем значение selectionMode как есть
+      return props.selectionMode;
+    } else {
+      // В обычном режиме страницы смотрим св-во permitted_actions.batch
+      return currentCatalog.value?.OPTIONS?.permitted_actions?.batch ? 'multiple' : undefined;
+    }
+  }
 
   // Состояние компонента
   const loading = ref(true);
@@ -157,9 +171,8 @@ CatalogDataTable отвечает только за отображение да�
   const catalogName = computed(() => props.catalogName);
 
   const moduleStore = computed(() => useModuleStore(moduleName.value));
-  const currentCatalog = computed(() => {
-    return moduleStore.value?.loadedCatalogsByApplName[applName.value][catalogName.value];
-  });
+  // Устанавливаем currentCatalog из результата getOrfetchCatalog
+  const currentCatalog = ref<Catalog | null>(null);
 
   // НЕ удалять!
   // const refreshData = async () => {
@@ -265,45 +278,63 @@ CatalogDataTable отвечает только за отображение да�
   );
 
   const loadCatalogData = async (offset: number) => {
-    if (!moduleName.value || !catalogName.value) return;
-
-    loading.value = true;
-
-    const catalogResult = await getOrfetchCatalog(
-      moduleName.value,
-      applName.value,
-      catalogName.value,
-      offset,
-    );
-
-    loading.value = false;
-
-    if (!catalogResult.success) {
-      console.error('Ошибка при загрузке каталога !catalogResult.success');
+    if (!moduleName.value || !catalogName.value || !applName.value) {
+      console.warn('Не все необходимые параметры доступны для загрузки данных');
       return;
     }
 
-    const { catalog, newItems } = catalogResult;
+    try {
+      loading.value = true;
 
-    if (!catalog) {
-      console.error('Каталог не найден в результате');
-      return;
+      const catalogResult = await getOrfetchCatalog(
+        moduleName.value,
+        applName.value,
+        catalogName.value,
+        offset,
+      );
+
+      if (!catalogResult.success) {
+        console.error('Ошибка при загрузке каталога !catalogResult.success');
+        return;
+      }
+
+      const { catalog, newItems } = catalogResult;
+
+      if (!catalog) {
+        console.error('Каталог не найден в результате');
+        return;
+      }
+
+      // Устанавливаем currentCatalog из результата getOrfetchCatalog
+      currentCatalog.value = catalog;
+
+      console.log('Новые записи:', newItems);
+
+      // Обновляем данные в таблице
+      if (tableRows.value.length === 0) {
+        // Если таблица пустая, используем новые записи или данные из кэша
+        if (newItems && newItems.length > 0) {
+          tableRows.value = newItems;
+        } else if (catalog.GET?.results && catalog.GET.results.length > 0) {
+          tableRows.value = [...catalog.GET.results];
+          console.log('Данные загружены из кэша:', tableRows.value.length);
+        }
+      } else if (newItems && newItems.length > 0) {
+        // Если таблица не пустая и есть новые данные, добавляем их
+        newItems.forEach((item: any) => tableRows.value.push(item));
+      }
+
+      totalRecords.value = catalog.GET.count;
+      console.log('tableRows после обновления:', tableRows.value);
+      console.log('totalRecords после обновления:', totalRecords.value);
+    } catch (err) {
+      console.error('Ошибка при загрузке данных каталога:', err);
+      error.value = `Ошибка при загрузке данных: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
+    } finally {
+      loading.value = false;
     }
-
-    console.log('Новые записи:', newItems);
-
-    // Если это первая загрузка, заменяем все данные
-    if (offset === 0) {
-      tableRows.value = catalog.GET.results || [];
-    } else if (newItems && newItems.length > 0) {
-      // Если это дозагрузка, добавляем только новые данные к существующим
-      // Используем push вместо создания нового массива, чтобы избежать перерисовки всей таблицы
-      newItems.forEach((item: any) => tableRows.value.push(item));
-    }
-
-    totalRecords.value = catalog.GET.count;
-    console.log('tableRows после обновления:', tableRows.value);
-    console.log('totalRecords после обновления:', totalRecords.value);
   };
 
   // Обработчик события load-more для ленивой загрузки при скролле
@@ -344,7 +375,13 @@ CatalogDataTable отвечает только за отображение да�
   let observer: IntersectionObserver | null = null;
 
   onMounted(async () => {
-    await loadCatalogData(0);
+    // Проверяем наличие всех необходимых параметров перед загрузкой данных
+    if (moduleName.value && applName.value && catalogName.value) {
+      await loadCatalogData(0);
+    } else {
+      console.warn('Не все параметры доступны при монтировании компонента');
+      loading.value = false;
+    }
 
     // Создаем наблюдатель, если браузер поддерживает IntersectionObserver
     if ('IntersectionObserver' in window) {
@@ -399,22 +436,20 @@ CatalogDataTable отвечает только за отображение да�
     }
   };
 
-  // Проверяем наличие recordIdToScroll в хранилище после загрузки данных
+  // Проверяем наличие lastEditedID в хранилище после загрузки данных
   watch(
     () => tableRows.value.length,
     async () => {
       if (tableRows.value.length > 0) {
-        // Проверяем наличие ID для скроллинга в хранилище
-        const recordIdToScroll =
+        const lastEditedID =
           moduleStore.value.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET
-            ?.recordIdToScroll;
+            ?.lastEditedID;
 
-        if (recordIdToScroll) {
-          console.log(`Найден recordIdToScroll в хранилище: ${recordIdToScroll}`);
-          await scrollToRecord(recordIdToScroll);
+        if (lastEditedID) {
+          await scrollToRecord(lastEditedID);
 
           // Очищаем ID после скроллинга, чтобы избежать повторной прокрутки
-          // moduleStore.value.loadedCatalogsByApplName[applName][catalogName.value].GET.recordIdToScroll = null;
+          // moduleStore.value.loadedCatalogsByApplName[applName][catalogName.value].GET.lastEditedID = null;
         }
       }
     },

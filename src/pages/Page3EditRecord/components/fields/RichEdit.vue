@@ -113,6 +113,7 @@
     modelValue?: string;
     options: FieldOptions;
     isModified: boolean;
+    moduleName?: string;
   }>();
 
   const id = computed(() => props.options.name);

@@ -20,10 +20,11 @@
 
   const props = defineProps<{
     value: any; // Сырые данные поля
+    moduleName?: string;
   }>();
 
   const popover = ref();
-  
+
   // Определяем тип и форматирование данных
   const contentType = computed(() => {
     return detectContentType(props.value);
@@ -43,7 +44,7 @@
 
   // Тип для значения поля
   type FieldValue = any;
-  
+
   type ContentTypeResult = {
     label: string;
     value: FieldValue;

@@ -75,8 +75,8 @@ URL для создания новой записи: http://localhost:5173/catal
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  import { useModuleStore } from '../../stores/module-factory';
-  import { createRecord, updateRecord } from '../../stores/data-loaders';
+  // Импорт useModuleStore больше не нужен, так как мы используем currentCatalog
+  import { createRecord, updateRecord, getOrFetchRecord } from '../../stores/data-loaders';
   import { useToast } from 'primevue/usetoast';
   import DynamicLayout from './components/DynamicLayout.vue';
   import Button from 'primevue/button';
@@ -102,6 +102,9 @@ URL для создания новой записи: http://localhost:5173/catal
   const catalogName = computed(() => props.catalogName || (route.params.catalogName as string));
   const recordId = computed(() => props.id || (route.params.id as string));
 
+  // Устанавливаем currentCatalog из результата getOrFetchRecord
+  const currentCatalog = ref<Catalog | null>(null);
+
   // Состояние компонента
   const loading = ref(true);
   const saving = ref(false);
@@ -121,22 +124,12 @@ URL для создания новой записи: http://localhost:5173/catal
   // Метаданные формы
   const storeOptions = ref<any>(null);
 
-  // Исходная запись из GET или пустой объект для режима создания
-  const originalRecord = computed(() => {
-    if (isCreateMode.value) {
-      return {}; // Пустой объект для новой записи
-    }
-    const moduleStore = getModuleStore();
-    return (
-      moduleStore.loadedCatalogsByApplName[applName.value][
-        catalogName.value
-      ]?.GET?.resultsIndex?.get(String(recordId.value)) || {}
-    );
-  });
+  // Данные записи, полученные из getOrFetchRecord
+  const originalRecord = ref<any>(isCreateMode.value ? {} : null);
 
   // Получаем объединенные данные (исходные из GET + изменения)
   const mergedData = computed(() => {
-    return { ...originalRecord.value, ...unsavedChangesInfo.value.data };
+    return { ...(originalRecord.value || {}), ...unsavedChangesInfo.value.data };
   });
 
   let debounceTimer: number | null = null;
@@ -154,39 +147,42 @@ URL для создания новой записи: http://localhost:5173/catal
   const handleFieldUpdate = (updatedData: Record<string, any>) => {
     console.log('handleFieldUpdate updatedData', updatedData);
     try {
-      const moduleStore = getModuleStore();
-      const unsavedChanges = {
-        ...(moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]
-          ?.unsavedChanges || {}),
-      };
+      if (!currentCatalog.value) {
+        throw new Error('Каталог не загружен');
+      }
 
-      // Обрабатываем каждое поле в обновленных данных
+      // Инициализируем unsavedChanges, если он еще не существует
+      if (!currentCatalog.value.unsavedChanges) {
+        currentCatalog.value.unsavedChanges = {};
+      }
+
+      const unsavedChanges = { ...currentCatalog.value.unsavedChanges };
+
+      // Обрабатываем каждое поле в обновленных данных и сравниваем с исходным значением
       for (const [key, value] of Object.entries(updatedData)) {
-        // Сравниваем с исходным значением
-        const originalValue = originalRecord.value[key];
+        const originalValue = (originalRecord.value || {})[key];
         const valueMatches = JSON.stringify(originalValue) === JSON.stringify(value);
 
         if (valueMatches) {
-          // Если значение совпадает с исходным, удаляем поле из PATCH
+          // Если значение совпадает с оригинальным, удаляем его из несохраненных изменений
           delete unsavedChanges[key];
         } else {
-          // Если значение отличается, добавляем в PATCH
+          // Иначе добавляем в несохраненные изменения
           unsavedChanges[key] = value;
         }
       }
 
-      // Обновляем PATCH в сторе
-      moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges =
-        unsavedChanges;
-      console.log('Обновлены PATCH данные:', unsavedChanges);
+      // Обновляем несохраненные изменения в каталоге
+      currentCatalog.value.unsavedChanges = unsavedChanges;
 
-      // Проверяем положение прокрутки после изменения данных
+      console.log('Обновлены несохраненные изменения:', unsavedChanges);
+
       // Используем setTimeout, чтобы проверка произошла после обновления DOM
       setTimeout(() => {
         checkIfAtBottom();
       }, 0);
     } catch (error) {
-      console.error('Ошибка при обработке изменений полей:', error);
+      console.error('Ошибка при обновлении поля:', error);
     }
   };
 
@@ -194,59 +190,56 @@ URL для создания новой записи: http://localhost:5173/catal
 
   const resetAllFields = () => {
     try {
-      const moduleStore = getModuleStore();
-      if (moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]) {
-        // Очищаем PATCH в сторе
-        moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges = {};
-
-        // Показываем сообщение об успешной отмене изменений
-        toast.add({
-          severity: 'info',
-          summary: 'Изменения отменены',
-          detail: 'Все внесенные изменения были отменены',
-          life: 3000,
-        });
+      if (!currentCatalog.value) {
+        throw new Error('Каталог не загружен');
       }
+
+      // Очищаем несохраненные изменения в каталоге
+      currentCatalog.value.unsavedChanges = {};
+
+      // Показываем сообщение об успешной отмене изменений
+      toast.add({
+        severity: 'info',
+        summary: 'Изменения отменены',
+        detail: 'Все внесенные изменения были отменены',
+        life: 3000,
+      });
     } catch (error) {
       console.error('Ошибка при отмене изменений:', error);
     }
   };
 
-  // Сброс изменений для конкретного поля
+  // Сброс значения поля
   const resetField = (fieldName: string) => {
     try {
-      const moduleStore = getModuleStore();
-      if (moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.unsavedChanges) {
-        if (
-          fieldName in
-          moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges
-        ) {
-          delete moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]
-            .unsavedChanges[fieldName];
+      if (!currentCatalog.value || !currentCatalog.value.unsavedChanges) {
+        return;
+      }
 
-          toast.add({
-            severity: 'info',
-            summary: 'Поле сброшено',
-            detail: `Изменения поля "${fieldName}" были отменены`,
-            life: 3000,
-          });
-        } else {
-          console.log(`Поле ${fieldName} не было изменено, нечего сбрасывать`);
-        }
+      // Удаляем поле из несохраненных изменений
+      if (fieldName in currentCatalog.value.unsavedChanges) {
+        const unsavedChanges = { ...currentCatalog.value.unsavedChanges };
+        delete unsavedChanges[fieldName];
+        currentCatalog.value.unsavedChanges = unsavedChanges;
+
+        toast.add({
+          severity: 'info',
+          summary: 'Поле сброшено',
+          detail: `Изменения поля "${fieldName}" были отменены`,
+          life: 3000,
+        });
+      } else {
+        console.log(`Поле ${fieldName} не было изменено, нечего сбрасывать`);
       }
     } catch (error) {
       console.error(`Ошибка при сбросе поля ${fieldName}:`, error);
     }
   };
 
-  // Получаем данные о несохраненных изменениях из стора
+  // Получаем данные о несохраненных изменениях из каталога
   const getUnsavedChanges = () => {
     try {
-      const moduleStore = getModuleStore();
-      return (
-        moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.unsavedChanges ||
-        {}
-      );
+      return currentCatalog.value?.unsavedChanges || {};
     } catch {
       return {};
     }
@@ -268,110 +261,14 @@ URL для создания новой записи: http://localhost:5173/catal
   const hasUnsavedChanges = computed(() => unsavedChangesInfo.value.hasChanges);
   const modifiedFieldsCount = computed(() => unsavedChangesInfo.value.count);
 
-  const getModuleStore = () => {
-    if (!moduleName.value) {
-      throw new Error('moduleName не определен');
-    }
-
-    try {
-      const store = useModuleStore(moduleName.value);
-
-      if (!store) {
-        throw new Error(`Модуль с ID ${moduleName.value} не найден`);
-      }
-
-      return store;
-    } catch (error) {
-      console.error('Ошибка при получении стора модуля:', error);
-      throw new Error(
-        `Ошибка при получении стора модуля: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
-  };
+  // Функция getModuleStore больше не используется, так как мы используем currentCatalog
 
   // Функция для возврата к списку
   const goBack = () => {
-    try {
-      // Получаем стор модуля
-      const moduleStore = getModuleStore();
-
-      // Устанавливаем ID записи для скроллинга в хранилище
-      if (moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET) {
-        moduleStore.loadedCatalogsByApplName[applName.value][
-          catalogName.value
-        ].GET.recordIdToScroll = recordId.value;
-        console.log(`Установлен recordIdToScroll: ${recordId.value}`);
-      }
-    } catch (error) {
-      console.error('Ошибка при установке recordIdToScroll:', error);
-    }
-
     // Переходим на страницу деталей каталога
     router.push({
       path: `/${moduleName.value}/${applName.value}/${catalogName.value}`,
     });
-  };
-
-  // Инициализация данных из стора (данные уже загружены в роутере)
-  const initializeFromStore = () => {
-    loading.value = true;
-    error.value = null;
-
-    try {
-      const moduleStore = getModuleStore();
-
-      // Проверяем, загружены ли данные каталога
-      if (
-        !moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET
-          ?.resultsIndex &&
-        !isCreateMode.value
-      ) {
-        throw new Error(`Данные для каталога ${catalogName.value} не загружены. Проверьте роутер.`);
-      }
-
-      const options =
-        moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value]?.OPTIONS;
-      if (!options || !options.layout) {
-        throw new Error(`Метаданные для представления ${catalogName.value} не найдены`);
-      }
-
-      // Сохраняем метаданные для передачи в DynamicLayout
-      storeOptions.value = options;
-
-      // В режиме создания не проверяем наличие записи
-      if (isCreateMode.value) {
-        console.log('Режим создания новой записи');
-        // Инициализируем пустой PATCH для новой записи, если его еще нет
-        if (
-          !moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges
-        ) {
-          moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value].unsavedChanges =
-            {};
-        }
-      } else {
-        // Получаем данные записи из GET.resultsIndex для быстрого доступа по id
-        const recordData = moduleStore.loadedCatalogsByApplName[applName.value][
-          catalogName.value
-        ]?.GET?.resultsIndex?.get(String(recordId.value));
-
-        // Проверяем, найдена ли запись
-        if (!recordData) {
-          throw new Error(
-            `Запись с ID ${recordId.value} не найдена в каталоге ${catalogName.value}`,
-          );
-        }
-        console.log('Запись из стора:', 'найдена');
-      }
-
-      console.log('Загруженные метаданные:', storeOptions.value);
-    } catch (e) {
-      console.error('Ошибка инициализации данных из стора:', e);
-      error.value = e instanceof Error ? e.message : 'Ошибка инициализации данных из стора';
-    } finally {
-      loading.value = false;
-    }
   };
 
   // Функция JSON.parse(JSON.stringify()) не справляется с циклическими ссылками и выбрасывает ошибку
@@ -423,17 +320,17 @@ URL для создания новой записи: http://localhost:5173/catal
     error.value = null;
 
     try {
-      // Получаем стор модуля
-      const moduleStore = getModuleStore();
-      const catalogData = moduleStore.loadedCatalogsByApplName[applName.value][catalogName.value];
-
-      if (!catalogData?.unsavedChanges || Object.keys(catalogData.unsavedChanges).length === 0) {
+      // Проверяем наличие каталога и несохраненных изменений
+      if (
+        !currentCatalog.value?.unsavedChanges ||
+        Object.keys(currentCatalog.value.unsavedChanges).length === 0
+      ) {
         throw new Error('Нет данных для сохранения');
       }
 
       try {
         saving.value = true;
-        const rawData = catalogData.unsavedChanges;
+        const rawData = currentCatalog.value.unsavedChanges;
 
         // Создаем чистый объект данных без реактивности и циклических ссылок
         const cleanData = cleanObject(rawData);
@@ -496,8 +393,10 @@ URL для создания новой записи: http://localhost:5173/catal
           life: 0, // Делает тоаст постоянным, пока пользователь не закроет
         });
 
-        // Очищаем PATCH после успешного сохранения
-        catalogData.unsavedChanges = {};
+        // Очищаем несохраненные изменения после успешного сохранения
+        if (currentCatalog.value) {
+          currentCatalog.value.unsavedChanges = {};
+        }
 
         // Возвращаемся к списку после сохранения
         goBack();
@@ -560,18 +459,59 @@ URL для создания новой записи: http://localhost:5173/catal
     window.removeEventListener('scroll', debouncedCheckIfAtBottom);
   };
 
-  onMounted(() => {
-    console.log('Компонент смонтирован');
-    // Данные уже загружены в роутере, просто инициализируем компонент
-    initializeFromStore();
-    // Инициализируем слушатель прокрутки
+  onMounted(async () => {
+    // Проверяем наличие всех необходимых параметров
+    if (!moduleName.value || !applName.value || !catalogName.value) {
+      error.value = 'Не все необходимые параметры доступны для загрузки данных';
+      loading.value = false;
+      return;
+    }
+
+    loading.value = true;
+    error.value = null;
+
+    // Загружаем данные в зависимости от режима
+    const result = await getOrFetchRecord(
+      moduleName.value,
+      applName.value,
+      catalogName.value,
+      isCreateMode.value ? 'options_only' : recordId.value,
+    );
+
+    // Обрабатываем результат загрузки
+    if (!result.success) {
+      error.value = result.error?.message || 'Ошибка загрузки данных';
+      console.error('Ошибка загрузки данных:', result.error);
+      loading.value = false;
+      return;
+    }
+
+    // Сохраняем каталог для использования в компоненте
+    if (result.catalog) {
+      currentCatalog.value = result.catalog;
+    }
+
+    // Сохраняем метаданные для передачи в DynamicLayout
+    if (result.catalog?.OPTIONS) {
+      storeOptions.value = result.catalog.OPTIONS;
+    }
+
+    // Сохраняем данные записи
+    if (!isCreateMode.value && result.recordData) {
+      originalRecord.value = result.recordData;
+    }
+
+    // Устанавливаем ID текущей записи для скроллинга
+    if (!isCreateMode.value && recordId.value && currentCatalog.value?.GET) {
+      currentCatalog.value.GET.lastEditedID = recordId.value;
+    }
+
+    loading.value = false;
     initScrollListener();
   });
 
   onUnmounted(() => {
-    // Удаляем слушатель прокрутки
     removeScrollListener();
-    // Очищаем таймаут, если он еще активен
     if (scrollTimeout) {
       clearTimeout(scrollTimeout);
     }

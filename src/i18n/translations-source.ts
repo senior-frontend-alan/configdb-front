@@ -194,6 +194,26 @@ const translations = {
       ru: 'У вас есть несохраненные изменения. Вы уверены, что хотите покинуть страницу?',
       en: 'You have unsaved changes. Are you sure you want to leave this page?',
     },
+    select: {
+      ru: 'Выбрать',
+      en: 'Select',
+    },
+    cancel: {
+      ru: 'Отмена',
+      en: 'Cancel',
+    },
+    clear: {
+      ru: 'Очистить',
+      en: 'Clear',
+    },
+    close: {
+      ru: 'Закрыть',
+      en: 'Close',
+    },
+    loading: {
+      ru: 'Загрузка данных...',
+      en: 'Loading data...',
+    },
   },
 
   // Переводы для страницы настроек

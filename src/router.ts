@@ -99,50 +99,7 @@ const router = createRouter({
 // Защитники маршрута beforeEnter вызываются только при первоначальном переходе на маршрут
 // При изменении только параметров маршрута защитники не вызываются повторно
 
-// Добавляем глобальный навигационный хук beforeEach
-// Этот хук будет вызываться при любой навигации, включая изменение параметров маршрута
-router.beforeEach(async (to, from, next) => {
-  console.log('Глобальный хук beforeEach вызван');
-  console.log('to:', to);
-  console.log('from:', from);
-
-  const moduleName = to.params.moduleName as string;
-  const applName = to.params.applName as string;
-  const catalogName = to.params.catalogName as string;
-  const recordId = to.params.id as string;
-
-  console.log(`Загрузка данных записи: ${moduleName}/${applName}/${catalogName}/${recordId}`);
-
-  // Проверяем наличие необходимых параметров перед загрузкой данных
-  if (!moduleName) {
-    console.log('Параметр moduleName отсутствует, пропускаем загрузку данных');
-    next();
-    return;
-  }
-
-  // Дожидаемся полной загрузки данных перед вызовом next()
-  try {
-    console.log(`Загрузка иерархии данных: ${moduleName}/${applName}/${catalogName}/${recordId}`);
-    const success = await ensureHierarchyLoaded(moduleName, applName, catalogName, recordId);
-
-    if (success) {
-      console.log(
-        `Данные успешно загружены для ${moduleName}/${applName}/${catalogName}/${recordId}`,
-      );
-      next(); // Продолжаем навигацию только после успешной загрузки
-    } else {
-      console.error(
-        `Не удалось загрузить данные для ${moduleName}/${applName}/${catalogName}/${recordId}`,
-      );
-      next(); // Продолжаем навигацию даже в случае ошибки, но после завершения попытки загрузки
-    }
-  } catch (error) {
-    console.error('Неожиданная ошибка при загрузке данных:', error);
-    next(); // Продолжаем навигацию в случае ошибки
-  }
-});
-
-// Для загрузки данных используйте ensureHierarchyLoaded из module-factory.ts
+// Для загрузки данных раньше использовался ensureHierarchyLoaded из module-factory.ts
 // Эта функция обеспечивает иерархическую загрузку данных: модуль -> каталог -> запись
 // В зависимости от переданных параметров загружает только необходимые уровни иерархии:
 // - ensureHierarchyLoaded(moduleName) - загружает только модуль
