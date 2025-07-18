@@ -3,7 +3,7 @@
  * Этот файл содержит настройки приложения, модулей и API
  */
 
-const config: Config = {
+window.APP_CONFIG = {
   appConfig: {
     // Основные настройки приложения
     siteTitle: 'NG-Core Example',
@@ -61,13 +61,13 @@ const config: Config = {
 };
 // На этом конфигурация закончена, далее техническая информация
 
-function isValidUrlPath(urlPath: string): boolean {
+function isValidUrlPath(urlPath) {
   // Проверяем, что urlPath содержит только строчные буквы, цифры, дефисы и подчеркивания
   const validUrlPathRegex = /^[a-z0-9_-]+$/;
   return validUrlPathRegex.test(urlPath);
 }
 
-function validateModulesUrlPath(modules: Module[]): void {
+function validateModulesUrlPath(modules) {
   modules.forEach((module) => {
     if (!isValidUrlPath(module.urlPath)) {
       throw new Error(
@@ -77,40 +77,5 @@ function validateModulesUrlPath(modules: Module[]): void {
     }
   });
 }
-// Проверяем urlPath всех модулей перед экспортом конфигурации
-validateModulesUrlPath(config.modules);
-
-export default config;
-
-interface AppConfig {
-  siteTitle: string;
-  siteCopyright: string;
-  routes: {
-    apiSession: string;
-  };
-  apiTimeoutMs: number;
-  apiRetryTimeoutMs: number;
-  apiCacheMaxAge: number;
-  apiCallHistoryLimit: number;
-  theme: string;
-  i18n: {
-    defaultLanguage: string;
-    locales: {
-      [key: string]: string;
-    };
-  };
-}
-
-export interface Module {
-  label: string;
-  urlPath: string;
-  routes: {
-    getCatalog: string;
-    getJSIFunctions?: string;
-  };
-}
-
-interface Config {
-  appConfig: AppConfig;
-  modules: Module[];
-}
+// Проверяем urlPath всех модулей
+validateModulesUrlPath(window.APP_CONFIG.modules);

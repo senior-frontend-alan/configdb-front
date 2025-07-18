@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import api from '../api';
-import appConfigData from '../../app.config.ts';
 import type { AuthSessionData, AuthState, ApiErrorState, Session } from './types/authStoreTypes';
 
 // Механизм работы с CSRF-токеном:
@@ -89,7 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
       clearLocalSessionData();
 
       // Получаем URL для авторизации из конфигурации
-      let loginUrl = appConfigData?.appConfig?.routes?.apiSession;
+      let loginUrl = window.APP_CONFIG?.appConfig?.routes?.apiSession;
 
       // Добавляем слеш в конец URL, если его там нет
       if (loginUrl && !loginUrl.endsWith('/')) {
@@ -178,7 +177,7 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error('Отсутствует session_key для выхода из системы');
       }
 
-      let baseSessionUrl = appConfigData?.appConfig?.routes?.apiSession;
+      let baseSessionUrl = window.APP_CONFIG?.appConfig?.routes?.apiSession;
 
       // Проверяем и добавляем слеш в конец базового URL, если его там нет
       if (!baseSessionUrl) {
@@ -234,7 +233,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       // Используем тот же URL, что и для авторизации
-      let sessionUrl = appConfigData?.appConfig?.routes?.apiSession;
+      let sessionUrl = window.APP_CONFIG?.appConfig?.routes?.apiSession;
 
       // Добавляем слеш в конец URL, если его там нет
       if (sessionUrl && !sessionUrl.endsWith('/')) {

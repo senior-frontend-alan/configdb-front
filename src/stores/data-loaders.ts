@@ -8,7 +8,6 @@ import type {
   CatalogGroup,
   CatalogItem,
 } from './types/catalogsAPIResponseGET.type';
-import { validateModuleConfig } from './module-factory';
 
 export interface ModuleCatalogsResult {
   success: boolean;
@@ -323,7 +322,7 @@ export async function getOrFetchRecord(
     }
 
     const currentCatalog = catalogResult.catalog;
-    
+
     // Специальная обработка для параметра 'options_only'
     if (recordId === 'options_only') {
       console.log(`Запрошены только метаданные каталога ${applName}/${catalogName}`);
@@ -409,8 +408,11 @@ export async function ensureHierarchyLoaded(
 
   try {
     // Шаг 1: Проверка существования модуля в конфигурации
-    const moduleConfig = validateModuleConfig(moduleName);
-    if (!moduleConfig) return false;
+    const moduleConfig = window.APP_CONFIG.modules.find((m) => m.urlPath === moduleName);
+    if (!moduleConfig) {
+      console.error(`Модуль ${moduleName} не найден в конфигурации`);
+      return false;
+    }
 
     // Загрузка данных в зависимости от переданных параметров
     if (!catalogName) {

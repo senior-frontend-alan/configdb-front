@@ -62,7 +62,7 @@ DynamicLayout: чисто презентационный компонент
         <div v-if="debugField(element)" class="debug-info">
           Поле: {{ element.name }}, Значение: {{ modelValue[element.name] }}
         </div>
-        {{ element.FRONTEND_CLASS }}
+        <!-- {{ element.FRONTEND_CLASS }} -->
         <!-- v-on="..." событие reset-field передается только компоненту ViewSetInlineLayout, а не всем компонентам полей. -->
         <component
           :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"

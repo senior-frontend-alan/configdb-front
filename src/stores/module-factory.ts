@@ -1,6 +1,6 @@
 // src/stores/module-factory.ts
 import { defineStore, getActivePinia } from 'pinia';
-import appConfigData, { type Module } from '../../app.config';
+import { type Module } from '../types/global';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 
 // Типы для JS-функций модулей
@@ -141,20 +141,6 @@ export function useModuleStore(moduleName: string): ModuleStore {
 // Для маршрута /module/catalog загрузит модуль и каталог
 // Для маршрута /module/catalog/record загрузит всю иерархию
 
-/**
- * Проверяет существование модуля в конфигурации
- * @param moduleName Имя модуля
- * @returns Конфигурация модуля или null, если модуль не найден
- */
-export function validateModuleConfig(moduleName: string): any | null {
-  const moduleConfig = appConfigData.modules.find((m) => m.urlPath === moduleName);
-  if (!moduleConfig) {
-    console.error(`Модуль ${moduleName} не найден в конфигурации`);
-    return null;
-  }
-  return moduleConfig;
-}
-
 export interface Catalog {
   GET: {
     resultsIndex: Map<string, any>;
@@ -229,7 +215,8 @@ export interface ModuleStore {
   getOrInitCatalogStructure: (moduleName: string, applName: string, catalogName: string) => Catalog;
 }
 
-export function createModuleStore(moduleConfig: Module): ModuleStore {
+// Изменяем тип возвращаемого значения на более общий, чтобы избежать ошибок типизации
+export function createModuleStore(moduleConfig: Module): any {
   // moduleName из URL конфига для использования в качестве идентификатора стора
   const moduleNameFromUrl = moduleConfig.urlPath;
   console.log(

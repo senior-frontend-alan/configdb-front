@@ -5,7 +5,7 @@
         <img src="/favicon.jpg" alt="Logo" class="logo-icon" />
 
         <span class="topbar-brand-text">
-          <span class="topbar-title">{{ appConfigData.appConfig?.siteTitle }}</span>
+          <span class="topbar-title">{{ appConfig.siteTitle }}</span>
         </span>
       </div>
       <PanelMenu :model="menuItems" :expandedKeys="openMenuItems" />
@@ -19,7 +19,6 @@
 
 <script setup lang="ts">
   import { computed } from 'vue';
-  import appConfigData from '../../app.config.ts';
   import PanelMenu from 'primevue/panelmenu';
   import { useModuleStore } from '../stores/module-factory';
   import type { CatalogGroup } from '../stores/types/moduleStore.type';
@@ -39,6 +38,9 @@
   const route = useRoute();
   const { moduleName: currentModuleName } = useModuleName();
 
+  const appConfig = computed(() => window.APP_CONFIG.appConfig || {});
+  const modules = computed(() => window.APP_CONFIG.modules || []);
+
   // Автоматическое управление открытыми пунктами меню на основе текущего moduleName
   const openMenuItems = computed(() => {
     const result: Record<string, boolean> = {};
@@ -46,7 +48,7 @@
     // Проверяем, что есть текущий moduleName
     if (currentModuleName.value) {
       // Проверяем, что модуль существует в конфигурации
-      const moduleExists = appConfigData.modules.some((m) => {
+      const moduleExists = modules.value.some((m) => {
         // Используем поле urlPath для проверки наличия модуля
         return m.urlPath?.toLowerCase() === currentModuleName.value.toLowerCase();
       });
@@ -108,7 +110,7 @@
   const menuItems = computed(() => {
     // Главный пункт меню
     const homeItem = {
-      label: appConfigData.appConfig?.siteTitle,
+      label: appConfig.value.siteTitle,
       icon: 'pi pi-home',
       command: (event: any) => handleMenuItemClick(event, '/'),
       style: isRouteActive('/')
@@ -133,7 +135,7 @@
     };
 
     // Пункты меню модулей из конфигурации
-    const moduleItems = appConfigData.modules.map((module) => {
+    const moduleItems = modules.value.map((module) => {
       // Получаем имя модуля из URL
       const moduleName = module.urlPath;
       const path = `/${moduleName}`;

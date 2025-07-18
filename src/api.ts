@@ -1,6 +1,5 @@
 // настройка axios для всего приложения
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import appConfigData from '../app.config.ts';
 import { ref } from 'vue';
 
 // Создаем экземпляр axios с базовыми настройками
@@ -22,13 +21,13 @@ const api: AxiosInstance = axios.create({
  * Должна быть вызвана после успешной загрузки конфигурации
  */
 export function setupApi(): void {
-  if (!appConfigData || !appConfigData.appConfig) {
+  if (!window.APP_CONFIG || !window.APP_CONFIG.appConfig) {
     console.error('Невозможно настроить API: конфигурация не загружена');
     return;
   }
 
   // Настраиваем таймаут из конфигурации
-  api.defaults.timeout = appConfigData.appConfig.apiRetryTimeoutMs;
+  api.defaults.timeout = window.APP_CONFIG.appConfig.apiRetryTimeoutMs;
   console.log('API таймаут установлен:', api.defaults.timeout, 'мс');
 }
 

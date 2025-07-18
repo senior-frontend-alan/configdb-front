@@ -1,8 +1,7 @@
 <script setup lang="ts">
-  import { ref } from 'vue';
+  import { ref, computed } from 'vue';
   import { useRouter } from 'vue-router';
   import { useAuthStore } from '../stores/authStore';
-  import appConfigData from '../../app.config.ts';
   import InputGroup from 'primevue/inputgroup';
   import InputGroupAddon from 'primevue/inputgroupaddon';
   import FloatLabel from 'primevue/floatlabel';
@@ -16,6 +15,8 @@
   const username = ref('');
   const password = ref('');
   const isLocalAuthAllowed = true;
+
+  const appConfig = computed(() => window.APP_CONFIG.appConfig || {});
 
   const clearError = () => {
     authStore.resetError();
@@ -61,7 +62,7 @@
     <div class="login-header">
       <div class="logo">
         <img src="/favicon.jpg" alt="Logo" style="border-radius: 8px" /> &nbsp;
-        <span class="logo-text">{{ appConfigData.appConfig?.siteTitle }}</span>
+        <span class="logo-text">{{ appConfig.siteTitle }}</span>
       </div>
     </div>
 

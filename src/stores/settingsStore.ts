@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import appConfigData from '../../app.config.ts';
 
 export const useSettingsStore = defineStore('settings', () => {
   // ===== Состояние стора =====
@@ -55,7 +54,7 @@ export const useSettingsStore = defineStore('settings', () => {
   };
 
   const setLanguage = (value: string) => {
-    const availableLocales = appConfigData.appConfig?.i18n?.locales || {};
+    const availableLocales = window.APP_CONFIG?.appConfig?.i18n?.locales || {};
     // Если локаль существует в списке доступных, устанавливаем ее
     if (Object.keys(availableLocales).includes(value)) {
       language.value = value;
@@ -108,8 +107,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const initLanguage = () => {
     // Проверяем язык в куках
     const savedLocale = getCookie('django_language');
-    const availableLocales = appConfigData.appConfig?.i18n?.locales || {};
-    const defaultLanguage = appConfigData.appConfig?.i18n?.defaultLanguage || 'ru';
+    const availableLocales = window.APP_CONFIG?.appConfig?.i18n?.locales || {};
+    const defaultLanguage = window.APP_CONFIG?.appConfig?.i18n?.defaultLanguage || 'ru';
 
     if (savedLocale && Object.keys(availableLocales).includes(savedLocale)) {
       // Если в куках есть валидный язык, используем его

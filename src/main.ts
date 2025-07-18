@@ -12,7 +12,6 @@ import Aura from '@primeuix/themes/aura';
 import { definePreset } from '@primeuix/themes';
 import App from './App.vue';
 import router, { initializeAuth } from './router';
-import appConfigData from '../app.config.ts';
 import { setupApi } from './api';
 import { createModuleStore } from './stores/module-factory';
 import { useAuthStore } from './stores/authStore';
@@ -85,23 +84,25 @@ function createAppTheme() {
  */
 function initializeModuleStores() {
   try {
-    // Используем напрямую импортированную конфигурацию
-    if (!appConfigData || !appConfigData.modules) {
+    // Используем глобальную конфигурацию
+    if (!window.APP_CONFIG || !window.APP_CONFIG.modules) {
       console.error(
         'Конфигурация не загружена или неверного формата, невозможно инициализировать сторы модулей',
       );
       return;
     }
 
-    // Создаем сторы для каждого модуля в конфигурации с именем = urlPath
-    appConfigData.modules.forEach((moduleConfig) => {
+    // Создаем стор для каждого модуля в конфигурации
+    window.APP_CONFIG.modules.forEach((moduleConfig) => {
       const storeId = moduleConfig.urlPath;
 
       console.log(`Создание стора для модуля: ${storeId}`);
-      const storeDefinition = createModuleStore(moduleConfig);
-
-      // Создание экземпляра стора для регистрации в Pinia и видимости в Vue Devtools
-      storeDefinition();
+      const moduleStore = createModuleStore(moduleConfig);
+      // Функция createModuleStore возвращает определение стора Pinia, но не создаёт его экземпляр
+      // Вызов moduleStore() необходим для фактического создания экземпляра стора и его регистрации в Pinia
+      // Без этого вызова стор не будет доступен в приложении и не появится в Vue DevTools
+      // Используем тип any для обхода ошибки типизации
+      (moduleStore as any)();
     });
   } catch (err) {
     console.error('Ошибка при инициализации сторов модулей:', err);
