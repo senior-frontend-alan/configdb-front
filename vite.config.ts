@@ -14,22 +14,7 @@ export default defineConfig({
     Components({
       resolvers: [PrimeVueResolver()],
     }),
-    // Плагин для копирования app.config.json в директорию сборки
-    {
-      name: 'copy-config',
-      apply: 'build',
-      closeBundle() {
-        const sourcePath = resolve(__dirname, 'app.config.json');
-        const destPath = resolve(__dirname, 'dist/app.config.json');
-
-        try {
-          fs.copyFileSync(sourcePath, destPath);
-          console.log('✓ app.config.json успешно скопирован в директорию сборки');
-        } catch (error) {
-          console.error('Ошибка при копировании app.config.json:', error);
-        }
-      },
-    },
+    // Плагин для копирования app.config.json удален, так как конфигурация теперь загружается через window.APP_CONFIG
   ],
   server: {
     host: '0.0.0.0',

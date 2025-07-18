@@ -2,7 +2,7 @@
   <div v-show="visible" class="side-menu-container">
     <div class="side-menu-content">
       <div class="topbar-brand">
-        <img src="/favicon.jpg" alt="Logo" class="logo-icon" />
+        <img src="../assets/favicon.jpg" alt="Logo" class="logo-icon" />
 
         <span class="topbar-brand-text">
           <span class="topbar-title">{{ appConfig.siteTitle }}</span>

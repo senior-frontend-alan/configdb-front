@@ -17,27 +17,20 @@ declare module 'vue' {
     Chart: typeof import('primevue/chart')['default']
     Column: typeof import('primevue/column')['default']
     DataTable: typeof import('primevue/datatable')['default']
-    FloatLabel: typeof import('primevue/floatlabel')['default']
     IconField: typeof import('primevue/iconfield')['default']
     InputIcon: typeof import('primevue/inputicon')['default']
     InputText: typeof import('primevue/inputtext')['default']
     LanguageSelector: typeof import('./src/components/LanguageSelector.vue')['default']
-    Message: typeof import('primevue/message')['default']
     ProductOverviewWidget: typeof import('./src/components/dashboard/ProductOverviewWidget.vue')['default']
-    ProgressSpinner: typeof import('primevue/progressspinner')['default']
     RecentActivityWidget: typeof import('./src/components/dashboard/RecentActivityWidget.vue')['default']
     RegionSelector: typeof import('./src/components/RegionSelector.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SalesTrendWidget: typeof import('./src/components/dashboard/SalesTrendWidget.vue')['default']
-    Select: typeof import('primevue/select')['default']
     SideMenu: typeof import('./src/components/SideMenu.vue')['default']
     StatsWidget: typeof import('./src/components/dashboard/StatsWidget.vue')['default']
     Tag: typeof import('primevue/tag')['default']
     ToolBar: typeof import('./src/components/ToolBar.vue')['default']
     UserMenu: typeof import('./src/components/UserMenu.vue')['default']
-  }
-  export interface ComponentCustomProperties {
-    Tooltip: typeof import('primevue/tooltip')['default']
   }
 }

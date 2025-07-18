@@ -61,7 +61,7 @@
   <div class="login-page">
     <div class="login-header">
       <div class="logo">
-        <img src="/favicon.jpg" alt="Logo" style="border-radius: 8px" /> &nbsp;
+        <img src="../assets/favicon.jpg" alt="Logo" style="border-radius: 8px" /> &nbsp;
         <span class="logo-text">{{ appConfig.siteTitle }}</span>
       </div>
     </div>
