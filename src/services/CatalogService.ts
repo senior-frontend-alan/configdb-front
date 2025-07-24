@@ -23,30 +23,12 @@ import type { CatalogItem } from '../stores/types/catalogsAPIResponseGET.type';
 // Virtual Scroll: экономит память браузера и ускоряет рендеринг
 
 /**
- * Информация о загруженном диапазоне данных
- */
-export interface LoadedRange {
-  start: number;
-  end: number;
-  page: number;
-  timestamp: number;
-}
-
-/**
- * Тип для хранения загруженных диапазонов в виде объекта с ключами по диапазонам
- * Ключ имеет формат "start-end", например "0-19"
- */
-export type LoadedRangesMap = Record<string, LoadedRange>;
-
-/**
  * Структура GET-запроса каталога
  */
 export interface CatalogGetData {
-  resultsIndex: Map<string, Object>;
-  results: Object[];
-  loadedRanges: LoadedRangesMap;
+  results: any[]; // Массив записей каталога
+  loadedCount?: number; // Количество загруженных записей
   count?: number;
-  totalCount: number;
   pageSize: number;
   next: string | null;
   previous: string | null;
@@ -59,9 +41,6 @@ export interface CatalogGetData {
 export interface CatalogData {
   GET: CatalogGetData;
   OPTIONS: Record<string, any>;
-  unsavedChanges: Record<string, any>;
-  moduleName: string;
-  url: string;
 }
 
 /**
@@ -90,12 +69,13 @@ export interface CatalogGroup {
  * Структура стора модуля
  */
 export interface ModuleStore {
-  loadedCatalogsByApplName: Record<string, Record<string, Catalog>>;
   catalogGroups: CatalogGroup[];
   indexCatalogsByApplName: Record<string, Map<string, any>>;
   loading: boolean;
   error: string | null;
   url?: string;
+  // Каталоги сохраняются прямо в теле модуля с ключом "applName_catalogName"
+  [catalogKey: string]: any; // Для динамических каталогов
 }
 
 // Интерфейс для описания макета с элементами и списком отображения
@@ -114,54 +94,54 @@ interface ExtendedLayout extends Layout {
 
 export class CatalogService {
   /**
+   * Получает каталог из стора (каталоги хранятся напрямую в сторе)
+   * @param moduleStore Стор модуля
+   * @param applName Имя приложения
+   * @param catalogName Имя каталога
+   * @returns Каталог или undefined
+   */
+  static getCatalog(
+    moduleStore: ModuleStore,
+    applName: string,
+    catalogName: string,
+  ): Catalog | undefined {
+    const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+    return (moduleStore as any)[catalogKey];
+  }
+  /**
    * загружен ли указанный диапазон данных в GET
    */
   static isRangeLoaded(
-    moduleName: string,
+    moduleStore: ModuleStore,
     applName: string,
     catalogName: string,
-    startIndex: number,
-    endIndex: number,
+    offset: number,
+    limit: number,
   ): boolean {
-    const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-
-    if (
-      !moduleStore ||
-      !moduleStore.loadedCatalogsByApplName ||
-      !moduleStore.loadedCatalogsByApplName[applName] ||
-      !moduleStore.loadedCatalogsByApplName[applName][catalogName]?.GET
-    ) {
+    const catalog = this.getCatalog(moduleStore, applName, catalogName);
+    if (!catalog?.GET) {
+      console.log(`[isRangeLoaded] Нет каталога или GET данных`);
       return false;
     }
 
-    // Явное приведение типов для работы с индексированными свойствами
-    const catalogData = moduleStore.loadedCatalogsByApplName[applName][catalogName] as Record<
-      string,
-      any
-    >;
+    const loadedCount = catalog.GET.loadedCount || 0;
+    const totalCount = catalog.GET.count || 0;
+    const requiredCount = offset + limit;
 
-    // Проверяем наличие информации о загруженных диапазонах
-    const loadedRanges = catalogData.GET?.loadedRanges;
-    if (!loadedRanges) return false;
+    console.log(
+      `[isRangeLoaded] Загружено: ${loadedCount}, нужно: ${requiredCount}, всего: ${totalCount}`,
+    );
 
-    // Проверяем точное совпадение ключа
-    const exactKey = `${startIndex}-${endIndex}`;
-    if (loadedRanges[exactKey]) return true;
-
-    // Проверяем, входит ли запрашиваемый диапазон в уже загруженные диапазоны
-    for (const key in loadedRanges) {
-      const [rangeStart, rangeEnd] = key.split('-').map(Number);
-
-      // Если запрашиваемый диапазон полностью входит в уже загруженный диапазон
-      if (rangeStart <= startIndex && rangeEnd >= endIndex) {
-        console.log(
-          `Диапазон ${startIndex}-${endIndex} входит в уже загруженный диапазон ${rangeStart}-${rangeEnd}`,
-        );
-        return true;
-      }
+    // Если все данные загружены, то любой запрос покрыт
+    // Загружено: 7, нужно: 20, всего: 7
+    if (totalCount > 0 && loadedCount >= totalCount) {
+      return true;
     }
 
-    return false;
+    // Проверяем, достаточно ли загруженных данных для запроса
+    const rangeIsCovered = loadedCount >= requiredCount;
+
+    return rangeIsCovered;
   }
 
   /**
@@ -342,47 +322,6 @@ export class CatalogService {
   };
 
   /**
-   * Не удалять!
-   * Ограничивает размер кэша, удаляя старые данные
-   */
-  // static limitCacheSize(
-  //   moduleName: string,
-  //   catalogName: string,
-  //   maxItems: number = this.MAX_CACHED_ITEMS,
-  // ): void {
-  //   const moduleStore = useModuleStore(moduleName) as ModuleStore | undefined;
-  //   if (!moduleStore || !moduleStore.loadedCatalogsByApplName[applName][catalogName]?.GET?.resultsIndex) {
-  //     return;
-  //   }
-
-  //   const resultsMap = moduleStore.loadedCatalogsByApplName[applName][catalogName].GET.resultsIndex;
-  //   if (!resultsMap || resultsMap.size <= maxItems) return;
-
-  //   // Если превышен лимит, удаляем самые старые загруженные диапазоны
-  //   const loadedRanges = moduleStore.loadedCatalogsByApplName[applName][catalogName].GET.loadedRanges;
-  //   if (!loadedRanges || loadedRanges.length <= 1) return;
-
-  //   // Сортируем диапазоны по времени загрузки (от старых к новым)
-  //   loadedRanges.sort((a, b) => a.timestamp - b.timestamp);
-
-  //   // Удаляем старые диапазоны, пока не уложимся в лимит
-  //   // Для упрощения будем просто удалять самый старый диапазон
-  //   // В реальном приложении здесь нужна более сложная логика
-  //   const oldestRange = loadedRanges.shift();
-  //   if (!oldestRange) return;
-
-  //   // Удаляем самый старый диапазон из списка
-  //   moduleStore.loadedCatalogsByApplName[applName][catalogName].GET.loadedRanges = loadedRanges.filter(
-  //     (range) => range.timestamp !== oldestRange.timestamp,
-  //   );
-
-  //   // В реальном приложении здесь нужно удалить записи, относящиеся к этому диапазону
-  //   // Но это сложно реализовать без дополнительного хранения ID для каждого диапазона
-  //   // Поэтому в данной реализации мы просто удаляем диапазон из списка
-  //   console.log(`Удален устаревший диапазон данных для страницы ${oldestRange.page}`);
-  // }
-
-  /**
    * Получает общее количество элементов
    */
   static getTotalCount(moduleName: string, applName: string, catalogName: string): number {
@@ -391,22 +330,14 @@ export class CatalogService {
     );
     const moduleStore = useModuleStore(moduleName);
 
-    // Проверяем наличие структуры в сторе
-    if (
-      !moduleStore ||
-      !moduleStore.loadedCatalogsByApplName ||
-      !moduleStore.loadedCatalogsByApplName[applName] ||
-      !moduleStore.loadedCatalogsByApplName[applName][catalogName]?.GET
-    ) {
+    // Получаем каталог по новой схеме
+    const catalog = this.getCatalog(moduleStore, applName, catalogName);
+    if (!catalog?.GET) {
       console.log('CatalogService.getTotalCount: Нет данных в сторе');
       return 0;
     }
 
-    // Явное приведение типов для работы с индексированными свойствами
-    const catalogData = moduleStore.loadedCatalogsByApplName[applName][catalogName] as Record<
-      string,
-      any
-    >;
+    const catalogData = catalog as Record<string, any>;
     const count = catalogData.GET?.count || 0;
     console.log(`CatalogService.getTotalCount: Возвращаем count: ${count}`);
     return count;
@@ -417,26 +348,25 @@ export class CatalogService {
    */
   static clearCache(moduleName: string, applName: string, catalogName: string): void {
     const moduleStore = useModuleStore(moduleName);
-    if (
-      !moduleStore ||
-      !moduleStore.loadedCatalogsByApplName ||
-      !moduleStore.loadedCatalogsByApplName[applName] ||
-      !moduleStore.loadedCatalogsByApplName[applName][catalogName]
-    ) {
+
+    // Получаем каталог по новой схеме
+    const catalog = this.getCatalog(moduleStore, applName, catalogName);
+    if (!catalog) {
       return;
     }
 
     // Сбрасываем данные GET
-    moduleStore.loadedCatalogsByApplName[applName][catalogName].GET = {
-      resultsIndex: new Map(),
-      loadedRanges: {},
-      metadata: {
-        totalCount: 0,
-        pageSize: 10,
-        next: null,
-        previous: null,
-      },
+    catalog.GET = {
+      results: [], // Массив записей
+      loadedCount: 0,
+      count: 0,
+      pageSize: 20,
+      next: null,
+      previous: null,
     };
+
+    // Сбрасываем черновики (оставляем пустым объектом)
+    catalog.DRAFT = {};
 
     console.log(`Кэш для каталога ${catalogName} очищен`);
   }

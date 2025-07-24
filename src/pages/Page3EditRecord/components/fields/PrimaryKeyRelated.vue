@@ -205,7 +205,7 @@
       return;
     }
 
-    // Не вызываем getOrfetchCatalog здесь, так как Page2CatalogDetails
+    // Не вызываем getOrfetchCatalogGET здесь, так как Page2CatalogDetails
     // сам загрузит данные при монтировании
   };
 
@@ -243,9 +243,16 @@
 
     if (result.success && result.recordData) {
       // Создаем объект RelatedItem из полученных данных
+      // Обеспечиваем, что name всегда имеет корректное значение
+      const recordName =
+        result.recordData.name ||
+        result.recordData.__str__ ||
+        result.recordData.display_name ||
+        `Record ${result.recordData.id}`;
+
       selectedRecord.value = {
         id: result.recordData.id,
-        name: result.recordData.name,
+        name: recordName,
         ...result.recordData,
       };
     } else if (result.error) {
@@ -258,11 +265,29 @@
   // При монтировании компонента загружаем данные записи, если есть ID
   onMounted(() => {
     if (props.modelValue) {
-      const id =
-        typeof props.modelValue === 'object'
-          ? (props.modelValue as RelatedItem).id
-          : props.modelValue;
-      loadRecordData(id);
+      if (typeof props.modelValue === 'object') {
+        const modelValueObj = props.modelValue as RelatedItem;
+        const id = modelValueObj.id;
+
+        // Если у объекта уже есть корректное поле name, используем его
+        if (modelValueObj.name && modelValueObj.name !== 'undefined') {
+          selectedRecord.value = {
+            ...modelValueObj,
+            id: modelValueObj.id,
+            name: modelValueObj.name,
+          };
+        } else {
+          // Если name отсутствует или некорректно, загружаем данные
+          loadRecordData(id).catch((error) => {
+            console.error('Error loading record data in onMounted:', error);
+          });
+        }
+      } else {
+        // Если modelValue - это просто ID, загружаем данные
+        loadRecordData(props.modelValue).catch((error) => {
+          console.error('Error loading record data in onMounted:', error);
+        });
+      }
     } else {
       selectedRecord.value = null;
     }

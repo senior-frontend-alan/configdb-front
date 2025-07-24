@@ -143,61 +143,14 @@ export function useModuleStore(moduleName: string): ModuleStore {
 
 export interface Catalog {
   GET: {
-    resultsIndex: Map<string, any>;
-    loadedRanges?: Record<string, { start: number; end: number; page: number; timestamp: number }>;
+    results: any[]; // Основные данные в виде массива
+    loadedCount?: number; // Количество загруженных записей
     [key: string]: any;
   };
   OPTIONS: any;
-  unsavedChanges: any;
-  moduleName: string;
+  // Динамические поля edit_{id} для редактирования записей
+  // Каждое поле содержит Map с изменениями для конкретной записи
   [key: string]: any;
-}
-
-/**
- * Инициализирует структуру каталога в сторе, если она отсутствует
- * @param moduleName Имя модуля
- * @param applName Имя приложения
- * @param catalogName Имя каталога
- * @returns Ссылка на структуру каталога в сторе
- */
-export function getOrInitCatalogStructure(
-  moduleName: string,
-  applName: string,
-  catalogName: string,
-): Catalog {
-  const moduleStore = useModuleStore(moduleName);
-  // Приводим название каталога к нижнему регистру для унификации
-  const catalog = catalogName.toLowerCase();
-
-  // Инициализируем вложенные объекты, если они отсутствуют
-  if (!moduleStore.loadedCatalogsByApplName) {
-    moduleStore.loadedCatalogsByApplName = {};
-  }
-
-  if (!moduleStore.loadedCatalogsByApplName[applName]) {
-    moduleStore.loadedCatalogsByApplName[applName] = {};
-  }
-
-  // Проверяем существование структуры каталога
-  const catalogExists = moduleStore.loadedCatalogsByApplName[applName][catalog] !== undefined;
-
-  // Если каталог не существует, создаем его с нуля
-  if (!catalogExists) {
-    moduleStore.loadedCatalogsByApplName[applName][catalog] = {
-      GET: {
-        results: [],
-        totalCount: 0,
-        resultsIndex: new Map<string, any>(),
-        loadedRanges: {},
-      },
-      OPTIONS: null,
-      unsavedChanges: null,
-      moduleName,
-    } as Catalog;
-  }
-
-  // Возвращаем ссылку на структуру каталога
-  return moduleStore.loadedCatalogsByApplName[applName][catalog];
 }
 
 /**
@@ -206,13 +159,15 @@ export function getOrInitCatalogStructure(
 export interface ModuleStore {
   getCatalog: string;
   catalogGroups: CatalogsAPIResponseGET;
-  indexCatalogsByApplName: Record<string, Map<string, any>>;
+  indexCatalogsByApplName: Record<string, Map<string, any>>; // Старое поле для обратной совместимости
   jsInterface: ModuleJSInterface;
   loading: boolean;
   error: any | null;
-  loadedCatalogsByApplName: Record<string, Record<string, Catalog>>;
   fetchCatalogGroups: (moduleName: string) => Promise<any[]>;
-  getOrInitCatalogStructure: (moduleName: string, applName: string, catalogName: string) => Catalog;
+  initCatalog: (applName: string, catalogName: string) => Catalog;
+  initEditField: (applName: string, catalogName: string, recordId: string) => Map<string, any>;
+  // Динамические каталоги будут добавляться с ключами "applName_catalogName"
+  [catalogKey: string]: any;
 }
 
 // Изменяем тип возвращаемого значения на более общий, чтобы избежать ошибок типизации
@@ -239,18 +194,13 @@ export function createModuleStore(moduleConfig: Module): any {
     state: () => ({
       getCatalog: moduleConfig.routes['getCatalog'],
       catalogGroups: [] as CatalogsAPIResponseGET,
-      // т.к. В Pinia есть ограничения с динамическими полями в сторе.
-      // Динамически добавленные свойства не будут реактивными и не будут отображаться в Vue DevTools,
-      // если они не были объявлены в исходном состоянии стора.
-      // поэтому сохраняем в indexCatalogsByApplName
-      indexCatalogsByApplName: {} as Record<string, Map<string, any>>, // индекс каталогов по приложению
+      indexCatalogsByApplName: {} as Record<string, Map<string, any>>,
       jsInterface: {
         ...baseJSInterface,
         // Специфичные для модуля функции можно добавить здесь
       } as ModuleJSInterface,
       loading: false,
       error: null as any | null,
-      loadedCatalogsByApplName: {} as Record<string, Record<string, Catalog>>, // каталоги сгруппированы по имени приложения
     }),
 
     // Добавляем раздел геттеров
@@ -260,7 +210,98 @@ export function createModuleStore(moduleConfig: Module): any {
 
     // Добавляем раздел действий
     actions: {
-      // Действия будут добавлены позже
+      // Инициализация каталога в сторе (делает его реактивным и видимым в DevTools)
+      initCatalog(applName: string, catalogName: string): Catalog {
+        const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+
+        // Проверяем, существует ли уже каталог
+        if ((this as any)[catalogKey]) {
+          return (this as any)[catalogKey];
+        }
+
+        // Создаем новый каталог с базовой структурой
+        const newCatalog: Catalog = {
+          GET: {
+            results: [], // Массив записей
+            loadedCount: 0, // Количество загруженных записей
+          },
+          OPTIONS: {},
+        };
+
+        // Добавляем каталог напрямую в стор потому что $patch не создает каталог, но зато делает его видимым в DevTools
+        (this as any)[catalogKey] = newCatalog;
+
+        // Дополнительно используем $patch для обеспечения видимости в Vue DevTools
+        this.$patch({
+          [catalogKey]: newCatalog,
+        });
+
+        return newCatalog;
+      },
+
+      // Инициализация поле для конкретной записи
+      initEditField(applName: string, catalogName: string, recordId: string): Map<string, any> {
+        const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+        const editKey = `edit_${recordId}`;
+
+        // Проверяем, существует ли каталог
+        if (!(this as any)[catalogKey]) {
+          console.error(`Каталог ${catalogKey} не найден, сначала инициализируйте его`);
+          return new Map<string, any>();
+        }
+
+        // Проверяем, существует ли уже поле
+        if ((this as any)[catalogKey][editKey]) {
+          return (this as any)[catalogKey][editKey];
+        }
+
+        const editField = new Map<string, any>();
+
+        // Добавляем поле редактирования напрямую потому что $patch не создает поле, но зато делает его видимым в DevTools
+        (this as any)[catalogKey][editKey] = editField;
+
+        // Дополнительно используем $patch для обеспечения видимости в Vue DevTools
+        this.$patch({
+          [catalogKey]: {
+            ...(this as any)[catalogKey],
+            [editKey]: editField,
+          },
+        });
+
+        return editField;
+      },
+
+      // Инициализация поля несохраненных изменений
+      initUnsavedChangesField(applName: string, catalogName: string, recordId: string): any {
+        const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+        const unsavedChangesKey = `unsavedChanges_${recordId}`;
+
+        // Проверяем, существует ли каталог
+        if (!(this as any)[catalogKey]) {
+          console.error(`Каталог ${catalogKey} не найден, сначала инициализируйте его`);
+          return {};
+        }
+
+        // Проверяем, существует ли уже поле
+        if ((this as any)[catalogKey][unsavedChangesKey]) {
+          return (this as any)[catalogKey][unsavedChangesKey];
+        }
+
+        const unsavedChangesField = {};
+
+        // Добавляем поле несохраненных изменений
+        (this as any)[catalogKey][unsavedChangesKey] = unsavedChangesField;
+
+        // Дополнительно используем $patch для обеспечения видимости в Vue DevTools
+        this.$patch({
+          [catalogKey]: {
+            ...(this as any)[catalogKey],
+            [unsavedChangesKey]: unsavedChangesField,
+          },
+        });
+
+        return unsavedChangesField;
+      },
     },
   });
 }

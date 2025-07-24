@@ -32,11 +32,11 @@ URL для создания новой записи: http://localhost:5173/catal
     <div v-else>
       <!-- Используем DynamicLayout для рекурсивного отображения элементов формы -->
       <DynamicLayout
-        v-if="storeOptions && storeOptions.layout.elementsIndex"
+        v-if="currentCatalog?.OPTIONS?.layout?.elementsIndex"
         :moduleName="moduleName"
-        :layout-elements="storeOptions.layout.elementsIndex"
+        :layout-elements="currentCatalog.OPTIONS.layout.elementsIndex"
         :model-value="mergedData"
-        :patch-data="getUnsavedChanges()"
+        :unsaved-changes="getUnsavedChanges()"
         @update:model-value="debouncedHandleFieldUpdate"
         @reset-field="resetField"
       />
@@ -50,7 +50,7 @@ URL для создания новой записи: http://localhost:5173/catal
         ]"
       >
         <Button
-          :label="`Отменить изменения: ${modifiedFieldsCount}`"
+          :label="`Отменить изменения: ${Object.keys(getUnsavedChanges()).length}`"
           icon="pi pi-undo"
           class="p-button-secondary"
           :disabled="!hasUnsavedChanges"
@@ -75,8 +75,8 @@ URL для создания новой записи: http://localhost:5173/catal
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  // Импорт useModuleStore больше не нужен, так как мы используем currentCatalog
   import { createRecord, updateRecord, getOrFetchRecord } from '../../stores/data-loaders';
+  import { useModuleStore, type Catalog } from '../../stores/module-factory';
   import { useToast } from 'primevue/usetoast';
   import DynamicLayout from './components/DynamicLayout.vue';
   import Button from 'primevue/button';
@@ -102,8 +102,44 @@ URL для создания новой записи: http://localhost:5173/catal
   const catalogName = computed(() => props.catalogName || (route.params.catalogName as string));
   const recordId = computed(() => props.id || (route.params.id as string));
 
+  // Получаем стор модуля для работы с полями редактирования
+  const moduleStore = computed(() => useModuleStore(moduleName.value));
+
+  // Определяем, находимся ли мы в режиме создания новой записи
+  const isCreateMode = computed(() => !recordId.value || recordId.value === 'create');
+
+  // Хелпер для получения ID записи
+  const getRecordId = () => (isCreateMode.value ? 'create' : recordId.value);
+
+  // Ключи для стора
+  const editKey = computed(() => `edit_${getRecordId()}`);
+  const unsavedChangesKey = computed(() => `unsavedChanges_${getRecordId()}`);
+
   // Устанавливаем currentCatalog из результата getOrFetchRecord
   const currentCatalog = ref<Catalog | null>(null);
+
+  // Объединенные данные: оригинальные + несохраненные изменения
+  const mergedData = computed(() => {
+    if (!currentCatalog.value) {
+      return {};
+    }
+
+    const originalData = currentCatalog.value[editKey.value] || {};
+    const unsavedChanges = currentCatalog.value[unsavedChangesKey.value] || {};
+
+    return { ...originalData, ...unsavedChanges };
+  });
+
+  // Получаем несохраненные изменения
+  const getUnsavedChanges = () => {
+    if (!currentCatalog.value) return {};
+    return currentCatalog.value[unsavedChangesKey.value] || {};
+  };
+
+  const hasUnsavedChanges = computed(() => {
+    const changes = getUnsavedChanges();
+    return Object.keys(changes).length > 0;
+  });
 
   // Состояние компонента
   const loading = ref(true);
@@ -112,24 +148,10 @@ URL для создания новой записи: http://localhost:5173/catal
   const formActionsRef = ref<HTMLElement | null>(null);
   const isAtBottom = ref(false);
 
-  // Определяем, находимся ли мы в режиме создания новой записи
-  const isCreateMode = computed(() => !recordId.value || recordId.value === 'create');
-
   const pageTitle = computed(() => {
     return isCreateMode.value
       ? `Создание записи: ${catalogName.value}`
       : `Редактирование записи: ${catalogName.value} (ID: ${recordId.value})`;
-  });
-
-  // Метаданные формы
-  const storeOptions = ref<any>(null);
-
-  // Данные записи, полученные из getOrFetchRecord
-  const originalRecord = ref<any>(isCreateMode.value ? {} : null);
-
-  // Получаем объединенные данные (исходные из GET + изменения)
-  const mergedData = computed(() => {
-    return { ...(originalRecord.value || {}), ...unsavedChangesInfo.value.data };
   });
 
   let debounceTimer: number | null = null;
@@ -145,127 +167,64 @@ URL для создания новой записи: http://localhost:5173/catal
 
   // Функция обработки изменений полей
   const handleFieldUpdate = (updatedData: Record<string, any>) => {
-    console.log('handleFieldUpdate updatedData', updatedData);
-    try {
-      if (!currentCatalog.value) {
-        throw new Error('Каталог не загружен');
-      }
+    if (!currentCatalog.value) return;
 
-      // Инициализируем unsavedChanges, если он еще не существует
-      if (!currentCatalog.value.unsavedChanges) {
-        currentCatalog.value.unsavedChanges = {};
-      }
-
-      const unsavedChanges = { ...currentCatalog.value.unsavedChanges };
-
-      // Обрабатываем каждое поле в обновленных данных и сравниваем с исходным значением
-      for (const [key, value] of Object.entries(updatedData)) {
-        const originalValue = (originalRecord.value || {})[key];
-        const valueMatches = JSON.stringify(originalValue) === JSON.stringify(value);
-
-        if (valueMatches) {
-          // Если значение совпадает с оригинальным, удаляем его из несохраненных изменений
-          delete unsavedChanges[key];
-        } else {
-          // Иначе добавляем в несохраненные изменения
-          unsavedChanges[key] = value;
-        }
-      }
-
-      // Обновляем несохраненные изменения в каталоге
-      currentCatalog.value.unsavedChanges = unsavedChanges;
-
-      console.log('Обновлены несохраненные изменения:', unsavedChanges);
-
-      // Используем setTimeout, чтобы проверка произошла после обновления DOM
-      setTimeout(() => {
-        checkIfAtBottom();
-      }, 0);
-    } catch (error) {
-      console.error('Ошибка при обновлении поля:', error);
+    // Инициализируем поле если нужно
+    if (!currentCatalog.value[unsavedChangesKey.value]) {
+      const recordIdValue = isCreateMode.value ? 'create' : recordId.value;
+      moduleStore.value.initUnsavedChangesField(applName.value, catalogName.value, recordIdValue);
     }
+
+    Object.assign(currentCatalog.value[unsavedChangesKey.value], updatedData);
+
+    console.log(
+      'Обновлены несохраненные изменения:',
+      currentCatalog.value[unsavedChangesKey.value],
+    );
   };
 
   const debouncedHandleFieldUpdate = debounce(handleFieldUpdate, 300);
 
   const resetAllFields = () => {
-    try {
-      if (!currentCatalog.value) {
-        throw new Error('Каталог не загружен');
-      }
+    if (!currentCatalog.value) return;
 
-      // Очищаем несохраненные изменения в каталоге
-      currentCatalog.value.unsavedChanges = {};
-
-      // Показываем сообщение об успешной отмене изменений
-      toast.add({
-        severity: 'info',
-        summary: 'Изменения отменены',
-        detail: 'Все внесенные изменения были отменены',
-        life: 3000,
+    if (currentCatalog.value[unsavedChangesKey.value]) {
+      // Очищаем объект несохраненных изменений
+      Object.keys(currentCatalog.value[unsavedChangesKey.value]).forEach((key) => {
+        delete currentCatalog.value![unsavedChangesKey.value][key];
       });
-    } catch (error) {
-      console.error('Ошибка при отмене изменений:', error);
+      console.log(`Очищены несохраненные изменения ${unsavedChangesKey.value}`);
     }
+
+    toast.add({
+      severity: 'info',
+      summary: 'Изменения отменены',
+      detail: 'Все внесенные изменения были отменены',
+      life: 3000,
+    });
   };
 
-  // Сброс значения поля
   const resetField = (fieldName: string) => {
-    try {
-      if (!currentCatalog.value || !currentCatalog.value.unsavedChanges) {
-        return;
-      }
+    if (!currentCatalog.value) return;
 
-      // Удаляем поле из несохраненных изменений
-      if (fieldName in currentCatalog.value.unsavedChanges) {
-        const unsavedChanges = { ...currentCatalog.value.unsavedChanges };
-        delete unsavedChanges[fieldName];
-        currentCatalog.value.unsavedChanges = unsavedChanges;
+    const unsavedChanges = currentCatalog.value[unsavedChangesKey.value];
 
-        toast.add({
-          severity: 'info',
-          summary: 'Поле сброшено',
-          detail: `Изменения поля "${fieldName}" были отменены`,
-          life: 3000,
-        });
-      } else {
-        console.log(`Поле ${fieldName} не было изменено, нечего сбрасывать`);
-      }
-    } catch (error) {
-      console.error(`Ошибка при сбросе поля ${fieldName}:`, error);
+    if (!unsavedChanges || !(fieldName in unsavedChanges)) {
+      console.log(`Поле ${fieldName} не было изменено, нечего сбрасывать`);
+      return;
     }
+    delete unsavedChanges[fieldName];
+    console.log(`Удалено поле ${fieldName} из ${unsavedChangesKey.value}`);
+
+    toast.add({
+      severity: 'info',
+      summary: 'Поле сброшено',
+      detail: `Изменения поля "${fieldName}" были отменены`,
+      life: 3000,
+    });
   };
 
-  // Получаем данные о несохраненных изменениях из каталога
-  const getUnsavedChanges = () => {
-    try {
-      return currentCatalog.value?.unsavedChanges || {};
-    } catch {
-      return {};
-    }
-  };
-
-  // Вычисляемые свойства на основе несохраненных изменений
-  const unsavedChangesInfo = computed(() => {
-    const changes = getUnsavedChanges();
-    const changesCount = Object.keys(changes).length;
-
-    return {
-      data: changes,
-      count: changesCount,
-      hasChanges: changesCount > 0,
-    };
-  });
-
-  // Производные вычисляемые свойства для удобства
-  const hasUnsavedChanges = computed(() => unsavedChangesInfo.value.hasChanges);
-  const modifiedFieldsCount = computed(() => unsavedChangesInfo.value.count);
-
-  // Функция getModuleStore больше не используется, так как мы используем currentCatalog
-
-  // Функция для возврата к списку
   const goBack = () => {
-    // Переходим на страницу деталей каталога
     router.push({
       path: `/${moduleName.value}/${applName.value}/${catalogName.value}`,
     });
@@ -314,26 +273,21 @@ URL для создания новой записи: http://localhost:5173/catal
     return result;
   };
 
-  // Сохранение данных
+  // Сохранение данных (обновленная логика с edit_{id})
   const saveData = async () => {
     saving.value = true;
     error.value = null;
 
     try {
-      // Проверяем наличие каталога и несохраненных изменений
-      if (
-        !currentCatalog.value?.unsavedChanges ||
-        Object.keys(currentCatalog.value.unsavedChanges).length === 0
-      ) {
+      // Проверяем, что есть данные для сохранения
+      const unsavedChanges = getUnsavedChanges();
+      if (!unsavedChanges || Object.keys(unsavedChanges).length === 0) {
         throw new Error('Нет данных для сохранения');
       }
 
       try {
-        saving.value = true;
-        const rawData = currentCatalog.value.unsavedChanges;
-
         // Создаем чистый объект данных без реактивности и циклических ссылок
-        const cleanData = cleanObject(rawData);
+        const cleanData = cleanObject(unsavedChanges);
         console.log('Данные для отправки:', cleanData);
 
         let recordIdentifier: string | null = null;
@@ -379,10 +333,8 @@ URL для создания новой записи: http://localhost:5173/catal
         let successMessage = '';
 
         if (isCreateMode.value) {
-          // Для операции POST
           successMessage = `Запись успешно создана (ID: ${recordIdentifier})`;
         } else {
-          // Для операции PATCH
           successMessage = `Данные успешно обновлены (ID: ${recordIdentifier})`;
         }
 
@@ -393,9 +345,13 @@ URL для создания новой записи: http://localhost:5173/catal
           life: 0, // Делает тоаст постоянным, пока пользователь не закроет
         });
 
-        // Очищаем несохраненные изменения после успешного сохранения
+        // Очищаем поле редактирования после успешного сохранения
         if (currentCatalog.value) {
-          currentCatalog.value.unsavedChanges = {};
+          const editField = currentCatalog.value[editKey.value] as Map<string, any>;
+          if (editField && editField instanceof Map) {
+            editField.clear();
+            console.log(`Очищено поле редактирования ${editKey.value} после сохранения`);
+          }
         }
 
         // Возвращаемся к списку после сохранения
@@ -475,7 +431,7 @@ URL для создания новой записи: http://localhost:5173/catal
       moduleName.value,
       applName.value,
       catalogName.value,
-      isCreateMode.value ? 'options_only' : recordId.value,
+      getRecordId(),
     );
 
     // Обрабатываем результат загрузки
@@ -486,24 +442,24 @@ URL для создания новой записи: http://localhost:5173/catal
       return;
     }
 
-    // Сохраняем каталог для использования в компоненте
+    // Сохраняем каталог
     if (result.catalog) {
       currentCatalog.value = result.catalog;
-    }
-
-    // Сохраняем метаданные для передачи в DynamicLayout
-    if (result.catalog?.OPTIONS) {
-      storeOptions.value = result.catalog.OPTIONS;
-    }
-
-    // Сохраняем данные записи
-    if (!isCreateMode.value && result.recordData) {
-      originalRecord.value = result.recordData;
     }
 
     // Устанавливаем ID текущей записи для скроллинга
     if (!isCreateMode.value && recordId.value && currentCatalog.value?.GET) {
       currentCatalog.value.GET.lastEditedID = recordId.value;
+    }
+
+    // Инициализируем поля редактирования (каталог уже инициализирован в getOrFetchRecord)
+    if (moduleStore.value) {
+      await moduleStore.value.initEditField(applName.value, catalogName.value, getRecordId());
+      await moduleStore.value.initUnsavedChangesField(
+        applName.value,
+        catalogName.value,
+        getRecordId(),
+      );
     }
 
     loading.value = false;

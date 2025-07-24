@@ -1,7 +1,6 @@
 // src/router.ts
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
-import { ensureHierarchyLoaded } from './stores/data-loaders';
 
 // Маршрутизатор → Стор → Компоненты
 
@@ -105,8 +104,6 @@ const router = createRouter({
 // - ensureHierarchyLoaded(moduleName) - загружает только модуль
 // - ensureHierarchyLoaded(moduleName, catalogName) - загружает модуль и каталог
 // - ensureHierarchyLoaded(moduleName, catalogName, recordId) - загружает модуль, каталог и конкретную запись
-
-// Для загрузки связанных данных для вложенных компонентов используйте отдельную функцию в компоненте
 
 // Маршруты, которые доступны без авторизации
 const publicRoutes = ['/login'];

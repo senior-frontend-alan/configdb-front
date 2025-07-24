@@ -59,7 +59,7 @@
   import { useRoute, useRouter } from 'vue-router';
   import { useModuleStore } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
-  import { getOrFetchModuleCatalogs } from '../../stores/data-loaders';
+  import { getOrFetchModuleCatalogGroups } from '../../stores/data-loaders';
   import Message from 'primevue/message';
   import ProgressSpinner from 'primevue/progressspinner';
   import P1_TabView from './components/P1_TabView.vue';
@@ -184,7 +184,7 @@
 
   onMounted(async () => {
     if (moduleName.value) {
-      const result = await getOrFetchModuleCatalogs(moduleName.value);
+      const result = await getOrFetchModuleCatalogGroups(moduleName.value);
       if (!result.success && result.error) {
         console.error(`Ошибка при загрузке каталогов: ${result.error.message}`);
       }

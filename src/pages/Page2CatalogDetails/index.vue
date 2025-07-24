@@ -111,7 +111,7 @@ CatalogDataTable отвечает только за отображение да�
   import { useRouter } from 'vue-router';
   import { useModuleStore, type Catalog } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
-  import { getOrfetchCatalog } from '../../stores/data-loaders';
+  import { getOrfetchCatalogGET, getOrFetchCatalogOPTIONS } from '../../stores/data-loaders';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import DataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
@@ -171,39 +171,8 @@ CatalogDataTable отвечает только за отображение да�
   const catalogName = computed(() => props.catalogName);
 
   const moduleStore = computed(() => useModuleStore(moduleName.value));
-  // Устанавливаем currentCatalog из результата getOrfetchCatalog
+  // Устанавливаем currentCatalog из результата getOrfetchCatalogGET
   const currentCatalog = ref<Catalog | null>(null);
-
-  // НЕ удалять!
-  // const refreshData = async () => {
-  //   loading.value = true;
-  //   error.value = null;
-
-  //   try {
-  //     if (!catalogName.value) {
-  //       throw new Error('Не удалось определить catalogName для загрузки данных');
-  //     }
-
-  //     const dataLoaded = await CacheService.ensureCatalogLoaded(
-  //       moduleName.value,
-  //       catalogName.value,
-  //       (err?: any) => {
-  //         if (err) {
-  //           error.value = err.message || 'Ошибка загрузки данных';
-  //           console.error('Ошибка при загрузке данных:', err);
-  //         }
-  //       },
-  //       true, // Принудительное обновление данных, игнорируя кэш
-  //     );
-
-  //     if (dataLoaded && currentCatalog.value) {
-  //       // Сбрасываем выбранные элементы
-  //       tableSelection.value = [];
-  //     }
-  //   } finally {
-  //     loading.value = false;
-  //   }
-  // };
 
   // Обработка изменения порядка колонок
   const onColumnReorder = (event: any) => {
@@ -221,21 +190,15 @@ CatalogDataTable отвечает только за отображение да�
 
   const handleRowClick = (event: any) => {
     // Данные строки находятся в event.data
-    const rowData = event.data;
-    console.log('Данные строки:', rowData);
-
     // Переход на страницу редактирования только если компонент не в модальном режиме
-    if (!props.isModalMode && rowData && rowData.id) {
-      // Формируем URL для перехода
-      const editUrl = `/${moduleName.value}/${applName.value}/${catalogName.value}/edit/${rowData.id}`;
-      console.log('Переход по URL:', editUrl);
+    if (!props.isModalMode && event.data && event.data.id) {
+      const editUrl = `/${moduleName.value}/${applName.value}/${catalogName.value}/edit/${event.data.id}`;
 
       router.push(editUrl);
-    } else if (!rowData || !rowData.id) {
+    } else if (!event.data || !event.data.id) {
       console.warn(
         'Не удалось получить идентификатор строки для перехода на страницу редактирования',
       );
-      console.log('Полученные данные:', event);
     }
 
     // В любом случае эмитим событие row-click, чтобы родительские компоненты могли его обработать
@@ -283,76 +246,31 @@ CatalogDataTable отвечает только за отображение да�
       return;
     }
 
-    try {
-      loading.value = true;
+    loading.value = true;
 
-      const catalogResult = await getOrfetchCatalog(
-        moduleName.value,
-        applName.value,
-        catalogName.value,
-        offset,
-      );
+    const catalogResult = await getOrfetchCatalogGET(
+      moduleName.value,
+      applName.value,
+      catalogName.value,
+      offset,
+    );
 
-      if (!catalogResult.success) {
-        console.error('Ошибка при загрузке каталога !catalogResult.success');
-        return;
-      }
-
-      const { catalog, newItems } = catalogResult;
-
-      if (!catalog) {
-        console.error('Каталог не найден в результате');
-        return;
-      }
-
-      // Устанавливаем currentCatalog из результата getOrfetchCatalog
-      currentCatalog.value = catalog;
-
-      console.log('Новые записи:', newItems);
-
-      // Обновляем данные в таблице
-      if (tableRows.value.length === 0) {
-        // Если таблица пустая, используем новые записи или данные из кэша
-        if (newItems && newItems.length > 0) {
-          tableRows.value = newItems;
-        } else if (catalog.GET?.results && catalog.GET.results.length > 0) {
-          tableRows.value = [...catalog.GET.results];
-          console.log('Данные загружены из кэша:', tableRows.value.length);
-        }
-      } else if (newItems && newItems.length > 0) {
-        // Если таблица не пустая и есть новые данные, добавляем их
-        newItems.forEach((item: any) => tableRows.value.push(item));
-      }
-
-      totalRecords.value = catalog.GET.count;
-      console.log('tableRows после обновления:', tableRows.value);
-      console.log('totalRecords после обновления:', totalRecords.value);
-    } catch (err) {
-      console.error('Ошибка при загрузке данных каталога:', err);
-      error.value = `Ошибка при загрузке данных: ${
-        err instanceof Error ? err.message : String(err)
-      }`;
-    } finally {
+    if (!catalogResult.success || !catalogResult.catalog) {
+      console.error('Ошибка при загрузке каталога:', catalogResult.error?.message);
+      error.value = catalogResult.error?.message || 'Ошибка при загрузке каталога';
       loading.value = false;
-    }
-  };
-
-  // Обработчик события load-more для ленивой загрузки при скролле
-  const loadMoreData = async (event: { first: number; rows: number }) => {
-    console.log('loadMoreData вызван с параметрами:', event);
-    const { first } = event;
-
-    // Если загружены все данные, не загружаем больше
-    if (totalRecords.value && tableRows.value.length >= totalRecords.value) {
-      console.log('Все данные уже загружены');
-      loadingMore.value = false;
       return;
     }
 
-    // Используем first как offset для загрузки данных
-    await loadCatalogData(first);
+    const { catalog } = catalogResult;
 
-    loadingMore.value = false;
+    // Обновляем ссылку на каталог и синхронизируем данные таблицы со стором
+    currentCatalog.value = catalog;
+    tableRows.value = catalog.GET?.results || [];
+    totalRecords.value = catalog.GET?.count || 0;
+    loading.value = false;
+
+    console.log(`Загружено ${tableRows.value.length} записей из ${totalRecords.value}`);
   };
 
   // Функция для обработки пересечения элемента с областью видимости
@@ -364,10 +282,10 @@ CatalogDataTable отвечает только за отображение да�
       loadingMore.value = true;
 
       const currentLength = tableRows.value.length;
-      const rows = 20; // Количество записей для загрузки
 
-      // Вызываем функцию загрузки данных с текущим смещением
-      loadMoreData({ first: currentLength, rows });
+      loadCatalogData(currentLength).finally(() => {
+        loadingMore.value = false;
+      });
     }
   };
 
@@ -378,6 +296,7 @@ CatalogDataTable отвечает только за отображение да�
     // Проверяем наличие всех необходимых параметров перед загрузкой данных
     if (moduleName.value && applName.value && catalogName.value) {
       await loadCatalogData(0);
+      await getOrFetchCatalogOPTIONS(moduleName.value, applName.value, catalogName.value);
     } else {
       console.warn('Не все параметры доступны при монтировании компонента');
       loading.value = false;
@@ -441,9 +360,8 @@ CatalogDataTable отвечает только за отображение да�
     () => tableRows.value.length,
     async () => {
       if (tableRows.value.length > 0) {
-        const lastEditedID =
-          moduleStore.value.loadedCatalogsByApplName[applName.value][catalogName.value]?.GET
-            ?.lastEditedID;
+        const catalogKey = `${applName.value}_${catalogName.value.toLowerCase()}`;
+        const lastEditedID = (moduleStore.value as any)[catalogKey]?.GET?.lastEditedID;
 
         if (lastEditedID) {
           await scrollToRecord(lastEditedID);

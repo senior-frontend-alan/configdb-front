@@ -89,7 +89,12 @@
       </div>
 
       <template #footer>
-        <Button :label="$t('page3EditRecord.cancel')" icon="pi pi-times" @click="closeDialog" class="p-button-text" />
+        <Button
+          :label="$t('page3EditRecord.cancel')"
+          icon="pi pi-times"
+          @click="closeDialog"
+          class="p-button-text"
+        />
         <Button
           :label="$t('page3EditRecord.select')"
           icon="pi pi-check"
@@ -104,7 +109,6 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue';
-  import { getOrfetchCatalog } from '../../../../stores/data-loaders';
   import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import MultiSelect from 'primevue/multiselect';
@@ -227,36 +231,20 @@
     console.log('Выбранные элементы:', tempSelectedItems.value);
   };
 
-  const openDialog = async () => {
+  const openDialog = () => {
     if (disabled.value) return;
-
-    dialogVisible.value = true;
-    loading.value = true;
-    error.value = null;
-    initTempSelectedItems();
 
     // Проверяем наличие необходимых параметров
     if (!currentModuleName.value || !currentApplName.value || !currentCatalogName.value) {
       error.value = 'Не указан URL для загрузки связанных данных';
-      loading.value = false;
       return;
     }
 
-    const catalogResult = await getOrfetchCatalog(
-      currentModuleName.value,
-      currentApplName.value,
-      currentCatalogName.value,
-      0,
-    );
-
-    if (!catalogResult.success) {
-      error.value = `Не удалось загрузить данные каталога ${currentApplName.value}/${currentCatalogName.value}`;
-      loading.value = false;
-      return;
-    }
-
-    // Если дошли до этой точки, значит загрузка успешна
-    loading.value = false;
+    dialogVisible.value = true;
+    error.value = null;
+    initTempSelectedItems();
+    
+    // Page2CatalogDetails сам загрузит данные при монтировании
   };
 
   const onRecordSelected = (record: any) => {

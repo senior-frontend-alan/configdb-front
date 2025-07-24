@@ -63,6 +63,7 @@ onLazyLoad вызывается при прокрутке таблицы
           :loading="props.loading"
           :totalRecords="props.totalRecords || 0"
           showGridlines
+          rowHover
         >
           <!-- Колонка с чекбоксами для массового выделения, если режим выбора multiple -->
           <!-- 
@@ -81,6 +82,7 @@ onLazyLoad вызывается при прокрутке таблицы
 
           <!-- Динамические колонки -->
           <Column
+            v-if="columns && columns.length > 0"
             v-for="col in columns"
             :key="col.field"
             :field="col.field"
@@ -151,7 +153,7 @@ onLazyLoad вызывается при прокрутке таблицы
   const props = withDefaults(
     defineProps<{
       tableRows: any[];
-      tableColumns: Map<string, any>;
+      tableColumns?: Map<string, any>;
       locale: string; // Локаль для форматирования дат и чисел
       primaryKey: string;
       selectedItems?: any[];
@@ -164,6 +166,7 @@ onLazyLoad вызывается при прокрутке таблицы
     {
       loading: false,
       totalRecords: 0,
+      tableColumns: () => new Map<string, any>(), // Значение по умолчанию - пустая Map
     },
   );
 
@@ -171,27 +174,28 @@ onLazyLoad вызывается при прокрутке таблицы
   const tableSelection = ref<any[]>([]);
   const isTableScrollable = ref(true);
 
+  // Список колонок для отображения в таблице (Обрабатываем TABLE_COLUMNS, если они существуют)
   const columns = computed(() => {
-    if (!props.tableColumns) return [];
+    const columnsList: any[] = [];
 
-    const columnsList: Array<{ field: string; header: string; frontendClass?: string }> = [];
-
-    // Обрабатываем TABLE_COLUMNS
-    props.tableColumns.forEach((column: any, fieldName: string) => {
-      // Если поле видимое, добавляем его в список колонок таблицы
-      if (column.VISIBLE) {
-        columnsList.push({
-          field: fieldName,
-          header: `${column.label || fieldName} [${column.FRONTEND_CLASS}]`,
-          frontendClass: column.FRONTEND_CLASS || '',
-        });
-      }
-    });
+    if (props.tableColumns) {
+      props.tableColumns.forEach((column: any, fieldName: string) => {
+        // Если поле видимое, добавляем его в список колонок таблицы
+        if (column.VISIBLE) {
+          columnsList.push({
+            field: fieldName,
+            header: `${column.label || fieldName} [${column.FRONTEND_CLASS}]`,
+            frontendClass: column.FRONTEND_CLASS || '',
+          });
+        }
+      });
+    } else {
+      console.warn('tableColumns не определены, невозможно отобразить колонки');
+    }
 
     return columnsList;
   });
 
-  // Функция для получения frontendClass поля
   const getColumnFrontendClass = (fieldName: string): string => {
     if (!props.tableColumns || !props.tableColumns.has(fieldName)) return '';
     return props.tableColumns.get(fieldName)?.FRONTEND_CLASS || '';
@@ -206,7 +210,10 @@ onLazyLoad вызывается при прокрутке таблицы
   // Функция для определения стиля колонки
   const getColumnStyle = (field: string) => {
     if (isTableScrollable.value) {
-      // Для ID колонки можно задать меньшую ширину
+      // Если tableColumns не определены, возвращаем пустой стиль
+      if (!props.tableColumns) return '';
+
+      // Если ID колонки можно задать меньшую ширину
       if (field === props.primaryKey) {
         return 'width: 100px';
       }
@@ -226,7 +233,7 @@ onLazyLoad вызывается при прокрутке таблицы
     }
   };
 
-  // Создаем эмиттер для оповещения родителя о изменении выделенных строк, клике по строке
+  // эмиттер для оповещения родителя о изменении выделенных строк, клике по строке
   const emit = defineEmits<{
     (e: 'row-click', event: any): void;
     (e: 'selection-change', selection: any[]): void;
@@ -290,6 +297,11 @@ onLazyLoad вызывается при прокрутке таблицы
     flex-direction: column;
     height: 100%;
     width: 100%;
+  }
+
+  /* Стиль для курсора при наведении на строки таблицы */
+  :deep(.p-datatable-tbody > tr) {
+    cursor: pointer;
   }
 
   /* Стиль для подсветки новых записей */

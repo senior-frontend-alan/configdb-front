@@ -39,7 +39,7 @@ DynamicLayout: чисто презентационный компонент
           :moduleName="props.moduleName"
           :layout-elements="element.elementsIndex"
           :model-value="modelValue"
-          :patch-data="patchData"
+          :unsaved-changes="unsavedChanges"
           @update:model-value="(newValue) => emit('update:modelValue', newValue)"
         />
       </div>
@@ -52,7 +52,7 @@ DynamicLayout: чисто презентационный компонент
           :moduleName="props.moduleName"
           :layout-elements="element.elementsIndex"
           :model-value="modelValue"
-          :patch-data="patchData"
+          :unsaved-changes="unsavedChanges"
           @update:model-value="(newValue) => emit('update:modelValue', newValue)"
         />
       </div>
@@ -62,7 +62,7 @@ DynamicLayout: чисто презентационный компонент
         <div v-if="debugField(element)" class="debug-info">
           Поле: {{ element.name }}, Значение: {{ modelValue[element.name] }}
         </div>
-        <!-- {{ element.FRONTEND_CLASS }} -->
+        {{ element.FRONTEND_CLASS }}
         <!-- v-on="..." событие reset-field передается только компоненту ViewSetInlineLayout, а не всем компонентам полей. -->
         <component
           :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
@@ -70,6 +70,11 @@ DynamicLayout: чисто презентационный компонент
           :options="element"
           :model-value="modelValue[element.name]"
           :is-modified="isFieldModified(element.name) || false"
+          v-bind="
+            element.FRONTEND_CLASS === FRONTEND.VIEW_SET_INLINE_LAYOUT
+              ? { 'unsaved-changes': getFieldUnsavedChanges?.(element.name) }
+              : {}
+          "
           @update:model-value="updateFieldValue(element.name, $event)"
           v-on="element.FRONTEND_CLASS === FRONTEND.VIEW_SET_INLINE_LAYOUT ? { 'reset-field': (fieldName: string) => emit('reset-field', fieldName) } : {}"
         />
@@ -119,7 +124,8 @@ DynamicLayout: чисто презентационный компонент
     moduleName: string;
     layoutElements: Map<string, FormElement>;
     modelValue: Record<string, any>;
-    patchData?: Record<string, any>; // Данные о измененных полях (PATCH)
+    unsavedChanges?: Record<string, any>;
+    getFieldUnsavedChanges?: (fieldName: string) => Record<string, any>;
   }>();
 
   // В шаблоне Vue директива v-for работает с массивами
@@ -134,18 +140,18 @@ DynamicLayout: чисто презентационный компонент
   }>();
 
   const isFieldModified = (fieldName: string) => {
-    return props.patchData && fieldName in props.patchData;
+    return props.unsavedChanges && fieldName in props.unsavedChanges;
   };
 
-  const updateFieldValue = (name: string, value: any) => {
-    // Создаем копию текущего объекта modelValue
-    const updatedData = { ...props.modelValue };
 
-    // Обновляем значение поля
-    updatedData[name] = value;
+
+  const updateFieldValue = (name: string, value: any) => {
+    // Передаем родителю только измененное поле
+    const updatedData = { [name]: value };
+    
     // НЕ Удалять, в будущем тут будет валидация
 
-    // Отправляем обновленные данные родительскому компоненту
+    // Отправляем только измененное поле родительскому компоненту
     emit('update:modelValue', updatedData);
   };
 

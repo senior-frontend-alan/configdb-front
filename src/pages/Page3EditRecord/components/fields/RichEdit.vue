@@ -225,35 +225,44 @@
     value.value = '';
   };
 
-  // Настраиваем редактор после монтирования компонента
-  onMounted(async () => {
-    // Динамически импортируем и регистрируем воркеры для проверки синтаксиса
-    // Это работает с Vite, который поддерживает динамические импорты
-    const jsonWorker = await import('ace-builds/src-noconflict/worker-json?url');
-    const htmlWorker = await import('ace-builds/src-noconflict/worker-html?url');
-    const jsWorker = await import('ace-builds/src-noconflict/worker-javascript?url');
-    const cssWorker = await import('ace-builds/src-noconflict/worker-css?url');
-    const xmlWorker = await import('ace-builds/src-noconflict/worker-xml?url');
-    const yamlWorker = await import('ace-builds/src-noconflict/worker-yaml?url');
+  const setupWorkers = async () => {
+    try {
+      // Динамически импортируем и регистрируем воркеры для проверки синтаксиса
+      // Это работает с Vite, который поддерживает динамические импорты
+      const jsonWorker = await import('ace-builds/src-noconflict/worker-json?url');
+      const htmlWorker = await import('ace-builds/src-noconflict/worker-html?url');
+      const jsWorker = await import('ace-builds/src-noconflict/worker-javascript?url');
+      const cssWorker = await import('ace-builds/src-noconflict/worker-css?url');
+      const xmlWorker = await import('ace-builds/src-noconflict/worker-xml?url');
+      const yamlWorker = await import('ace-builds/src-noconflict/worker-yaml?url');
 
-    // Регистрируем URL воркеров
-    ace.config.setModuleUrl('ace/mode/json_worker', jsonWorker.default);
-    ace.config.setModuleUrl('ace/mode/html_worker', htmlWorker.default);
-    ace.config.setModuleUrl('ace/mode/javascript_worker', jsWorker.default);
-    ace.config.setModuleUrl('ace/mode/css_worker', cssWorker.default);
-    ace.config.setModuleUrl('ace/mode/xml_worker', xmlWorker.default);
-    ace.config.setModuleUrl('ace/mode/yaml_worker', yamlWorker.default);
+      // Регистрируем URL воркеров
+      ace.config.setModuleUrl('ace/mode/json_worker', jsonWorker.default);
+      ace.config.setModuleUrl('ace/mode/html_worker', htmlWorker.default);
+      ace.config.setModuleUrl('ace/mode/javascript_worker', jsWorker.default);
+      ace.config.setModuleUrl('ace/mode/css_worker', cssWorker.default);
+      ace.config.setModuleUrl('ace/mode/xml_worker', xmlWorker.default);
+      ace.config.setModuleUrl('ace/mode/yaml_worker', yamlWorker.default);
 
-    // Проверяем, что экземпляр редактора доступен
-    // Когда мы регистрируем URL-адреса воркеров с помощью ace.config.setModuleUrl(),
-    // нам также нужно явно включить использование воркеров для уже существующих экземпляров редактора.
-    if (aceEditorRef.value) {
-      const editor = aceEditorRef.value.getAceInstance();
-      if (editor) {
-        // Включаем проверку синтаксиса
-        editor.getSession().setUseWorker(true);
+      // Проверяем, что экземпляр редактора доступен
+      // Когда мы регистрируем URL-адреса воркеров с помощью ace.config.setModuleUrl(),
+      // нам также нужно явно включить использование воркеров для уже существующих экземпляров редактора.
+      if (aceEditorRef.value) {
+        const editor = aceEditorRef.value.getAceInstance();
+        if (editor) {
+          // Включаем проверку синтаксиса
+          editor.getSession().setUseWorker(true);
+        }
       }
+    } catch (error) {
+      console.warn('Failed to setup ace workers:', error);
     }
+  };
+
+  // Настраиваем редактор после монтирования компонента
+  onMounted(() => {
+    // Запускаем асинхронную настройку воркеров
+    setupWorkers();
   });
 </script>
 
