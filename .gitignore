@@ -1,2 +1,6 @@
 node_modules
 dist
+components.d.ts
+
+# Локальная конфигурация (не коммитим локальные настройки)
+public/app.config.js

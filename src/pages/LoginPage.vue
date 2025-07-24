@@ -69,7 +69,7 @@
     <div class="login-container">
       <Card class="login-card">
         <template #content>
-          <form @submit.prevent="login" class="login-form">
+          <form @submit.prevent="login" class="login-form" data-testid="login-form">
             <InputGroup class="field">
               <InputGroupAddon>
                 <i class="pi pi-user"></i>
@@ -77,6 +77,7 @@
               <FloatLabel variant="in">
                 <InputText
                   id="in_label"
+                  data-testid="login-username-input"
                   v-model="username"
                   type="email"
                   required
@@ -95,6 +96,7 @@
               <FloatLabel variant="in">
                 <Password
                   id="password_label"
+                  data-testid="login-password-input"
                   v-model="password"
                   required
                   :feedback="false"
@@ -114,6 +116,7 @@
                 type="submit"
                 label="Войти"
                 class="p-button-primary w-full"
+                data-testid="login-submit-btn"
                 :loading="authStore.loading"
                 :disabled="!isLocalAuthAllowed || authStore.loading"
               />
@@ -123,12 +126,13 @@
                 type="button"
                 label="Разлогиниться (активная сессия)"
                 class="p-button-danger w-full"
+                data-testid="login-logout-btn"
                 :loading="authStore.loading"
                 @click="logout"
               />
             </div>
           </form>
-          <div v-if="authStore.error?.type" class="error-message">
+          <div v-if="authStore.error?.type" class="error-message" data-testid="login-error-message">
             <div>
               <i class="pi pi-exclamation-triangle" style="margin-right: 0.5rem"></i>
               <span v-if="authStore.error?.type">{{ authStore.error?.type }}</span
