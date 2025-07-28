@@ -96,15 +96,15 @@
               <FloatLabel variant="in">
                 <Password
                   id="password_label"
-                  data-testid="login-password-input"
                   v-model="password"
                   required
                   :feedback="false"
-                  :toggleMask="true"
+                  toggleMask
                   :disabled="!isLocalAuthAllowed || authStore.loading"
                   :invalid="!!(authStore.error && authStore.error.message)"
                   inputClass="w-full"
                   @input="clearError"
+                  :inputProps="{ 'data-testid': 'login-password-input' } as any"
                 />
                 <label for="password_label">Password*</label>
               </FloatLabel>
@@ -282,5 +282,10 @@
     background-color: rgba(3, 105, 161, 0.3);
     padding: 2px 0;
     backdrop-filter: blur(5px);
+  }
+
+  /* Чтобы глазик в поле Password был виден */
+  .p-password-toggle-mask-icon {
+    z-index: 1;
   }
 </style>
