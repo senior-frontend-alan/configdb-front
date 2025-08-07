@@ -1,23 +1,26 @@
 <template>
   <div class="w-full">
-    <FloatLabel variant="in" v-if="!hasTypeError">
-      <InputText
-        :id="id"
-        v-model="value"
-        :class="{ 'p-invalid': hasTypeError, 'field-modified': props.isModified }"
-        :disabled="disabled"
-        :required="required"
-        :placeholder="placeholder"
-        class="w-full"
-        :maxlength="max_length"
-      />
-      <label :for="id">{{ label }}</label>
-    </FloatLabel>
-
-    <small v-if="hasTypeError"
-      >{{ label }}: Неверный тип данных (получен {{ typeof props.modelValue }}:
-      {{ JSON.stringify(props.modelValue) }})</small
-    >
+    <InputGroup :class="{ 'field-modified': isModified }">
+      <FloatLabel variant="in">
+        <InputText
+          :id="id"
+          v-model="value"
+          :disabled="disabled"
+          :required="required"
+          :placeholder="placeholder"
+          class="w-full"
+          :maxlength="max_length"
+        />
+        <label :for="id">{{ label }}</label>
+      </FloatLabel>
+      <InputGroupAddon v-if="isModified">
+        <i
+          class="pi pi-undo cursor-pointer text-color-secondary hover:text-primary transition-colors"
+          @click="resetField"
+          v-tooltip="'Сбросить к исходному значению'"
+        />
+      </InputGroupAddon>
+    </InputGroup>
     <div class="flex align-items-center justify-content-end mt-1">
       <Message
         v-if="help_text"
@@ -36,12 +39,17 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue';
+  import { computed, useId } from 'vue';
   import InputText from 'primevue/inputtext';
   import FloatLabel from 'primevue/floatlabel';
+  import Message from 'primevue/message';
+  import InputGroup from 'primevue/inputgroup';
+  import InputGroupAddon from 'primevue/inputgroupaddon';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   // Определяем интерфейс для объекта options
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.CHAR;
     name: string;
     label?: string;
     placeholder?: string;
@@ -54,14 +62,14 @@
   }
 
   const props = defineProps<{
-    moduleName: string;
-    modelValue?: any; // !!!Вообще должно быть String но Vue проверяет типы пропсов перед отрисовкой и выводит ошибку в консоль если там не String
     options: FieldOptions;
-    isModified: boolean;
+    originalValue?: any;
+    draftValue?: any;
+    updateField?: (newValue: any) => void;
   }>();
 
-  // Извлекаем свойства из объекта options для удобства использования
-  const id = computed(() => props.options.name);
+  // Автоматически генерируем уникальный id для каждого компонента
+  const id = useId();
   const label = computed(
     () => (props.options.label || props.options.name) + (required.value ? ' *' : ''),
   );
@@ -71,40 +79,46 @@
   const help_text = computed(() => props.options.help_text);
   const max_length = computed(() => props.options.max_length);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: string): void;
-  }>();
+  const originalValue = computed(() => {
+    return props.originalValue;
+  });
 
-  // Проверка типа данных
-  const hasTypeError = ref(false);
+  const draftValue = computed(() => {
+    return props.draftValue;
+  });
 
-  // Используем вычисляемое свойство для двустороннего связывания
+  // Проверяем, изменено ли поле
+  const isModified = computed(() => {
+    const draft = draftValue.value;
+    const original = originalValue.value;
+
+    // Если нет draft значения, поле не изменено
+    if (draft === undefined) return false;
+
+    // Сравниваем значения (приводим к строкам для точного сравнения)
+    return String(original ?? '') !== String(draft ?? '');
+  });
+
+  const resetField = () => {
+    props.updateField?.(originalValue.value);
+  };
+
+  let debounceTimer: NodeJS.Timeout | null = null;
+
+  const debouncedUpdateField = (newValue: string) => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      props.updateField?.(newValue);
+    }, 300);
+  };
+
   const value = computed({
-    // Геттер - получаем значение из props
     get: () => {
-      // Проверяем тип данных
-      if (props.modelValue === null || props.modelValue === undefined) {
-        hasTypeError.value = false;
-        return '';
-      } else if (typeof props.modelValue === 'string') {
-        hasTypeError.value = false;
-        return props.modelValue;
-      } else {
-        // Если тип не строка, выводим ошибку в консоль
-        console.error(
-          `Ошибка типа в компоненте Char (${id.value}): ожидалась строка, получено:`,
-          typeof props.modelValue,
-          props.modelValue,
-        );
-        // Сохраняем информацию об ошибке для отображения в интерфейсе
-        hasTypeError.value = true;
-        return '';
-      }
+      // Используем только draftValue (полная копия)
+      const result = draftValue.value == null ? '' : String(draftValue.value);
+      return result;
     },
-    // Сеттер - отправляем событие при изменении
-    set: (newValue: string) => {
-      emit('update:modelValue', newValue);
-    },
+    set: debouncedUpdateField,
   });
 </script>
 

@@ -10,7 +10,7 @@
         :disabled="disabled"
         :required="required"
         class="w-full"
-        :class="{ 'field-modified': props.isModified }"
+        :class="{ 'field-modified': isModified }"
       />
       <label :for="id">{{ label }}</label>
     </FloatLabel>
@@ -48,9 +48,10 @@
   }
 
   const props = defineProps<{
-    modelValue?: string | number;
+    originalValue?: string | number;
+    draftValue?: string | number;
     options: FieldOptions;
-    isModified: boolean;
+    updateField: (newValue: any) => void;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
@@ -61,16 +62,17 @@
   const help_text = computed(() => props.options.help_text);
   const choiceOptions = computed(() => props.options.choices || []);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: string | number | null): void;
-  }>();
+  const isModified = computed(() => {
+    // Если нет draft значения, поле не изменено
+    if (props.draftValue === undefined) return false;
+
+    return props.draftValue !== props.originalValue;
+  });
 
   // Используем вычисляемое свойство для двустороннего связывания
   const value = computed({
-    get: () => props.modelValue,
-    set: (newValue: string | number | null) => {
-      emit('update:modelValue', newValue);
-    },
+    get: () => props.draftValue, // Всегда показываем только draftValue
+    set: (newValue: string | number | null) => props.updateField(newValue),
   });
 </script>
 

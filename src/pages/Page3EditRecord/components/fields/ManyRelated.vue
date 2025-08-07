@@ -1,29 +1,35 @@
-<!-- Отображаем как модальное окно с новой таблицей -->
+<!-- Page2CatalogDetails в модальном окне -->
 <template>
   <div>
     <InputGroup
       @click="!disabled && openDialog()"
-      :class="{ 'opacity-50': disabled }"
+      :class="{ 'field-modified': isModified, 'opacity-50': disabled }"
       :style="!disabled ? { cursor: 'pointer' } : {}"
     >
       <FloatLabel variant="in">
         <MultiSelect
-          :id="id"
-          :disabled="disabled"
+          :disabled="false"
           :required="required"
           display="chip"
-          :filter="true"
+          :filter="false"
           option-label="name"
-          :modelValue="modelValue || []"
-          :options="modelValue || []"
-          :class="{ 'p-invalid': props.options.errors, 'field-modified': props.isModified }"
-          @remove="handleChipRemove"
+          :modelValue="draftValue || []"
+          :options="draftValue || []"
+          :class="{ 'p-invalid': props.options.errors }"
           @update:modelValue="handleModelValueChange"
+          @click="!disabled && openDialog()"
+          :panelStyle="{ display: 'none' }"
         />
-        <label :for="id">{{ label }}</label>
+        <label>{{ label }}</label>
       </FloatLabel>
       <InputGroupAddon>
-        <i class="pi pi-search" :class="{ 'text-gray-400': disabled }"></i>
+        <i v-if="!isModified" class="pi pi-search" :class="{ 'text-gray-400': disabled }" />
+        <i
+          v-else
+          class="pi pi-undo cursor-pointer text-color-secondary hover:text-primary transition-colors"
+          @click.stop="resetField"
+          v-tooltip="'Сбросить к исходному значению'"
+        />
       </InputGroupAddon>
     </InputGroup>
 
@@ -47,7 +53,7 @@
           <span class="dialog-title">{{ $t('page3EditRecord.select') }}: {{ label }}</span>
           <div class="dialog-buttons">
             <Button
-              v-if="currentModuleName && currentApplName && currentCatalogName"
+              v-if="moduleName && props.options.appl_name && props.options.view_name"
               icon="pi pi-external-link"
               class="p-button-rounded p-button-text"
               @click="openInNewTab"
@@ -64,7 +70,6 @@
         <Message severity="error" :life="5000">{{ error }}</Message>
       </div>
       <div v-else class="catalog-details-container">
-        <!-- Встраиваем компонент CatalogDetails с передачей необходимых параметров -->
         <!-- Добавляем отладочную информацию -->
         <!-- <div class="p-2 bg-gray-100 mb-2">
           <div><strong>Выбранные строки:</strong> {{ tempSelectedItems.length }}</div>
@@ -76,10 +81,10 @@
         </div> -->
 
         <Page2CatalogDetails
-          v-if="currentModuleName && currentApplName && currentCatalogName"
-          :moduleName="currentModuleName"
-          :applName="currentApplName"
-          :catalogName="currentCatalogName"
+          v-if="moduleName && props.options.appl_name && props.options.view_name"
+          :moduleName="moduleName"
+          :applName="props.options.appl_name"
+          :catalogName="props.options.view_name"
           :isModalMode="true"
           selectionMode="multiple"
           @row-click="handleRowClick"
@@ -109,6 +114,8 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue';
+  import { useRoute } from 'vue-router';
+
   import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
   import Button from 'primevue/button';
   import MultiSelect from 'primevue/multiselect';
@@ -128,6 +135,7 @@
 
   interface ManyRelatedFieldOptions {
     FRONTEND_CLASS: typeof FRONTEND.MANY_RELATED; // Класс поля на фронтенде
+    name: string; // Имя поля
     class_name: string; // Класс поля на бэкенде
     element_id: string; // Уникальный идентификатор элемента
 
@@ -162,22 +170,50 @@
   }
 
   const props = defineProps<{
-    moduleName: string;
-    modelValue?: RelatedItem[] | null;
     options: ManyRelatedFieldOptions;
-    isModified: boolean;
+    // Пропсы от DynamicLayout
+    originalValue?: any;
+    draftValue?: any;
+    updateField?: (newValue: any) => void;
   }>();
 
-  // Извлекаем свойства из объекта options для удобства использования
-  const id = computed(() => props.options.name);
+  const route = useRoute();
+  // moduleName связанного каталога из параметров маршрута /:moduleName/:applName/:catalogName
+  const moduleName = computed(() => {
+    return route.params.moduleName as string;
+  });
+
+  // Из options
   const label = computed(() => props.options.label || props.options.name);
   const disabled = computed(() => Boolean(props.options.read_only));
   const required = computed(() => !props.options.allow_null);
   const help_text = computed(() => props.options.help_text);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: RelatedItem[] | null): void;
-  }>();
+  const originalValue = computed(() => {
+    return props.originalValue;
+  });
+
+  const draftValue = computed(() => {
+    return props.draftValue;
+  });
+
+  const isModified = computed(() => {
+    const draft = draftValue.value;
+    const original = originalValue.value;
+
+    if (draft === undefined) return false;
+
+    // Для массивов сравниваем по длине и id элементов
+    const originalArray = Array.isArray(original) ? original : [];
+    const draftArray = Array.isArray(draft) ? draft : [];
+
+    if (originalArray.length !== draftArray.length) return true;
+
+    const originalIds = originalArray.map((item) => item?.id).sort();
+    const draftIds = draftArray.map((item) => item?.id).sort();
+
+    return JSON.stringify(originalIds) !== JSON.stringify(draftIds);
+  });
 
   // Состояние компонента
   const dialogVisible = ref(false);
@@ -186,28 +222,22 @@
   // Используем ref для хранения временного состояния выбранных элементов
   const tempSelectedItems = ref<RelatedItem[]>([]);
 
-  // Вычисляемые свойства для использования в шаблоне
   const isSelectionEmpty = computed(() => {
     return !tempSelectedItems.value || tempSelectedItems.value.length === 0;
   });
 
-  // Используем computed для автоматического обновления при изменении props
-  const currentModuleName = computed(() => props.moduleName);
-  const currentApplName = computed(() => props.options.appl_name);
-  const currentCatalogName = computed(() => props.options.view_name);
-
   const openInNewTab = () => {
-    if (currentModuleName.value && currentApplName.value && currentCatalogName.value) {
-      const url = `/${currentModuleName.value}/${currentApplName.value}/${currentCatalogName.value}`;
+    if (moduleName.value && props.options.appl_name && props.options.view_name) {
+      const url = `/${moduleName.value}/${props.options.appl_name}/${props.options.view_name}`;
       window.open(url, '_blank');
     }
   };
 
   // Инициализируем временное состояние при открытии диалога
   const initTempSelectedItems = () => {
-    console.log('initTempSelectedItems - modelValue:', props.modelValue);
-    tempSelectedItems.value =
-      props.modelValue && Array.isArray(props.modelValue) ? [...props.modelValue] : [];
+    const currentItems = draftValue.value || [];
+    console.log('initTempSelectedItems - draftValue:', currentItems);
+    tempSelectedItems.value = [...currentItems];
     console.log('initTempSelectedItems - tempSelectedItems:', tempSelectedItems.value);
   };
 
@@ -232,10 +262,8 @@
   };
 
   const openDialog = () => {
-    if (disabled.value) return;
-
-    // Проверяем наличие необходимых параметров
-    if (!currentModuleName.value || !currentApplName.value || !currentCatalogName.value) {
+    if (!moduleName.value || !props.options.appl_name || !props.options.view_name) {
+      console.log('Не хватает параметров для открытия диалога');
       error.value = 'Не указан URL для загрузки связанных данных';
       return;
     }
@@ -243,7 +271,7 @@
     dialogVisible.value = true;
     error.value = null;
     initTempSelectedItems();
-    
+
     // Page2CatalogDetails сам загрузит данные при монтировании
   };
 
@@ -258,42 +286,31 @@
   };
 
   const saveSelection = () => {
-    // Отправляем выбранные элементы в родительский компонент
     const selectedItems = tempSelectedItems.value.length > 0 ? tempSelectedItems.value : null;
-    emit('update:modelValue', selectedItems);
+    // Сохраняем выбранные элементы в store
+    props.updateField?.(selectedItems);
     closeDialog();
   };
 
-  // Обработка удаления чипса (элемента) из MultiSelect
-  const handleChipRemove = (event: any) => {
-    console.log('Удален элемент:', event.value);
-
-    // Обновляем modelValue, удаляя выбранный элемент
-    const updatedValue = props.modelValue
-      ? props.modelValue.filter((item: any) => item.id !== event.value.id)
-      : [];
-
-    // Отправляем обновленное значение в родительский компонент
-    emit('update:modelValue', updatedValue.length > 0 ? updatedValue : null);
-
-    // Обновляем временное состояние выбранных элементов
-    tempSelectedItems.value = [...updatedValue];
-  };
-
-  // Обработка изменения modelValue в MultiSelect
+  // Обработка изменения modelValue (включая удаление чипсов)
   const handleModelValueChange = (newValue: any[]) => {
-    console.log('Изменено значение modelValue:', newValue);
+    console.log('handleModelValueChange вызван!');
+    console.log('Новое значение:', newValue);
+    console.log('Текущее значение:', draftValue.value);
 
-    // Если изменение произошло не через диалог, а напрямую в MultiSelect
-    if (!dialogVisible.value) {
-      emit('update:modelValue', newValue && newValue.length > 0 ? newValue : null);
-      tempSelectedItems.value = newValue || [];
-    }
+    props.updateField?.(newValue);
+    console.log('Поле обновлено');
+
+    // Обновляем временное состояние
+    tempSelectedItems.value = newValue || [];
   };
 
   const resetTempSelectedItems = () => {
-    tempSelectedItems.value =
-      props.modelValue && Array.isArray(props.modelValue) ? [...props.modelValue] : [];
+    tempSelectedItems.value = [...(draftValue.value || [])];
+  };
+
+  const resetField = () => {
+    props.updateField?.(originalValue.value);
   };
 
   // Инициализируем при монтировании компонента

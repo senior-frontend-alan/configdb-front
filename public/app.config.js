@@ -36,6 +36,13 @@ window.APP_CONFIG = {
   // Конфигурация модулей
   modules: [
     {
+      label: 'Core',
+      urlPath: 'core', // URL-путь справочники транзакций, пользователей, ролей, таблицы пользователей
+      routes: {
+        getCatalog: 'http://localhost:7008/api/v1/-catalog',
+      },
+    },
+    {
       label: 'Catalog1',
       urlPath: 'module_catalog', // URL-путь для модуля/Название Cтора в котором хранятся данные на UI
       routes: {

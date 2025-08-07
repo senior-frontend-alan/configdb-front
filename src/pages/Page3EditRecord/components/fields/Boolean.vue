@@ -2,11 +2,12 @@
   <div>
     <div class="flex align-items-center mb-1">
       <Checkbox
+        :class="{ 'field-modified': isModified }"
         :id="id"
         v-model="value"
         :binary="true"
         :disabled="disabled"
-        :class="{ 'field-modified': props.isModified }"
+        :required="required"
       />
       <label :for="id" class="ml-2">{{ label }}</label>
     </div>
@@ -26,38 +27,46 @@
   import { computed } from 'vue';
   import Checkbox from 'primevue/checkbox';
 
-  // Определяем интерфейс для объекта options
   interface FieldOptions {
     name: string;
     label?: string;
-    readonly?: boolean;
+    required?: boolean;
+    disabled?: boolean;
     help_text?: string;
-    // Другие возможные свойства
-    [key: string]: any;
   }
 
   const props = defineProps<{
-    moduleName: string;
-    modelValue?: boolean;
     options: FieldOptions;
-    isModified: boolean;
+    originalValue?: boolean;
+    draftValue?: boolean;
+    updateField?: (newValue: boolean) => void;
   }>();
 
-  // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);
-  const disabled = computed(() => props.options.readonly || false);
+  const disabled = computed(() => props.options.disabled || false);
+  const required = computed(() => props.options.required || false);
   const help_text = computed(() => props.options.help_text);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: boolean): void;
-  }>();
+  // Проверяем, изменено ли поле (сравниваем draft и original)
+  const isModified = computed(() => {
+    // Нормализуем значения - undefined трактуем как false для boolean полей
+    // При создании новой записи у нас поля undefined и мы не должны их подсвечивать как измененные
+    const normalizedDraft = props.draftValue ?? false;
+    const normalizedOriginal = props.originalValue ?? false;
+
+    // Сравниваем нормализованные значения
+    return normalizedDraft !== normalizedOriginal;
+  });
 
   // Используем вычисляемое свойство для двустороннего связывания
   const value = computed({
-    get: () => props.modelValue ?? false, // Используем нулевое слияние для проверки null и undefined
+    get: () => {
+      // Используем только draftValue (полная копия)
+      return props.draftValue ?? false;
+    },
     set: (newValue: boolean) => {
-      emit('update:modelValue', newValue);
+      props.updateField?.(newValue);
     },
   });
 </script>

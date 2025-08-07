@@ -1,5 +1,5 @@
 <template>
-  <div class="mb-1 p-2 border rounded-lg" :class="{ 'field-modified': props.isModified }">
+  <div class="mb-1 p-2 border rounded-lg" :class="{ 'field-modified': isModified }">
     <div class="flex justify-content-between align-items-center mb-1">
       <div class="flex align-items-center gap-2 mb-2">
         <label :for="id">{{ label }}</label>
@@ -31,7 +31,6 @@
     </div>
     <VAceEditor
       ref="aceEditorRef"
-      :id="id"
       v-model:value="value"
       :lang="editorMode"
       :theme="'chrome'"
@@ -39,7 +38,7 @@
       :readonly="readonly"
       :options="editorOptions"
       class="w-full"
-      style="height: 300px"
+      style="height: 130px"
       @init="editorInit"
     />
   </div>
@@ -49,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, onMounted } from 'vue';
+  import { computed, onMounted, ref, watch } from 'vue';
   import { VAceEditor } from 'vue3-ace-editor';
   import ace from 'ace-builds';
   import Message from 'primevue/message';
@@ -110,10 +109,10 @@
   }
 
   const props = defineProps<{
-    modelValue?: string;
+    originalValue?: string;
+    draftValue?: string;
     options: FieldOptions;
-    isModified: boolean;
-    moduleName?: string;
+    updateField: (newValue: any) => void;
   }>();
 
   const id = computed(() => props.options.name);
@@ -145,13 +144,20 @@
     highlightActiveLine: true,
     // Настройки для отображения ошибок
     useWorker: true,
+    // minLines и maxLines убраны для фиксированной высоты
+    // если устанавливать высоту через них, то происходит пересчет высоты и мерцание
+    // при каждом изменении значения в редакторе
   }));
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: string): void;
-  }>();
+  const isModified = computed(() => {
+    // Если нет draft значения, поле не изменено
+    if (props.draftValue === undefined) return false;
 
-  const value = ref(props.modelValue || '');
+    // Простое сравнение
+    return props.draftValue !== props.originalValue;
+  });
+
+  const value = ref(props.draftValue ?? '');
 
   // Оба вызова setUseWorker(true) действительно необходимы:
   // Вызов в editorInit срабатывает, когда редактор только инициализируется через событие @init
@@ -189,35 +195,40 @@
   // Проблема с двусторонней привязкой: ACE Editor требует прямой привязки к переменной, которую можно изменять. Если мы используем computed, то:
   // Мы можем создать getter для чтения значения из props
   // Но для setter нам всё равно придётся вызывать emit, что не даёт преимуществ перед текущим подходом
-  // Проблема с производительностью: ACE Editor - это сложный компонент, который часто обновляет своё значение. Computed свойство будет пересчитываться при каждом изменении, что может негативно влиять на производительность.
+  // Проблема с производительностью: ACE Editor - это сложный компонент, который часто обновляет своё значение.
+  // Computed свойство будет пересчитываться при каждом изменении, что может негативно влиять на производительность.
   // Проблема с синхронизацией: Компонент VAceEditor ожидает ref-переменную для v-model:value, а не computed свойство.
 
-  // Обновляем локальное значение при изменении props.modelValue
+  // Синхронизация с draftValue
   watch(
-    () => props.modelValue,
+    () => props.draftValue,
     (newValue) => {
-      value.value = newValue || '';
+      // Для ACE Editor преобразуем null/undefined в пустую строку
+      const editorValue = newValue ?? '';
+      if (value.value !== editorValue) {
+        value.value = editorValue;
+      }
     },
   );
 
-  // Отправляем событие при изменении локального значения
+  // Обновление поля (только от пользователя)
   watch(value, (newValue) => {
-    emit('update:modelValue', newValue);
+    // Обновляем только если значение реально изменилось
+    if (newValue !== (props.draftValue ?? '')) {
+      props.updateField(newValue);
+    }
   });
 
   // Ссылки на экземпляр редактора
   const aceEditorRef = ref<any>(null);
   const aceInstance = ref<any>(null);
 
-  // Сохраняем оригинальное значение для возможности отмены изменений
-  const originalValue = ref(props.modelValue || '');
-
   const isValueChanged = computed(() => {
-    return value.value !== originalValue.value;
+    return value.value !== (props.originalValue || '');
   });
 
   const resetToOriginal = () => {
-    value.value = originalValue.value;
+    props.updateField(props.originalValue);
   };
 
   // Метод для очистки поля

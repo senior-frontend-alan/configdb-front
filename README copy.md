@@ -4,7 +4,7 @@
 
 Нужно использовать опции -x с точными путями
 bash
-zip -r configdb-front.zip . -x "./node_modules/_" -x "./.git/_"
+zip -r configdb-front.zip . -x "node_modules/*" ".git/*"
 
 Или явно указать только нужные директории и файлы для включения в архив:
 

@@ -10,7 +10,7 @@
       showTime
       hourFormat="24"
       class="w-full"
-      :class="{ 'field-modified': props.isModified }"
+      :class="{ 'field-modified': isModified }"
     />
     <label :for="id">{{ label }}</label>
   </FloatLabel>
@@ -31,7 +31,6 @@
   import FloatLabel from 'primevue/floatlabel';
   import Message from 'primevue/message';
 
-  // Определяем интерфейс для объекта options
   interface FieldOptions {
     name: string;
     label?: string;
@@ -44,10 +43,10 @@
   }
 
   const props = defineProps<{
-    moduleName: string;
-    modelValue?: Date | string;
+    originalValue?: Date | string;
+    draftValue?: Date | string;
     options: FieldOptions;
-    isModified: boolean;
+    updateField: (newValue: any) => void;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
@@ -58,9 +57,12 @@
   const required = computed(() => props.options.required || false);
   const help_text = computed(() => props.options.help_text);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: Date | null): void;
-  }>();
+  const isModified = computed(() => {
+    // Если нет draft значения, поле не изменено
+    if (props.draftValue === undefined) return false;
+
+    return props.draftValue !== props.originalValue;
+  });
 
   // Преобразование строки в объект Date, если необходимо
   const parseDate = (value: Date | string | undefined): Date | null => {
@@ -71,12 +73,9 @@
 
   // Используем вычисляемое свойство для двустороннего связывания
   const value = computed({
-    get: () => parseDate(props.modelValue),
-    set: (newValue: Date | null) => {
-      emit('update:modelValue', newValue);
-    },
+    get: () => parseDate(props.draftValue), // Всегда показываем только draftValue
+    set: (newValue: Date | null) => props.updateField(newValue),
   });
-  // Используем computed вместо watch
 </script>
 
 <style scoped>

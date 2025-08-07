@@ -3,6 +3,37 @@ import { defineStore, getActivePinia } from 'pinia';
 import { type Module } from '../types/global';
 import type { CatalogsAPIResponseGET } from './types/catalogsAPIResponseGET.type';
 
+/**
+ * Функция для глубокого клонирования объектов
+ * @param obj Объект для клонирования
+ * @returns Глубокая копия объекта
+ */
+function deepClone<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (obj instanceof Date) {
+    return new Date(obj.getTime()) as T;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepClone(item)) as T;
+  }
+
+  if (typeof obj === 'object') {
+    const cloned = {} as T;
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        cloned[key] = deepClone(obj[key]);
+      }
+    }
+    return cloned;
+  }
+
+  return obj;
+}
+
 // Типы для JS-функций модулей
 export interface ModuleJSInterface {
   [functionName: string]: Function;
@@ -84,7 +115,6 @@ const baseJSInterface: ModuleJSInterface = {
   },
 };
 
-// Маршрутизатор → Стор → Компоненты
 // Модуль-фабрика отвечает за создание и управление сторами
 // Сторы должны получать moduleName от роутера через параметры или композабл useModuleName
 
@@ -148,7 +178,7 @@ export interface Catalog {
     [key: string]: any;
   };
   OPTIONS: any;
-  // Динамические поля edit_{id} для редактирования записей
+  // Динамические поля {id} для редактирования записей
   // Каждое поле содержит Map с изменениями для конкретной записи
   [key: string]: any;
 }
@@ -165,7 +195,32 @@ export interface ModuleStore {
   error: any | null;
   fetchCatalogGroups: (moduleName: string) => Promise<any[]>;
   initCatalog: (applName: string, catalogName: string) => Catalog;
-  initEditField: (applName: string, catalogName: string, recordId: string) => Map<string, any>;
+  initRecord: (
+    applName: string,
+    catalogName: string,
+    recordId: string,
+    recordData: Record<string, any>,
+  ) => Record<string, any>;
+  updateRecordField: (
+    applName: string,
+    catalogName: string,
+    recordId: string,
+    fieldName: string,
+    fieldValue: any,
+  ) => { success: boolean; error?: Error };
+
+  resetRecord: (
+    applName: string,
+    catalogName: string,
+    recordId: string,
+  ) => { success: boolean; error?: Error };
+  resetRecordField: (
+    applName: string,
+    catalogName: string,
+    recordId: string,
+    fieldName: string,
+  ) => { success: boolean; error?: Error };
+  // initEditField: (applName: string, catalogName: string, recordId: string) => Map<string, any>;
   // Динамические каталоги будут добавляться с ключами "applName_catalogName"
   [catalogKey: string]: any;
 }
@@ -239,42 +294,55 @@ export function createModuleStore(moduleConfig: Module): any {
         return newCatalog;
       },
 
-      // Инициализация поле для конкретной записи
-      initEditField(applName: string, catalogName: string, recordId: string): Map<string, any> {
+      /**
+       * Инициализирует запись в сторе с переданными данными
+       * Создает оригинальную запись и полную копию для draft_{recordId}
+       * @param applName Имя приложения
+       * @param catalogName Имя каталога
+       * @param recordId ID записи
+       * @param recordData Данные записи
+       * @returns Данные записи
+       */
+      initRecord(
+        applName: string,
+        catalogName: string,
+        recordId: string,
+        recordData: Record<string, any>,
+      ): Record<string, any> {
         const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
-        const editKey = `edit_${recordId}`;
 
-        // Проверяем, существует ли каталог
         if (!(this as any)[catalogKey]) {
           console.error(`Каталог ${catalogKey} не найден, сначала инициализируйте его`);
-          return new Map<string, any>();
+          throw new Error(`Каталог ${catalogKey} не найден, сначала инициализируйте его`);
         }
 
-        // Проверяем, существует ли уже поле
-        if ((this as any)[catalogKey][editKey]) {
-          return (this as any)[catalogKey][editKey];
-        }
+        // Инициализируем оригинальную запись
+        (this as any)[catalogKey][recordId] = recordData;
 
-        const editField = new Map<string, any>();
+        // Создаем полную копию для draft (глубокое клонирование)
+        const draftKey = `draft_${recordId}`;
+        (this as any)[catalogKey][draftKey] = deepClone(recordData);
 
-        // Добавляем поле редактирования напрямую потому что $patch не создает поле, но зато делает его видимым в DevTools
-        (this as any)[catalogKey][editKey] = editField;
-
-        // Дополнительно используем $patch для обеспечения видимости в Vue DevTools
+        // Используем $patch для обеспечения реактивности
         this.$patch({
           [catalogKey]: {
             ...(this as any)[catalogKey],
-            [editKey]: editField,
+            [recordId]: recordData,
+            [draftKey]: deepClone(recordData),
           },
         });
 
-        return editField;
+        return recordData;
       },
 
-      // Инициализация поля несохраненных изменений
-      initUnsavedChangesField(applName: string, catalogName: string, recordId: string): any {
+      // Инициализация вложенного ключа для редактирования (напрямую в каталоге)
+      initNestedField(
+        applName: string,
+        catalogName: string,
+        nestedKey: string,
+        initialData: any = {},
+      ): any {
         const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
-        const unsavedChangesKey = `unsavedChanges_${recordId}`;
 
         // Проверяем, существует ли каталог
         if (!(this as any)[catalogKey]) {
@@ -282,25 +350,173 @@ export function createModuleStore(moduleConfig: Module): any {
           return {};
         }
 
-        // Проверяем, существует ли уже поле
-        if ((this as any)[catalogKey][unsavedChangesKey]) {
-          return (this as any)[catalogKey][unsavedChangesKey];
+        // Проверяем, существует ли уже вложенный ключ
+        if ((this as any)[catalogKey][nestedKey]) {
+          return (this as any)[catalogKey][nestedKey];
         }
 
-        const unsavedChangesField = {};
+        // Создаем вложенное поле с начальными данными
+        const nestedField = { ...initialData };
 
-        // Добавляем поле несохраненных изменений
-        (this as any)[catalogKey][unsavedChangesKey] = unsavedChangesField;
+        // Добавляем вложенное поле напрямую в каталог
+        (this as any)[catalogKey][nestedKey] = nestedField;
 
-        // Дополнительно используем $patch для обеспечения видимости в Vue DevTools
+        // Поле для хранения измененных полей (draft) для вложенного ключа
+        const draftKey = `draft_${nestedKey}`;
+        (this as any)[catalogKey][draftKey] = {};
+
+        // Используем $patch для обеспечения реактивности
         this.$patch({
           [catalogKey]: {
             ...(this as any)[catalogKey],
-            [unsavedChangesKey]: unsavedChangesField,
+            [nestedKey]: nestedField,
+            [draftKey]: {},
           },
         });
 
-        return unsavedChangesField;
+        console.log(`Инициализирован вложенный ключ напрямую в каталоге: ${nestedKey}`);
+        return nestedField;
+      },
+
+      /**
+       * Обновляет конкретное поле записи в draft объекте (immutable подход)
+       * Оригинальные данные остаются неизменными
+       * @param applName Имя приложения
+       * @param catalogName Имя каталога
+       * @param recordId ID записи
+       * @param fieldName Имя поля
+       * @param fieldValue Новое значение поля
+       * @returns Результат операции
+       */
+      updateRecordField(
+        applName: string,
+        catalogName: string,
+        recordId: string,
+        fieldName: string,
+        fieldValue: any,
+      ): { success: boolean; error?: Error } {
+        const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+        const draftKey = `draft_${recordId}`;
+
+        if (!(this as any)[catalogKey] || !(this as any)[catalogKey][recordId]) {
+          return {
+            success: false,
+            error: new Error(`Запись ${recordId} не найдена в сторе`),
+          };
+        }
+
+        // Draft объект должен уже существовать после initRecord
+        if (!(this as any)[catalogKey][draftKey]) {
+          return {
+            success: false,
+            error: new Error(`Draft для записи ${recordId} не найден. Сначала вызовите initRecord.`),
+          };
+        }
+
+        // Обновляем конкретное поле в draft объекте
+        (this as any)[catalogKey][draftKey][fieldName] = fieldValue;
+
+        // Используем $patch для обеспечения реактивности
+        this.$patch({
+          [catalogKey]: {
+            ...(this as any)[catalogKey],
+            [draftKey]: {
+              ...(this as any)[catalogKey][draftKey],
+              [fieldName]: fieldValue,
+            },
+          },
+        });
+
+        console.log(`Поле ${fieldName} записи ${recordId} обновлено в draft:`, fieldValue);
+
+        return { success: true };
+      },
+
+      /**
+       * Очищает все изменения записи (очищает draft поле)
+       * Оригинальные данные остаются неизменными
+       * @param applName Имя приложения
+       * @param catalogName Имя каталога
+       * @param recordId ID записи
+       * @returns Результат операции
+       */
+      resetRecord(
+        applName: string,
+        catalogName: string,
+        recordId: string,
+      ): { success: boolean; error?: Error } {
+        const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+        const draftKey = `draft_${recordId}`;
+
+        if (!(this as any)[catalogKey] || !(this as any)[catalogKey][recordId]) {
+          return {
+            success: false,
+            error: new Error(`Запись ${recordId} не найдена в сторе`),
+          };
+        }
+
+        // Восстанавливаем draft как глубокую копию original данных
+        const originalData = (this as any)[catalogKey][recordId];
+        const draftCopy = deepClone(originalData);
+        
+        (this as any)[catalogKey][draftKey] = draftCopy;
+
+        // Используем $patch для обеспечения реактивности
+        this.$patch({
+          [catalogKey]: {
+            ...(this as any)[catalogKey],
+            [draftKey]: draftCopy,
+          },
+        });
+
+        return { success: true };
+      },
+
+      /**
+       * Сбрасывает одно поле записи к оригинальному значению (удаляет из draft)
+       * Оригинальные данные остаются неизменными
+       * @param applName Имя приложения
+       * @param catalogName Имя каталога
+       * @param recordId ID записи
+       * @param fieldName Имя поля
+       * @returns Результат операции
+       */
+      resetRecordField(
+        applName: string,
+        catalogName: string,
+        recordId: string,
+        fieldName: string,
+      ): { success: boolean; error?: Error } {
+        const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+        const draftKey = `draft_${recordId}`;
+
+        if (!(this as any)[catalogKey] || !(this as any)[catalogKey][recordId]) {
+          return {
+            success: false,
+            error: new Error(`Запись ${recordId} не найдена в сторе`),
+          };
+        }
+
+        // Проверяем, существует ли draft поле
+        if (!(this as any)[catalogKey][draftKey]) {
+          (this as any)[catalogKey][draftKey] = {};
+        }
+
+        // Удаляем поле из draft (сбрасываем к оригинальному значению)
+        delete (this as any)[catalogKey][draftKey][fieldName];
+
+        // Используем $patch для обеспечения реактивности
+        const updatedDraft = { ...(this as any)[catalogKey][draftKey] };
+        delete updatedDraft[fieldName];
+
+        this.$patch({
+          [catalogKey]: {
+            ...(this as any)[catalogKey],
+            [draftKey]: updatedDraft,
+          },
+        });
+
+        return { success: true };
       },
     },
   });

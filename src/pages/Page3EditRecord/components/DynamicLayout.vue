@@ -26,57 +26,49 @@ DynamicLayout: чисто презентационный компонент
       "
       >{{ JSON.stringify(elementsArray, null, 2) }}</pre
     >
-    <template v-for="(element, index) in elementsArray" :key="element.name || index">
+    <template v-for="(fieldMeta, index) in elementsArray" :key="fieldMeta.name || index">
       <!-- Если это секция (LayoutSection) -->
-      <!-- {{ element.class_name }} -->
-      <div v-if="element.class_name === BACKEND.class_name.LAYOUT_SECTION" class="layout-section">
-        <h3 v-if="element.label" class="section-title-wrapper">
-          <span class="section-title">{{ element.label }}</span>
+      <!-- {{ fieldMeta.class_name }} -->
+      <div v-if="fieldMeta.class_name === BACKEND.class_name.LAYOUT_SECTION" class="layout-section">
+        <h3 v-if="fieldMeta.label" class="section-title-wrapper">
+          <span class="section-title">{{ fieldMeta.label }}</span>
         </h3>
         <!-- Рекурсивно обрабатываем вложенные элементы -->
         <DynamicLayout
-          v-if="element.elements && element.elements.length > 0"
-          :moduleName="props.moduleName"
-          :layout-elements="element.elementsIndex"
-          :model-value="modelValue"
-          :unsaved-changes="unsavedChanges"
-          @update:model-value="(newValue) => emit('update:modelValue', newValue)"
+          v-if="fieldMeta.elements && fieldMeta.elements.length > 0"
+          :layout-elements="fieldMeta.elementsIndex"
+          :original-record-data="props.originalRecordData"
+          :draft-record-data="props.draftRecordData"
+          :update-field="props.updateField"
         />
       </div>
 
       <!-- Если это строка (LayoutRow) -->
-      <div v-else-if="element.class_name === BACKEND.class_name.LAYOUT_ROW" class="layout-row">
+      <div v-else-if="fieldMeta.class_name === BACKEND.class_name.LAYOUT_ROW" class="layout-row">
         <!-- Рекурсивно обрабатываем вложенные элементы строки -->
         <DynamicLayout
-          v-if="element.elements && element.elements.length > 0"
-          :moduleName="props.moduleName"
-          :layout-elements="element.elementsIndex"
-          :model-value="modelValue"
-          :unsaved-changes="unsavedChanges"
-          @update:model-value="(newValue) => emit('update:modelValue', newValue)"
+          v-if="fieldMeta.elements && fieldMeta.elements.length > 0"
+          :layout-elements="fieldMeta.elementsIndex"
+          :original-record-data="props.originalRecordData"
+          :draft-record-data="props.draftRecordData"
+          :update-field="props.updateField"
         />
       </div>
 
       <!-- Если это обычное поле -->
       <div v-else :class="{ 'form-field': true }">
-        <div v-if="debugField(element)" class="debug-info">
-          Поле: {{ element.name }}, Значение: {{ modelValue[element.name] }}
+        <div v-if="debugField(fieldMeta)" class="debug-info">
+          Поле: {{ fieldMeta.name }} (отладка отключена)
         </div>
-        {{ element.FRONTEND_CLASS }}
-        <!-- v-on="..." событие reset-field передается только компоненту ViewSetInlineLayout, а не всем компонентам полей. -->
+        {{ fieldMeta.FRONTEND_CLASS }}
+        <!-- Компоненты полей получают стандартные пропсы -->
+        <!-- PrimaryKeyRelated получает глобальные данные через inject -->
         <component
-          :is="getComponent(element.FRONTEND_CLASS || FRONTEND.CHAR)"
-          :moduleName="props.moduleName"
-          :options="element"
-          :model-value="modelValue[element.name]"
-          :is-modified="isFieldModified(element.name) || false"
-          v-bind="
-            element.FRONTEND_CLASS === FRONTEND.VIEW_SET_INLINE_LAYOUT
-              ? { 'unsaved-changes': getFieldUnsavedChanges?.(element.name) }
-              : {}
-          "
-          @update:model-value="updateFieldValue(element.name, $event)"
-          v-on="element.FRONTEND_CLASS === FRONTEND.VIEW_SET_INLINE_LAYOUT ? { 'reset-field': (fieldName: string) => emit('reset-field', fieldName) } : {}"
+          :is="getComponent(fieldMeta.FRONTEND_CLASS || FRONTEND.CHAR)"
+          :options="fieldMeta"
+          :original-value="props.originalRecordData?.[fieldMeta.name]"
+          :draft-value="props.draftRecordData?.[fieldMeta.name]"
+          :update-field="(newValue: any) => props.updateField?.(fieldMeta.name, newValue)"
         />
       </div>
     </template>
@@ -112,7 +104,7 @@ DynamicLayout: чисто презентационный компонент
 </script>
 
 <script setup lang="ts">
-  import { defineProps, defineEmits, computed, ref } from 'vue';
+  import { ref, computed } from 'vue';
   import { getComponent } from './fields';
   import { FRONTEND, BACKEND } from '../../../services/fieldTypeService';
   import Message from 'primevue/message';
@@ -121,11 +113,10 @@ DynamicLayout: чисто презентационный компонент
   const showDebugJson = ref(false); // Показывать ли JSON для отладки
 
   const props = defineProps<{
-    moduleName: string;
     layoutElements: Map<string, FormElement>;
-    modelValue: Record<string, any>;
-    unsavedChanges?: Record<string, any>;
-    getFieldUnsavedChanges?: (fieldName: string) => Record<string, any>;
+    originalRecordData?: Record<string, any>;
+    draftRecordData?: Record<string, any>;
+    updateField?: (fieldName: string, newValue: any) => void;
   }>();
 
   // В шаблоне Vue директива v-for работает с массивами
@@ -134,32 +125,15 @@ DynamicLayout: чисто презентационный компонент
     return elements;
   });
 
-  const emit = defineEmits<{
-    'update:modelValue': [value: Record<string, any>];
-    'reset-field': [fieldName: string];
-  }>();
+  // DynamicLayout теперь чисто презентационный компонент
+  const layoutId = Math.random().toString(36).substr(2, 9);
+  console.log(`DynamicLayout created with ID: ${layoutId}`);
 
-  const isFieldModified = (fieldName: string) => {
-    return props.unsavedChanges && fieldName in props.unsavedChanges;
-  };
-
-
-
-  const updateFieldValue = (name: string, value: any) => {
-    // Передаем родителю только измененное поле
-    const updatedData = { [name]: value };
-    
-    // НЕ Удалять, в будущем тут будет валидация
-
-    // Отправляем только измененное поле родительскому компоненту
-    emit('update:modelValue', updatedData);
-  };
-
-  // Функция для отладки полей формы
-  const debugField = (element: FormElement) => {
-    // console.log(`Поле ${element.name}:`, {
-    //   значение: props.modelValue[element.name],
-    //   метаданные: element,
+  // Функция для отладки полей формы (отключена)
+  const debugField = (_element: FormElement) => {
+    // console.log(`Поле ${_element.name}:`, {
+    //   значение: props.modelValue[_element.name],
+    //   метаданные: _element,
     // });
     return false; // Отключаем отображение отладочной информации в UI
   };

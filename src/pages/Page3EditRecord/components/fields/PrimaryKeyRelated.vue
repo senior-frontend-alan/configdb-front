@@ -1,32 +1,56 @@
 <!-- Отображаем как Page2CatalogDetails в модальном окне -->
+<!-- модальный выбор связанных записей -->
 <template>
   <div>
     <InputGroup
       @click="!disabled && openDialog()"
-      :class="{ 'opacity-50': disabled }"
+      :class="{ 'opacity-50': disabled, 'field-modified': isModified }"
       :style="!disabled ? { cursor: 'pointer' } : {}"
     >
+      <!-- Иконка замочка для заблокированных полей -->
+      <InputGroupAddon
+        v-if="relatedFieldsStatus.isBlocked"
+        style="background-color: var(--p-surface-200)"
+      >
+        <i class="pi pi-lock" />
+      </InputGroupAddon>
       <FloatLabel variant="in">
         <Select
-          :id="id"
-          :modelValue="selectedRecord"
-          :options="selectedRecord ? [selectedRecord] : []"
+          :modelValue="draftValue"
+          :options="draftValue ? [draftValue] : []"
           optionLabel="name"
           :disabled="disabled"
           :required="required"
-          :class="{ 'field-modified': props.isModified }"
         />
-        <label :for="id">{{ label }}</label>
+        <label>{{ label }} </label>
       </FloatLabel>
-      <InputGroupAddon>
-        <i class="pi pi-search" :class="{ 'text-gray-400': disabled }"></i>
+      <InputGroupAddon
+        v-if="relatedFieldsStatus.isBlocked"
+        style="background-color: var(--p-surface-200)"
+      >
+        <i
+          v-if="isModified"
+          class="pi pi-undo cursor-pointer text-color-secondary hover:text-primary transition-colors"
+          @click.stop="resetField"
+          v-tooltip="'Сбросить к исходному значению'"
+        />
+        <i v-else class="pi pi-search" :class="{ 'text-gray-400': disabled }" />
       </InputGroupAddon>
     </InputGroup>
 
-    <div v-if="help_text" class="flex align-items-center justify-content-between mt-1">
+    <div
+      v-if="help_text || relatedFieldsStatus.isBlocked"
+      class="flex align-items-center justify-content-between mt-1"
+    >
       <Message size="small" severity="secondary" variant="simple" class="flex-grow-1">
         {{ help_text }}
       </Message>
+    </div>
+    <div v-if="relatedFieldsStatus.isBlocked" :style="{ color: 'var(--field-modified-color)' }">
+      <div>Сначала заполните:</div>
+      <div v-for="field in missingFieldsList" :key="field">
+        {{ field }}
+      </div>
     </div>
 
     <!-- Модальное окно для выбора связанной записи -->
@@ -65,7 +89,6 @@
           :applName="currentApplName"
           :catalogName="currentCatalogName"
           :isModalMode="true"
-          :selectionMode="undefined"
           @row-click="customRowClick"
         />
       </div>
@@ -89,17 +112,19 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted } from 'vue';
-  import Page2CatalogDetails from '../../../../pages/Page2CatalogDetails/index.vue';
+  import { computed, inject, ref, type ComputedRef } from 'vue';
+  import { useRoute } from 'vue-router';
+  import { useToast } from 'primevue/usetoast';
+
+  import { FRONTEND } from '../../../../services/fieldTypeService';
   import Button from 'primevue/button';
+  import Dialog from 'primevue/dialog';
   import Select from 'primevue/select';
   import FloatLabel from 'primevue/floatlabel';
   import InputGroup from 'primevue/inputgroup';
   import InputGroupAddon from 'primevue/inputgroupaddon';
-  import Dialog from 'primevue/dialog';
   import Message from 'primevue/message';
-  import { FRONTEND } from '../../../../services/fieldTypeService';
-  import { getOrFetchRecord } from '../../../../stores/data-loaders';
+  import Page2CatalogDetails from '../../../Page2CatalogDetails/index.vue';
 
   interface RelatedItem {
     id: number | string;
@@ -138,39 +163,262 @@
     appl_name?: string; // Имя приложения
     lookup?: boolean; // Является ли поле поисковым
 
+    // ВАЖНО! Если есть related_fk, то мы не имеем право редактировать текущий компонент, пока связанное поле в форме не заполнено
+    // related_fk = "Related Foreign Key" - это механизм для фильтрации связанных данных на основе внешних ключей.
+
+    // При загрузке данных нужно учитывать связь через поле
+    // Загружать только записи, где char_spec = 3.
+    // related_fk: {
+    //   "char_spec": 3 - если число зафиксировали констранту (не зависит от выбора на поле формы)
+    //   "char_spec": "3" - если строка это имя поля на форме по которому мы должны обращаться (ремаппинг)
+    // }
+    // related_fk: [
+    //   "char_spec" - если строка, то это имя поля на форме ("Можно заполнять ТОЛЬКО если заполнено поле char_spec")
+    // ]
+
+    // То char_spec_value должен искать char_spec сначала в своем контексте (characteristics), а потом в глобальном контексте.
+
+    related_fk?: string[] | Record<string, any>; // Фильтры для связанных полей
+
     // Другие возможные свойства
     [key: string]: any;
   }
 
   const props = defineProps<{
-    moduleName: string;
-    modelValue?: RelatedItem | number | string | null;
     options: PrimaryKeyRelatedFieldOptions;
-    isModified: boolean;
+    // Пропсы от DynamicLayout
+    originalValue?: any;
+    draftValue?: any;
+    updateField?: (newValue: any) => void;
   }>();
 
-  // Извлекаем свойства из объекта options для удобства использования
-  const id = computed(() => props.options.name);
+  // Получаем две отдельные цепочки - все необходимые данные уже в них!
+  // [
+  //   {
+  //     // ← Прямая ссылка на currentEditingRecord.value (данные текущего контекста)
+  //     char_spec: "Цвет",
+  //     char_value: "Красный",
+  //     char_unit: "шт"
+  //   },
+  //   {
+  //     // ← Прямая ссылка на draftRecordData.value (данные контекста выше)
+  //     id: 1,
+  //     name: "iPhone 15",
+  //     price: 999.99,
+  //     category: { id: 2, name: "Смартфоны" }
+  //   }
+  //]
+  const dataChain = inject<ComputedRef<Record<string, any>[]>>(
+    'dataChain',
+    computed(() => []),
+  );
+
+  // metadataChain:
+  //[
+  //  Map {
+  //    // ← Прямая ссылка на props.options.elementsIndex (локальный ViewSetInlineLayout)
+  //    "char_1" => { name: "char_spec", label: "Тип характеристики", type: "CharField" },
+  //    "char_2" => { name: "char_value", label: "Значение", type: "CharField" },
+  //    "char_3" => { name: "char_unit", label: "Единица измерения", type: "CharField" }
+  //  },
+  //  Map {
+  //    // ← Прямая ссылка на currentCatalog.OPTIONS.layout.elementsIndex (глобальный)
+  //    "field_1" => { name: "name", label: "Название товара", type: "CharField" },
+  //    "field_2" => { name: "price", label: "Цена", type: "DecimalField" },
+  //    "field_3" => { name: "category", label: "Категория", type: "ForeignKey" }
+  //  }
+  //]
+  const metadataChain = inject<ComputedRef<Map<string, any>[]>>(
+    'metadataChain',
+    computed(() => []),
+  );
+
   const label = computed(() => props.options.label || props.options.name);
-  const disabled = computed(() => Boolean(props.options.read_only));
   const required = computed(() => !props.options.allow_null);
   const help_text = computed(() => props.options.help_text);
 
-  // Используем computed для автоматического обновления при изменении props
-  const currentModuleName = computed(() => props.moduleName);
+  // Функция для поиска label поля через цепочку контекстов
+  const getFieldLabel = (fieldName: string): string => {
+    console.log(`🔍 getFieldLabel вызван для '${fieldName}'`);
+    console.log(`🔗 Цепочка метаданных для label:`, metadataChain.value);
+
+    for (let i = 0; i < metadataChain.value.length; i++) {
+      const elementsMap = metadataChain.value[i];
+      const contextName =
+        i === 0
+          ? 'локальном'
+          : i === metadataChain.value.length - 1
+          ? 'глобальном'
+          : `промежуточном[${i}]`;
+
+      // Поиск в Map по всем элементам
+      for (const [, element] of elementsMap.entries()) {
+        if (element.name === fieldName && element.label) {
+          console.log(
+            `✅ Нашли label для '${fieldName}' в ${contextName} контексте: '${element.label}'`,
+          );
+          return element.label;
+        }
+      }
+      console.log(`🔍 Не нашли label для '${fieldName}' в ${contextName} контексте`);
+    }
+
+    console.log(`❌ Не нашли label для '${fieldName}' ни в одном из контекстов метаданных`);
+    return `Нет label в метаданных для ${fieldName}`;
+  };
+
+  // Функция для поиска значения поля по имени в цепочке данных
+  const getFieldValue = (fieldName: string): any => {
+    console.log(`🔍 getFieldValue вызван для '${fieldName}'`);
+    console.log(`🔗 Цепочка данных:`, dataChain.value);
+
+    for (let i = 0; i < dataChain.value.length; i++) {
+      const context = dataChain.value[i];
+      const contextName =
+        i === 0
+          ? 'локальном'
+          : i === dataChain.value.length - 1
+          ? 'глобальном'
+          : `промежуточном[${i}]`;
+
+      if (context && typeof context === 'object') {
+        const value = context[fieldName];
+        if (value !== undefined && value !== null) {
+          console.log(`✅ Нашли '${fieldName}' в ${contextName} контексте:`, value);
+          return value;
+        }
+        console.log(`🔍 Не нашли '${fieldName}' в ${contextName} контексте`);
+      }
+    }
+
+    console.log(`❌ Не нашли '${fieldName}' ни в одном из контекстов данных`);
+    return undefined;
+  };
+
+  // Проверяем заполненность связанных полей из related_fk
+  const relatedFieldsStatus = computed(() => {
+    console.log('🔍 relatedFieldsStatus computed called', {
+      fieldName: props.options.name,
+      relatedFk: props.options.related_fk,
+      dataChainLength: dataChain.value.length,
+      dataChain: dataChain.value,
+    });
+
+    const relatedFk = props.options.related_fk;
+    if (!relatedFk) {
+      console.log('❌ Early return - no relatedFk');
+      return { isBlocked: false, missingFields: [] };
+    }
+
+    const missingFields: string[] = [];
+
+    if (Array.isArray(relatedFk)) {
+      // related_fk: ["char_spec"] - проверяем поля формы
+      relatedFk.forEach((fieldName) => {
+        const fieldValue = getFieldValue(fieldName);
+        if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.id)) {
+          missingFields.push(getFieldLabel(fieldName));
+        }
+      });
+    } else if (typeof relatedFk === 'object') {
+      // related_fk: { "char_spec": "3" } - проверяем поля формы по строковым значениям
+      Object.entries(relatedFk).forEach(([, value]) => {
+        if (typeof value === 'string' && isNaN(Number(value))) {
+          // Это имя поля формы
+          const fieldValue = getFieldValue(value);
+          if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.id)) {
+            missingFields.push(getFieldLabel(value));
+          }
+        }
+        // Если value - число, то это константа, не блокируем
+      });
+    }
+
+    console.log('✅ relatedFieldsStatus result', {
+      fieldName: props.options.name,
+      isBlocked: missingFields.length > 0,
+      missingFields,
+      relatedFk,
+    });
+
+    return {
+      isBlocked: missingFields.length > 0,
+      missingFields,
+    };
+  });
+
+  const disabled = computed(() => {
+    return Boolean(props.options.read_only) || relatedFieldsStatus.value.isBlocked;
+  });
+
+  // Список недостающих полей для отображения
+  const missingFieldsList = computed(() => {
+    if (relatedFieldsStatus.value.isBlocked) {
+      const relatedFk = props.options.related_fk;
+      const missingFieldsWithContext: string[] = [];
+
+      if (Array.isArray(relatedFk)) {
+        // related_fk: ["char_spec"] - проверяем поля формы
+        relatedFk.forEach((fieldName) => {
+          const fieldValue = getFieldValue(fieldName);
+          if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.id)) {
+            const fieldLabel = getFieldLabel(fieldName);
+
+            // Определяем контекст поиска
+            let contextDescription = 'в текущем модальном окне';
+            if (dataChain.value.length > 0) {
+              const localContext = dataChain.value[0];
+              if (localContext && localContext.hasOwnProperty(fieldName)) {
+                contextDescription = 'в текущем модальном окне';
+              } else if (dataChain.value.length > 1) {
+                contextDescription = 'в родительском модальном окне';
+              }
+            }
+
+            missingFieldsWithContext.push(`${fieldLabel} (${contextDescription})`);
+          }
+        });
+      }
+
+      return missingFieldsWithContext;
+    }
+    return [];
+  });
+
+  // Получаем контекст для специфичных операций PrimaryKeyRelated
+  const route = useRoute();
+  const toast = useToast();
+  // moduleName связанного каталога из параметров маршрута /:moduleName/:applName/:catalogName
+  const currentModuleName = computed(() => {
+    return route.params.moduleName as string;
+  });
+  // applName и view_name связанного каталога из метаописания поля
   const currentApplName = computed(() => props.options.appl_name);
   const currentCatalogName = computed(() => props.options.view_name);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: string | number | null): void;
-  }>();
+  const originalValue = computed(() => {
+    return props.originalValue;
+  });
+
+  const draftValue = computed(() => {
+    return props.draftValue;
+  });
+
+  const isModified = computed(() => {
+    const draft = draftValue.value;
+    const original = originalValue.value;
+
+    // Если нет draft значения, поле не изменено
+    if (draft === undefined) return false;
+
+    // Для объектов сравниваем по id, для примитивов - напрямую
+    const getValue = (val: any) => val?.id ?? val;
+    return getValue(original) !== getValue(draft);
+  });
 
   // Состояние компонента
   const dialogVisible = ref(false);
   const error = ref<string | null>(null);
-
-  // Сохраняем полные данные о выбранной записи
-  const selectedRecord = ref<RelatedItem | null>(null);
 
   const openInNewTab = () => {
     if (currentModuleName.value && currentApplName.value && currentCatalogName.value) {
@@ -188,25 +436,61 @@
         name: rowData.name,
       };
 
-      selectedRecord.value = rowItem;
-      emit('update:modelValue', rowItem.id);
+      updateField(rowItem); // Сохраняем полный объект {id, name}
       dialogVisible.value = false;
+    } else {
+      const hasId = rowData && 'id' in rowData;
+      const hasName = rowData && 'name' in rowData;
+
+      console.log('PrimaryKeyRelated: rowData не подходит для выбора', {
+        rowData,
+        'has id': hasId,
+        'has name': hasName,
+        'available fields': Object.keys(rowData || {}),
+        '__str__ field': rowData?.__str__,
+      });
+
+      // Показываем toast с информацией о проблеме
+      if (hasId && !hasName) {
+        toast.add({
+          severity: 'warn',
+          summary: 'Ошибка выбора записи',
+          detail: `Не хватает поля 'name' для выбора. Доступные поля: ${Object.keys(
+            rowData || {},
+          ).join(', ')}`,
+          life: 5000,
+        });
+      } else if (!hasId) {
+        toast.add({
+          severity: 'error',
+          summary: 'Ошибка выбора записи',
+          detail: 'Отсутствует обязательное поле id',
+          life: 3000,
+        });
+      }
     }
   };
 
-  const openDialog = async () => {
-    if (disabled.value) return;
+  // Обновление поля через пропс
+  const updateField = (newValue: RelatedItem | null) => {
+    props.updateField?.(newValue);
+  };
 
+  const openDialog = async () => {
     dialogVisible.value = true;
     error.value = null;
 
-    if (!currentModuleName.value || !currentApplName.value || !currentCatalogName.value) {
-      error.value = 'Не указан URL для загрузки связанных данных';
+    // Проверяем наличие всех необходимых параметров для загрузки каталога
+    if (!currentApplName.value || !currentCatalogName.value) {
+      error.value = 'Не указаны параметры связанного каталога (appl_name или view_name)';
+      console.error('PrimaryKeyRelated: отсутствуют параметры каталога:', {
+        appl_name: currentApplName.value,
+        view_name: currentCatalogName.value,
+        options: props.options,
+      });
       return;
     }
-
-    // Не вызываем getOrfetchCatalogGET здесь, так как Page2CatalogDetails
-    // сам загрузит данные при монтировании
+    // Page2CatalogDetails сам загрузит данные при монтировании
   };
 
   const closeDialog = () => {
@@ -215,83 +499,14 @@
 
   // Очистка выбранного элемента и закрытие диалога
   const clearSelection = () => {
-    selectedRecord.value = null;
-    emit('update:modelValue', null);
-    closeDialog();
+    updateField(null);
+    dialogVisible.value = false;
   };
 
-  const createMinimalRecord = (id: string | number): RelatedItem => ({
-    id,
-    name: String(id),
-  });
-
-  // Для отображения name в компоненте Select нужно загрузить полные данные записи
-  // Функция для загрузки данных записи по ID т.к. modelValue приходит только ID связанной записи (число или строка),
-  // а не полный объект с данными (в базе данных связи между таблицами хранятся как внешние ключи (просто ID)
-  // При сохранении формы нам нужно отправить на сервер только ID связанной записи
-  const loadRecordData = async (id: string | number) => {
-    if (!id || !currentModuleName.value || !currentApplName.value || !currentCatalogName.value) {
-      return;
-    }
-
-    const result = await getOrFetchRecord(
-      currentModuleName.value,
-      currentApplName.value,
-      currentCatalogName.value,
-      String(id),
-    );
-
-    if (result.success && result.recordData) {
-      // Создаем объект RelatedItem из полученных данных
-      // Обеспечиваем, что name всегда имеет корректное значение
-      const recordName =
-        result.recordData.name ||
-        result.recordData.__str__ ||
-        result.recordData.display_name ||
-        `Record ${result.recordData.id}`;
-
-      selectedRecord.value = {
-        id: result.recordData.id,
-        name: recordName,
-        ...result.recordData,
-      };
-    } else if (result.error) {
-      console.error('Ошибка при загрузке данных записи:', result.error);
-      // Если не удалось загрузить данные, создаем минимальный объект с ID
-      selectedRecord.value = createMinimalRecord(id);
-    }
+  // Сброс к исходному значению (может быть null)
+  const resetField = () => {
+    updateField(originalValue.value);
   };
-
-  // При монтировании компонента загружаем данные записи, если есть ID
-  onMounted(() => {
-    if (props.modelValue) {
-      if (typeof props.modelValue === 'object') {
-        const modelValueObj = props.modelValue as RelatedItem;
-        const id = modelValueObj.id;
-
-        // Если у объекта уже есть корректное поле name, используем его
-        if (modelValueObj.name && modelValueObj.name !== 'undefined') {
-          selectedRecord.value = {
-            ...modelValueObj,
-            id: modelValueObj.id,
-            name: modelValueObj.name,
-          };
-        } else {
-          // Если name отсутствует или некорректно, загружаем данные
-          loadRecordData(id).catch((error) => {
-            console.error('Error loading record data in onMounted:', error);
-          });
-        }
-      } else {
-        // Если modelValue - это просто ID, загружаем данные
-        loadRecordData(props.modelValue).catch((error) => {
-          console.error('Error loading record data in onMounted:', error);
-        });
-      }
-    } else {
-      selectedRecord.value = null;
-    }
-  });
 </script>
 
 <style scoped>

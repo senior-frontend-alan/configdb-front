@@ -31,14 +31,13 @@ URL для создания новой записи: http://localhost:5173/catal
 
     <div v-else>
       <!-- Используем DynamicLayout для рекурсивного отображения элементов формы -->
+      <!-- DynamicLayout получает все данные как пропсы -->
       <DynamicLayout
         v-if="currentCatalog?.OPTIONS?.layout?.elementsIndex"
-        :moduleName="moduleName"
         :layout-elements="currentCatalog.OPTIONS.layout.elementsIndex"
-        :model-value="mergedData"
-        :unsaved-changes="getUnsavedChanges()"
-        @update:model-value="debouncedHandleFieldUpdate"
-        @reset-field="resetField"
+        :original-record-data="originalRecordData"
+        :draft-record-data="draftRecordData"
+        :update-field="updateField"
       />
 
       <!-- Панель кнопок, которая может быть фиксированной или нет в зависимости от прокрутки -->
@@ -46,18 +45,17 @@ URL для создания новой записи: http://localhost:5173/catal
         ref="formActionsRef"
         :class="[
           'flex justify-content-between mt-4 p-3',
-          hasUnsavedChanges && !isAtBottom ? 'sticky-form-actions' : '',
+          hasUnsavedChanges ? 'sticky-form-actions' : '',
         ]"
       >
         <Button
-          :label="`Отменить изменения: ${Object.keys(getUnsavedChanges()).length}`"
+          :label="hasUnsavedChanges ? `Отменить изменения: ${changedFieldsCount}` : 'Нет изменений'"
           icon="pi pi-undo"
           class="p-button-secondary"
           :disabled="!hasUnsavedChanges"
           @click="resetAllFields"
         />
         <div class="flex gap-2">
-          <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="goBack" />
           <Button
             label="Сохранить"
             icon="pi pi-check"
@@ -73,10 +71,10 @@ URL для создания новой записи: http://localhost:5173/catal
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted } from 'vue';
+  import { computed, ref, onMounted, onUnmounted, watch, provide } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
-  import { createRecord, updateRecord, getOrFetchRecord } from '../../stores/data-loaders';
-  import { useModuleStore, type Catalog } from '../../stores/module-factory';
+  import { createRecord, saveRecord, getOrFetchRecord } from '../../stores/data-loaders';
+  import { type Catalog, useModuleStore } from '../../stores/module-factory';
   import { useToast } from 'primevue/usetoast';
   import DynamicLayout from './components/DynamicLayout.vue';
   import Button from 'primevue/button';
@@ -102,44 +100,86 @@ URL для создания новой записи: http://localhost:5173/catal
   const catalogName = computed(() => props.catalogName || (route.params.catalogName as string));
   const recordId = computed(() => props.id || (route.params.id as string));
 
-  // Получаем стор модуля для работы с полями редактирования
+  // Определяем режим создания
+  const isCreateMode = computed(() => recordId.value === 'add');
+
+  // Получаем стор модуля
   const moduleStore = computed(() => useModuleStore(moduleName.value));
 
-  // Определяем, находимся ли мы в режиме создания новой записи
-  const isCreateMode = computed(() => !recordId.value || recordId.value === 'create');
-
-  // Хелпер для получения ID записи
-  const getRecordId = () => (isCreateMode.value ? 'create' : recordId.value);
-
-  // Ключи для стора
-  const editKey = computed(() => `edit_${getRecordId()}`);
-  const unsavedChangesKey = computed(() => `unsavedChanges_${getRecordId()}`);
-
-  // Устанавливаем currentCatalog из результата getOrFetchRecord
-  const currentCatalog = ref<Catalog | null>(null);
-
-  // Объединенные данные: оригинальные + несохраненные изменения
-  const mergedData = computed(() => {
-    if (!currentCatalog.value) {
-      return {};
-    }
-
-    const originalData = currentCatalog.value[editKey.value] || {};
-    const unsavedChanges = currentCatalog.value[unsavedChangesKey.value] || {};
-
-    return { ...originalData, ...unsavedChanges };
+  // Вычисляем catalogKey однажды в родительском компоненте
+  const catalogKey = computed(() => `${applName.value}_${catalogName.value.toLowerCase()}`);
+  const catalogData = computed(() => {
+    if (!moduleStore.value) return null;
+    return (moduleStore.value as any)[catalogKey.value];
   });
 
-  // Получаем несохраненные изменения
-  const getUnsavedChanges = () => {
-    if (!currentCatalog.value) return {};
-    return currentCatalog.value[unsavedChangesKey.value] || {};
+  // Вычисляем ссылки на данные записи
+  const originalRecordData = computed(() => {
+    return catalogData.value?.[recordId.value] || {};
+  });
+  const draftRecordData = computed(() => {
+    const draftKey = `draft_${recordId.value}`;
+    return catalogData.value?.[draftKey] || {};
+  });
+
+  // Функция обновления поля
+  const updateField = (fieldName: string, newValue: any) => {
+    moduleStore.value?.updateRecordField(
+      applName.value,
+      catalogName.value,
+      recordId.value,
+      fieldName,
+      newValue,
+    );
   };
 
-  const hasUnsavedChanges = computed(() => {
-    const changes = getUnsavedChanges();
-    return Object.keys(changes).length > 0;
+  // контекст для PrimaryKeyRelated
+  // Две отдельные цепочки для чистоты архитектуры
+  // 1. Цепочка данных для поиска значений полей
+  const dataChain = computed(() => [draftRecordData.value]);
+  provide('dataChain', dataChain);
+
+  // 2. Цепочка метаданных - просто ссылка на глобальный elementsIndex
+  const metadataChain = computed(() => {
+    const layoutElements = currentCatalog.value?.OPTIONS?.layout?.elementsIndex;
+    return layoutElements ? [layoutElements] : [];
   });
+  provide('metadataChain', metadataChain);
+
+  const currentCatalog = ref<Catalog | null>(null);
+
+  const changesInfo = computed(() => {
+    const original = originalRecordData.value;
+    const draft = draftRecordData.value;
+
+    // Быстрое сравнение по количеству ключей
+    const originalKeys = Object.keys(original);
+    const draftKeys = Object.keys(draft);
+
+    if (originalKeys.length !== draftKeys.length) {
+      return { hasChanges: true, count: Math.abs(originalKeys.length - draftKeys.length) };
+    }
+
+    // Подсчитываем измененные поля
+    let count = 0;
+    originalKeys.forEach((key) => {
+      const originalValue = original[key];
+      const draftValue = draft[key];
+
+      // Для простых типов - прямое сравнение
+      if (typeof originalValue !== 'object' || originalValue === null) {
+        if (originalValue !== draftValue) count++;
+      } else {
+        // Для объектов и массивов - JSON сравнение
+        if (JSON.stringify(originalValue) !== JSON.stringify(draftValue)) count++;
+      }
+    });
+
+    return { hasChanges: count > 0, count };
+  });
+
+  const hasUnsavedChanges = computed(() => changesInfo.value.hasChanges);
+  const changedFieldsCount = computed(() => changesInfo.value.count);
 
   // Состояние компонента
   const loading = ref(true);
@@ -154,72 +194,29 @@ URL для создания новой записи: http://localhost:5173/catal
       : `Редактирование записи: ${catalogName.value} (ID: ${recordId.value})`;
   });
 
-  let debounceTimer: number | null = null;
-
-  const debounce = (fn: Function, delay: number) => {
-    return function (...args: any[]) {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      debounceTimer = window.setTimeout(() => fn(...args), delay);
-    };
-  };
-
-  // Функция обработки изменений полей
-  const handleFieldUpdate = (updatedData: Record<string, any>) => {
-    if (!currentCatalog.value) return;
-
-    // Инициализируем поле если нужно
-    if (!currentCatalog.value[unsavedChangesKey.value]) {
-      const recordIdValue = isCreateMode.value ? 'create' : recordId.value;
-      moduleStore.value.initUnsavedChangesField(applName.value, catalogName.value, recordIdValue);
-    }
-
-    Object.assign(currentCatalog.value[unsavedChangesKey.value], updatedData);
-
-    console.log(
-      'Обновлены несохраненные изменения:',
-      currentCatalog.value[unsavedChangesKey.value],
-    );
-  };
-
-  const debouncedHandleFieldUpdate = debounce(handleFieldUpdate, 300);
-
   const resetAllFields = () => {
-    if (!currentCatalog.value) return;
+    // Сбрасываем draft данные к original через стор
+    const result = moduleStore.value?.resetRecord(
+      applName.value,
+      catalogName.value,
+      recordId.value,
+    );
 
-    if (currentCatalog.value[unsavedChangesKey.value]) {
-      // Очищаем объект несохраненных изменений
-      Object.keys(currentCatalog.value[unsavedChangesKey.value]).forEach((key) => {
-        delete currentCatalog.value![unsavedChangesKey.value][key];
+    if (!result?.success) {
+      console.error('Ошибка сброса данных:', result?.error);
+      toast.add({
+        severity: 'error',
+        summary: 'Ошибка',
+        detail: 'Не удалось отменить изменения',
+        life: 5000,
       });
-      console.log(`Очищены несохраненные изменения ${unsavedChangesKey.value}`);
-    }
-
-    toast.add({
-      severity: 'info',
-      summary: 'Изменения отменены',
-      detail: 'Все внесенные изменения были отменены',
-      life: 3000,
-    });
-  };
-
-  const resetField = (fieldName: string) => {
-    if (!currentCatalog.value) return;
-
-    const unsavedChanges = currentCatalog.value[unsavedChangesKey.value];
-
-    if (!unsavedChanges || !(fieldName in unsavedChanges)) {
-      console.log(`Поле ${fieldName} не было изменено, нечего сбрасывать`);
       return;
     }
-    delete unsavedChanges[fieldName];
-    console.log(`Удалено поле ${fieldName} из ${unsavedChangesKey.value}`);
 
     toast.add({
-      severity: 'info',
-      summary: 'Поле сброшено',
-      detail: `Изменения поля "${fieldName}" были отменены`,
+      severity: 'success',
+      summary: 'Изменения отменены',
+      detail: 'Все внесенные изменения были отменены',
       life: 3000,
     });
   };
@@ -273,21 +270,22 @@ URL для создания новой записи: http://localhost:5173/catal
     return result;
   };
 
-  // Сохранение данных (обновленная логика с edit_{id})
+  // Сохранение данных (обновленная логика с {id})
   const saveData = async () => {
     saving.value = true;
     error.value = null;
 
     try {
+      const dataToSave = draftRecordData.value;
+
       // Проверяем, что есть данные для сохранения
-      const unsavedChanges = getUnsavedChanges();
-      if (!unsavedChanges || Object.keys(unsavedChanges).length === 0) {
+      if (!dataToSave || Object.keys(dataToSave).length === 0) {
         throw new Error('Нет данных для сохранения');
       }
 
       try {
         // Создаем чистый объект данных без реактивности и циклических ссылок
-        const cleanData = cleanObject(unsavedChanges);
+        const cleanData = cleanObject(dataToSave);
         console.log('Данные для отправки:', cleanData);
 
         let recordIdentifier: string | null = null;
@@ -310,7 +308,7 @@ URL для создания новой записи: http://localhost:5173/catal
             recordIdentifier = result.recordId;
           } else {
             // Обновление в сторе существующей записи
-            const result = await updateRecord(
+            const result = await saveRecord(
               moduleName.value,
               applName.value,
               catalogName.value,
@@ -344,15 +342,6 @@ URL для создания новой записи: http://localhost:5173/catal
           detail: successMessage,
           life: 0, // Делает тоаст постоянным, пока пользователь не закроет
         });
-
-        // Очищаем поле редактирования после успешного сохранения
-        if (currentCatalog.value) {
-          const editField = currentCatalog.value[editKey.value] as Map<string, any>;
-          if (editField && editField instanceof Map) {
-            editField.clear();
-            console.log(`Очищено поле редактирования ${editKey.value} после сохранения`);
-          }
-        }
 
         // Возвращаемся к списку после сохранения
         goBack();
@@ -426,15 +415,13 @@ URL для создания новой записи: http://localhost:5173/catal
     loading.value = true;
     error.value = null;
 
-    // Загружаем данные в зависимости от режима
     const result = await getOrFetchRecord(
       moduleName.value,
       applName.value,
       catalogName.value,
-      getRecordId(),
+      recordId.value,
     );
 
-    // Обрабатываем результат загрузки
     if (!result.success) {
       error.value = result.error?.message || 'Ошибка загрузки данных';
       console.error('Ошибка загрузки данных:', result.error);
@@ -442,24 +429,11 @@ URL для создания новой записи: http://localhost:5173/catal
       return;
     }
 
-    // Сохраняем каталог
+    // Данные уже загружены в стор через initRecord
+    // originalRecordData и draftRecordData автоматически обновятся через computed
+
     if (result.catalog) {
       currentCatalog.value = result.catalog;
-    }
-
-    // Устанавливаем ID текущей записи для скроллинга
-    if (!isCreateMode.value && recordId.value && currentCatalog.value?.GET) {
-      currentCatalog.value.GET.lastEditedID = recordId.value;
-    }
-
-    // Инициализируем поля редактирования (каталог уже инициализирован в getOrFetchRecord)
-    if (moduleStore.value) {
-      await moduleStore.value.initEditField(applName.value, catalogName.value, getRecordId());
-      await moduleStore.value.initUnsavedChangesField(
-        applName.value,
-        catalogName.value,
-        getRecordId(),
-      );
     }
 
     loading.value = false;
@@ -533,17 +507,18 @@ URL для создания новой записи: http://localhost:5173/catal
 <style>
   /* Стили для модифицированных полей */
   .field-modified {
-    border-color: #ffb74d !important; /* Оранжевая граница */
+    outline: 2px solid var(--field-modified-color) !important; /* Оранжевая граница */
+    border-radius: 6px;
   }
 
   /* При наведении сохраняем цвет границы */
   .field-modified:hover {
-    border-color: #ff9800 !important;
+    border-color: var(--field-modified-color-dark) !important;
   }
 
   /* При фокусе сохраняем цвет границы, но делаем её ярче */
   .field-modified:focus {
-    border-color: #ff9800 !important;
-    box-shadow: 0 0 0 1px #ff9800 !important;
+    border-color: var(--field-modified-color-dark) !important;
+    box-shadow: 0 0 0 1px var(--field-modified-color-dark) !important;
   }
 </style>

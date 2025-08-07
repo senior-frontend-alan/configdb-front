@@ -3,6 +3,8 @@
 :root {
   --nexign-blue: #0d475b;
   --text-color-secondary: color-mix(in srgb, var(--nexign-blue) 60%, transparent);
+  --field-modified-color: #ffb74d; /* Оранжевый цвет для модифицированных полей */
+  --field-modified-color-dark: #e6a043; /* Темный вариант для hover/focus */
 }
 
 html {

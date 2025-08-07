@@ -54,7 +54,6 @@ onLazyLoad вызывается при прокрутке таблицы
           @column-reorder="onColumnReorder"
           class="p-datatable-sm transparent-header inner-shadow"
           v-model:selection="tableSelection"
-          :selectionMode="props.selectionMode"
           :dataKey="primaryKey"
           :scrollable="true"
           :resizableColumns="true"
@@ -65,22 +64,35 @@ onLazyLoad вызывается при прокрутке таблицы
           showGridlines
           rowHover
         >
-          <!-- Колонка с чекбоксами для массового выделения, если режим выбора multiple -->
           <!-- 
-          Режимы выбора строк (selectionMode):
-          single - позволяет выбрать только одну строку. По умолчанию клик по строке также вызывает выбор.
-          multiple - позволяет выбрать несколько строк. По умолчанию можно выбирать несколько строк без использования клавиши meta (⌘).
-          radiobutton - специальный режим для одиночного выбора, при котором выбор происходит только через радиокнопки, а не через клик по строке.
-          checkbox - специальный режим для множественного выбора через чекбоксы.
-          undefined или не указан - выбор строк отключен полностью.
+          Режимы выбора строк согласно документации PrimeVue:
+          single - Column с selectionMode="single" отображает радиокнопки.
+          
+          multiple - Column с selectionMode="multiple" отображает чекбоксы.
+                     Header checkbox позволяет выбрать/снять все строки.
+          undefined - выбор строк отключен полностью.
+          
+          ВАЖНО: selectionMode устанавливается на Column, а НЕ на DataTable!
+          Для чекбоксов, которые выбираются только при клике на чекбокс:
+          - НЕ устанавливать selectionMode на DataTable
+          - Установить selectionMode="multiple" только на Column
+          - Убрать обработчик @row-click для выбора (оставить только для навигации)
           -->
+          <!-- Колонка с чекбоксами для множественного выбора -->
           <Column
-            v-if="props.selectionMode"
-            :selectionMode="props.selectionMode"
+            v-if="props.selectionMode === 'multiple'"
+            selectionMode="multiple"
             headerStyle="width: 3rem"
           />
 
-          <!-- Динамические колонки -->
+          <!-- Колонка с радиокнопками для одиночного выбора -->
+          <Column
+            v-if="props.selectionMode === 'single'"
+            selectionMode="single"
+            headerStyle="width: 3rem"
+          />
+
+          <!-- Остальные колонки -->
           <Column
             v-if="columns && columns.length > 0"
             v-for="col in columns"
@@ -161,7 +173,8 @@ onLazyLoad вызывается при прокрутке таблицы
       loading?: boolean;
       isTableScrollable?: boolean;
       totalRecords?: number;
-      selectionMode?: 'single' | 'multiple';
+      selectionMode?: 'single' | 'multiple' | undefined;
+      modifiedRows?: Set<string>; // Множество ID измененных строк
     }>(),
     {
       loading: false,
@@ -224,6 +237,11 @@ onLazyLoad вызывается при прокрутке таблицы
   };
 
   const handleRowClick = (event: any) => {
+    // Предотвращаем автоматический выбор строки при клике
+    // if (event.originalEvent) {
+    //   event.originalEvent.preventDefault();
+    //   event.originalEvent.stopPropagation();
+    // }
     emit('row-click', event);
   };
 
@@ -281,7 +299,7 @@ onLazyLoad вызывается при прокрутке таблицы
   // Функция для определения класса строки
   const getRowClass = (data: any) => {
     return {
-      'new-record': data.isNew === true,
+      'field-modified': props.modifiedRows?.has(String(data.id)) || false,
     };
   };
 
@@ -305,16 +323,16 @@ onLazyLoad вызывается при прокрутке таблицы
   }
 
   /* Стиль для подсветки новых записей */
-  :deep(.new-record) > td {
+  :deep(.field-modified) > td {
     background-color: rgba(255, 183, 77, 0.1) !important;
   }
 
-  :deep(.new-record) {
+  :deep(.field-modified) {
     outline: 2px solid #ffb74d !important;
     outline-offset: -1px;
   }
 
-  :deep(.new-record:hover) {
+  :deep(.field-modified:hover) {
     outline-color: #ff9800 !important;
   }
 

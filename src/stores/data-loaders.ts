@@ -346,7 +346,7 @@ export async function getOrFetchRecord(
     // Проверяем кэш записи в самом начале
     const moduleStore = useModuleStore(moduleName);
     const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
-    const editKey = `edit_${recordId}`;
+    const editKey = `${recordId}`;
 
     // Проверяем, есть ли каталог и запись в кэше
     const existingCatalog = (moduleStore as any)[catalogKey];
@@ -384,8 +384,7 @@ export async function getOrFetchRecord(
 
     const recordData = await RecordService.sendRequest('GET', catalogUrl, recordId);
 
-    (moduleStore as any)[catalogKey][editKey] = recordData;
-    console.log(`Запись ${recordId} успешно загружена и сохранена в сторе`);
+    moduleStore.initRecord(applName, catalogName, editKey, recordData);
 
     return {
       success: true,
@@ -502,7 +501,7 @@ export async function createRecord(
 }
 
 /**
- * Обновляет существующую запись в каталоге
+ * Сохраняет запись в каталоге
  * @param moduleName Имя модуля
  * @param applName Имя приложения
  * @param catalogName Имя каталога
@@ -510,7 +509,7 @@ export async function createRecord(
  * @param data Данные для обновления записи
  * @returns Результат операции с обновленными данными
  */
-export async function updateRecord(
+export async function saveRecord(
   moduleName: string,
   applName: string,
   catalogName: string,
@@ -557,6 +556,8 @@ export async function updateRecord(
       }
     }
 
+    // + установиь id для скроллинга
+    // + очистить данные в сторе
     console.log(`Запись ${recordId} успешно обновлена`);
 
     return {

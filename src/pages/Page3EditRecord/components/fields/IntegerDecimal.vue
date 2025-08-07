@@ -13,7 +13,7 @@
       :maxFractionDigits="maxFractionDigits"
       :integerOnly="isInteger"
       class="w-full"
-      :class="{ 'field-modified': props.isModified }"
+      :class="{ 'field-modified': isModified }"
     />
     <label :for="id">{{ label }}</label>
   </FloatLabel>
@@ -34,7 +34,6 @@
   import FloatLabel from 'primevue/floatlabel';
   import Message from 'primevue/message';
 
-  // Определяем интерфейс для объекта options
   interface FieldOptions {
     name: string;
     label?: string;
@@ -51,10 +50,10 @@
   }
 
   const props = defineProps<{
-    moduleName: string;
-    modelValue?: number;
+    originalValue?: number;
+    draftValue?: number;
     options: FieldOptions;
-    isModified: boolean;
+    updateField: (newValue: any) => void;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
@@ -83,17 +82,17 @@
     isInteger.value ? 1 : Math.pow(10, -(props.options.decimal_places || 2)),
   );
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: number | null): void;
-    (e: 'reset-field', fieldName: string): void;
-  }>();
+  const isModified = computed(() => {
+    // Если нет draft значения, поле не изменено
+    if (props.draftValue === undefined) return false;
+
+    return props.draftValue !== props.originalValue;
+  });
 
   // Используем вычисляемое свойство для двустороннего связывания
   const value = computed({
-    get: () => props.modelValue,
-    set: (newValue: number | null) => {
-      emit('update:modelValue', newValue);
-    },
+    get: () => props.draftValue, // Всегда показываем только draftValue
+    set: (newValue: number | null) => props.updateField(newValue),
   });
 </script>
 

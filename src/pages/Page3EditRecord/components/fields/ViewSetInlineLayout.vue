@@ -1,15 +1,18 @@
 <!-- Отображаем как таблицу -->
+<!-- управление массивами объектов-->
+
+<!-- 1. Модальное окно работает с локальными данными-->
+<!-- 2. Обновление родительского массива происходит при сохранении -->
+<!-- Как Page3EditRecord рендерит DynamicLayout и предоставляет контекст -->
 <!-- 
   Согласно принципу разделения ответственности:
   1. Родительский компонент отвечает за загрузку данных
-  2. Компонент ViewSetInlineLayout отвечает за подготовку данных из пропсов
+  2. Компонент ViewSetInlineLayout отвечает за подготовку данных из пропсов и предоставление контекста
   3. Компонент DataTable отвечает только за отображение данных
-
-  DynamicLayout отвечает только за отображение формы
-ViewSetInlineLayout управляет состоянием и данными
+  4. Компонент DynamicLayout отвечает только за отображение формы
 -->
 <template>
-  <div class="mb-1 p-2 border rounded-lg" :class="{ 'field-modified': props.isModified }">
+  <div class="mb-1 p-2 border rounded-lg">
     <div v-if="!props.options?.TABLE_COLUMNS" class="empty-container">
       <Message severity="info">Нет колонок для отображения</Message>
     </div>
@@ -29,15 +32,15 @@ ViewSetInlineLayout управляет состоянием и данными
           <Button
             icon="pi pi-undo"
             class="p-button-sm p-button-outlined p-button-icon"
-            :disabled="!props.isModified"
-            @click="resetField"
+            :disabled="modifiedRowsSet.size === 0"
+            @click="resetArrayField"
             v-tooltip="'Отменить изменения'"
           />
           <Button
             icon="pi pi-trash"
             class="p-button-sm p-button-outlined p-button-icon"
             size="small"
-            @click="clearField"
+            @click="deleteSelectedRow"
             v-tooltip="'Удалить запись'"
           />
           <Button
@@ -53,7 +56,10 @@ ViewSetInlineLayout управляет состоянием и данными
         <div>
           <div class="flex align-items-center gap-2">
             <span class="text-secondary">
-              {{ rowCountDisplay }}
+              {{ draftArray.length }} / {{ selectedItems.length }}
+              <span v-if="deletedCount > 0" class="deleted-count-text">
+                (удалено: {{ deletedCount }})
+              </span>
             </span>
             <ColumnVisibilitySelector
               :table-columns="props.options?.TABLE_COLUMNS"
@@ -64,22 +70,23 @@ ViewSetInlineLayout управляет состоянием и данными
         </div>
       </div>
 
-      <CatalogDataTable
-        :tableRows="props.modelValue || []"
+      <DataTable
+        :tableRows="draftArray"
         :tableColumns="props.options?.TABLE_COLUMNS || new Map()"
         :primaryKey="props.options?.primary_key || 'id'"
         selectionMode="multiple"
         :selectedItems="selectedItems"
         :isTableScrollable="isTableScrollable"
+        :modifiedRows="modifiedRowsSet"
         locale="ru"
         @row-click="handleRowClick"
         @update:selectedItems="handleSelectedItemsChange"
       />
     </div>
 
-    <div v-if="props.help_text" class="flex align-items-center justify-content-between mt-1">
+    <div v-if="help_text" class="flex align-items-center justify-content-between mt-1">
       <Message size="small" severity="secondary" variant="simple" class="flex-grow-1">
-        {{ props.help_text }}
+        {{ help_text }}
       </Message>
     </div>
   </div>
@@ -104,32 +111,47 @@ ViewSetInlineLayout управляет состоянием и данными
     </div>
     <div v-else class="catalog-details-container">
       <!-- Используем компонент DynamicLayout для редактирования записи -->
+
       <DynamicLayout
-        v-if="props.options?.elementsIndex"
-        :moduleName="props.moduleName"
+        v-if="dialogVisible && props.options?.elementsIndex"
+        :key="`modal-dynamic-layout-${editingRecordId}`"
         :layout-elements="props.options.elementsIndex"
-        :model-value="newRecord"
-        :patch-data="{}"
-        @update:model-value="handleFieldUpdate"
+        :original-record-data="currentOriginalRecord"
+        :draft-record-data="currentEditingRecord"
+        :update-field="modalUpdateField"
       />
     </div>
     <template #footer>
-      <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="closeDialog" />
-      <Button :label="saveButtonLabel" icon="pi pi-check" @click="handleRecordSave" />
+      <div class="flex justify-content-between w-full">
+        <Button
+          :label="
+            modifiedFieldsCount > 0 ? `Отменить изменения: ${modifiedFieldsCount}` : 'Нет изменений'
+          "
+          icon="pi pi-undo"
+          class="p-button-secondary"
+          :disabled="modifiedFieldsCount === 0"
+          @click="resetModalRecord"
+        />
+        <div class="flex gap-2">
+          <Button label="Отмена" icon="pi pi-times" class="p-button-text" @click="closeDialog" />
+          <Button :label="saveButtonLabel" icon="pi pi-check" @click="handleRecordSave" />
+        </div>
+      </div>
     </template>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue';
+  import { ref, computed, provide, inject, type ComputedRef } from 'vue';
   import { FRONTEND } from '../../../../services/fieldTypeService';
-  import CatalogDataTable from '../../../../pages/Page2CatalogDetails/components/DataTable.vue';
-  import Message from 'primevue/message';
   import Button from 'primevue/button';
+  import Message from 'primevue/message';
   import Dialog from 'primevue/dialog';
-  import DynamicLayout from '../../components/DynamicLayout.vue';
-  import ColumnVisibilitySelector from '../../../../pages/Page2CatalogDetails/components/ColumnVisibilitySelector.vue';
+  import DataTable from '../../../Page2CatalogDetails/components/DataTable.vue';
+  import ColumnVisibilitySelector from '../../../Page2CatalogDetails/components/ColumnVisibilitySelector.vue';
+  import DynamicLayout from '../DynamicLayout.vue';
 
+  // Определяем интерфейс для объекта options
   interface FieldOptions {
     FRONTEND_CLASS: typeof FRONTEND.VIEW_SET_INLINE_LAYOUT;
     elementsIndex: Map<string, any>;
@@ -140,6 +162,8 @@ ViewSetInlineLayout управляет состоянием и данными
     element_id: string;
     name: string;
     label?: string;
+    readonly?: boolean;
+    required?: boolean;
     help_text?: string;
     allow_empty?: boolean;
     list_view_items?: number;
@@ -155,138 +179,332 @@ ViewSetInlineLayout управляет состоянием и данными
 
   // Определяем тип для связанных элементов
   interface RelatedItem {
-    id: string | number;
+    id?: number | string;
     [key: string]: any;
   }
 
   const props = defineProps<{
-    moduleName: string; // Добавляем проп moduleName
-    id?: string;
-    name?: string;
-    label?: string;
-    help_text?: string;
     options: FieldOptions;
-    modelValue?: Array<any>;
-    isModified: boolean;
+    // Пропсы от DynamicLayout
+    originalValue?: any;
+    draftValue?: any;
+    updateField?: (newValue: any) => void;
   }>();
 
-  // Создаем id на основе имени поля, если он не передан
-  const fieldId = computed(() => props.id || `field_${props.options.name}`);
-  const fieldName = computed(() => props.name || props.options.name);
-  const fieldLabel = computed(() => props.label || props.options.label || props.options.name);
-  const rowCountDisplay = computed(() => {
-    const total = props.modelValue?.length || 0;
-    const selected = selectedItems.value.length || 0;
-    return `${total} / ${selected}`;
+  // Две отдельные цепочки для чистоты архитектуры
+  
+  // 1. Получаем цепочку данных от родителя
+  const parentDataChain = inject<ComputedRef<Record<string, any>[]>>('dataChain', computed(() => []));
+  
+  // Просто передаем ссылку на currentEditingRecord - никакого копирования!
+  const dataChain = computed(() => {
+    if (currentEditingRecord.value && Object.keys(currentEditingRecord.value).length > 0) {
+      return [currentEditingRecord.value, ...parentDataChain.value];
+    }
+    return parentDataChain.value;
+  });
+  
+  provide('dataChain', dataChain);
+  
+  // 2. Получаем цепочку метаданных от родителя
+  const parentMetadataChain = inject<ComputedRef<Map<string, any>[]>>('metadataChain', computed(() => []));
+  
+  // Просто передаем ссылку на локальный elementsIndex - никакого копирования!
+  const metadataChain = computed(() => {
+    if (props.options.elementsIndex) {
+      return [props.options.elementsIndex, ...parentMetadataChain.value];
+    }
+    return parentMetadataChain.value;
+  });
+  
+  provide('metadataChain', metadataChain);
+
+  // Получаем массивы с fallback на пустой массив
+  const originalArray = computed(() => props.originalValue || []);
+  const draftArray = computed(() => props.draftValue || []);
+
+  // Определяем какие строки были изменены для подсветки
+  const modifiedRowsSet = computed(() => {
+    const draft = draftArray.value;
+    const original = originalArray.value;
+    const modifiedSet = new Set<string>();
+
+    // Создаем карту оригинальных записей по ID для быстрого поиска
+    const originalMap = new Map();
+    original.forEach((item: any) => {
+      if (item.id) {
+        originalMap.set(String(item.id), item);
+      }
+    });
+
+    // Проверяем каждую строку в draft массиве
+    draft.forEach((draftRow: any) => {
+      const recordId = draftRow.id;
+      if (!recordId) return; // Пропускаем записи без ID
+
+      const originalRow = originalMap.get(String(recordId)); // новая запись (если записи с таким id нет в оригинальном массиве)
+      if (!originalRow || JSON.stringify(draftRow) !== JSON.stringify(originalRow)) {
+        modifiedSet.add(String(recordId));
+      }
+    });
+
+    return modifiedSet;
   });
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: any): void;
-    (e: 'update:isModified', value: boolean): void;
-    (e: 'reset-field', fieldName: string): void;
-  }>();
+  // Из options
+  const fieldId = computed(() => `field_${props.options.name}`);
+  const fieldLabel = computed(() => props.options.label || props.options.name);
+  const help_text = computed(() => props.options.help_text);
 
   // Используем ref для хранения выбранных элементов
   const selectedItems = ref<RelatedItem[]>([]);
   const isTableScrollable = ref(true);
+
+  // Переменная для отслеживания количества удаленных элементов
+  const deletedCount = ref(0);
+
+  // Переменные для работы с вложенными ключами
+  // const modalNameKey = ref<string | null>(null); // Ключ модального окна (если есть)
+  // const activeNestedKey = ref<string | null>(null); // Активный вложенный ключ
+
+  // // Функция для генерации вложенного ключа
+  // const generateNestedKey = (context: string, fieldName: string, index: number): string => {
+  //   return `${context}__${fieldName}_${index}`;
+  // };
 
   // Состояние модального окна
   const dialogVisible = ref(false);
   const error = ref<string | null>(null);
   const dialogTitle = ref('Добавление записи');
   const saveButtonLabel = ref('Добавить');
-  const editingRecordIndex = ref<number | null>(null);
+  const editingRecordId = ref<string | number | null>(null);
 
-  // Данные для новой/редактируемой записи
-  const newRecord = ref<Record<string, any>>({});
+  // Временное хранилище для новой записи
+  const newRecordData = ref<RelatedItem>({});
 
-  // Открытие модального окна для добавления записи
-  const openAddDialog = () => {
-    // Сбрасываем данные новой записи
-    newRecord.value = {};
-    editingRecordIndex.value = null;
-    dialogTitle.value = 'Добавление записи';
-    saveButtonLabel.value = 'Добавить';
-    dialogVisible.value = true;
-    error.value = null;
+  // Счётчик для генерации уникальных временных ID
+  const tempIdCounter = ref(1);
+
+  const currentOriginalRecord = computed(() => {
+    if (editingRecordId.value === null) {
+      // Для новой записи нет оригинала
+      return {};
+    }
+
+    // Прямой поиск оригинальной записи по ID
+    // Нет проблем с индексами после удаления строк
+    // ID не меняются при операциях с массивом
+    const originalRecord = originalArray.value.find(
+      (item: RelatedItem) => item.id === editingRecordId.value,
+    );
+
+    return originalRecord || {};
+  });
+
+  const currentEditingRecord = computed(() => {
+    if (editingRecordId.value === null) {
+      // Для новой записи используем временное хранилище
+      return newRecordData.value;
+    }
+    // Поиск draft записи по ID
+    const draftRecord = draftArray.value.find(
+      (item: RelatedItem) => item.id === editingRecordId.value,
+    );
+    return draftRecord || {};
+  });
+
+  // Подсчитываем количество измененных полей в текущем редактируемом объекте (Модальное окно)
+  const modifiedFieldsCount = computed(() => {
+    const original = currentOriginalRecord.value;
+    const draft = currentEditingRecord.value;
+
+    // Если это новая запись, считаем все непустые поля как измененные
+    if (editingRecordId.value === null) {
+      return Object.keys(draft).filter((key) => {
+        const value = draft[key];
+        return value !== null && value !== undefined && value !== '';
+      }).length;
+    }
+
+    // Для существующей записи сравниваем поля
+    let changedCount = 0;
+    const allKeys = new Set([...Object.keys(original), ...Object.keys(draft)]);
+
+    for (const key of allKeys) {
+      const originalValue = original[key];
+      const draftValue = draft[key];
+
+      // Сравниваем значения (с учетом объектов)
+      if (JSON.stringify(originalValue) !== JSON.stringify(draftValue)) {
+        changedCount++;
+      }
+    }
+
+    return changedCount;
+  });
+
+  // Функция обновления поля в модальном окне
+  const modalUpdateField = (fieldName: string, newValue: any) => {
+    if (editingRecordId.value === null) {
+      // Для новой записи сохраняем данные во временное хранилище
+      newRecordData.value[fieldName] = newValue;
+    } else {
+      // Для редактирования - максимальная оптимизация
+      // Прямая мутация реактивного объекта - только 1 операция!
+      const record = draftArray.value.find(
+        (item: RelatedItem) => item.id === editingRecordId.value,
+      );
+      if (record) {
+        record[fieldName] = newValue;
+        // Полагаемся на Vue/Pinia реактивность
+        // Если не работает - вернуть props.updateField?.([...draftArray.value]);
+      }
+    }
   };
 
-  // Открытие модального окна для редактирования записи
-  const openEditDialog = (recordData: RelatedItem, index: number) => {
-    // Копируем данные записи для редактирования
-    newRecord.value = { ...recordData };
-    editingRecordIndex.value = index;
+  const openAddDialog = () => {
+    console.log('ViewSetInlineLayout: opening add dialog');
+
+    // Очищаем временное хранилище для новой записи
+    newRecordData.value = {};
+
+    // Устанавливаем данные для новой записи
+    editingRecordId.value = null; // null означает новую запись
+    dialogTitle.value = 'Добавление записи';
+    saveButtonLabel.value = 'Добавить';
+    error.value = null;
+
+    dialogVisible.value = true;
+  };
+
+  const openEditDialog = async (recordData: RelatedItem) => {
+    console.log('ViewSetInlineLayout: recordData is array:', Array.isArray(recordData));
+
+    // Устанавливаем ID для редактирования
+    editingRecordId.value = recordData.id || null;
     dialogTitle.value = 'Редактирование записи';
     saveButtonLabel.value = 'Сохранить';
-    dialogVisible.value = true;
     error.value = null;
+
+    dialogVisible.value = true;
   };
 
   const closeDialog = () => {
     dialogVisible.value = false;
-    editingRecordIndex.value = null;
+    editingRecordId.value = null;
   };
 
-  const handleFieldUpdate = (updatedData: Record<string, any>) => {
-    newRecord.value = { ...newRecord.value, ...updatedData };
-  };
-
-  // Обработка сохранения записи из формы
   const handleRecordSave = () => {
-    if (editingRecordIndex.value !== null) {
-      // Редактирование существующей записи
-      const updatedValue = [...(props.modelValue || [])];
-      updatedValue[editingRecordIndex.value] = newRecord.value;
-      emit('update:modelValue', updatedValue);
-    } else {
-      // Добавление новой записи
-      const newValue = [...(props.modelValue || []), newRecord.value];
-      emit('update:modelValue', newValue);
-    }
+    if (editingRecordId.value === null) {
+      // Для новой записи добавляем данные в массив
+      const newRecord = { ...newRecordData.value };
 
+      // Присваиваем временный ID, если у записи его нет
+      if (!newRecord.id) {
+        newRecord.id = `temp_${tempIdCounter.value}`;
+        tempIdCounter.value++;
+      }
+
+      const updatedArray = [...draftArray.value, newRecord];
+      props.updateField?.(updatedArray);
+    }
+    // Для редактирования - все уже сохранено в draft через modalUpdateField
     closeDialog();
   };
 
   // Очистка выбранных строк из таблицы
-  const clearField = () => {
-    if (!props.modelValue || !selectedItems.value.length) return;
-    // Получаем первичный ключ для сравнения элементов
-    const primaryKey = props.options?.primary_key || 'id';
+  const deleteSelectedRow = () => {
+    if (selectedItems.value.length === 0) {
+      console.warn('Нет выбранных элементов для удаления');
+      return;
+    }
 
-    // Создаем множество ID выбранных элементов для быстрого поиска
-    const selectedIds = new Set(selectedItems.value.map((item) => String(item[primaryKey])));
+    const deletingCount = selectedItems.value.length;
 
-    // Фильтруем текущие данные, исключая выбранные элементы
-    const filteredData = props.modelValue.filter(
-      (item) => !selectedIds.has(String(item[primaryKey])),
+    const updatedArray = draftArray.value.filter(
+      (item: RelatedItem) =>
+        !selectedItems.value.some(
+          (selected: RelatedItem) => selected.id === item.id || selected === item,
+        ),
     );
 
-    emit('update:modelValue', filteredData);
+    deletedCount.value += deletingCount;
+
+    props.updateField?.(updatedArray);
     selectedItems.value = [];
   };
 
-  const resetField = () => {
+  const resetArrayField = () => {
+    // Сбрасываем массив к оригинальному состоянию
+    // Создаем глубокую копию, чтобы избежать общих ссылок между original и draft
+    const resetArray = JSON.parse(JSON.stringify(originalArray.value));
+    props.updateField?.(resetArray);
+
+    deletedCount.value = 0;
+
     selectedItems.value = [];
-    emit('reset-field', fieldName.value);
+  };
+
+  // Сброс только текущего редактируемого объекта в модальном окне
+  const resetModalRecord = () => {
+    if (editingRecordId.value === null) {
+      // Для новой записи очищаем временное хранилище и закрываем диалог
+      newRecordData.value = {};
+      closeDialog();
+      return;
+    }
+
+    const originalRecord = originalArray.value.find(
+      (item: RelatedItem) => item.id === editingRecordId.value,
+    );
+
+    if (!originalRecord) {
+      // Если оригинальной записи нет, значит это новая запись - удаляем её из массива
+      const updatedArray = draftArray.value.filter(
+        (item: RelatedItem) => item.id !== editingRecordId.value,
+      );
+      props.updateField?.(updatedArray);
+      closeDialog();
+      return;
+    }
+
+    // Для существующих записей восстанавливаем оригинальные данные
+    const updatedArray = draftArray.value.map((item: RelatedItem) =>
+      item.id === editingRecordId.value ? { ...originalRecord } : item,
+    );
+    props.updateField?.(updatedArray);
   };
 
   // Дублирование выбранной записи
   const duplicateSelectedRow = () => {
     if (selectedItems.value.length !== 1) return;
-    const selectedRecord = selectedItems.value[0];
 
-    // Создаем новый объект с теми же свойствами, но без id
-    const duplicatedRecord = { ...selectedRecord };
-    // Создаем новый объект без id, чтобы не было конфликта с существующей записью
-    const { id, ...recordWithoutId } = duplicatedRecord;
-    const newValue = [...(props.modelValue || []), recordWithoutId];
-    emit('update:modelValue', newValue);
+    const recordToDuplicate = selectedItems.value[0];
+    const duplicatedRecord = { ...recordToDuplicate };
+    delete duplicatedRecord.id; // Удаляем ID для создания новой записи
+
+    const updatedArray = [...draftArray.value, duplicatedRecord];
+
+    // Обновляем массив через пропс
+    props.updateField?.(updatedArray);
   };
 
   const handleRowClick = (event: any) => {
-    console.log('Клик по строке:', event);
+    console.log('ViewSetInlineLayout: handleRowClick called with event:', event);
     if (event && event.data) {
-      openEditDialog(event.data, event.index);
+      // Создаем вложенный ключ на основе текущего контекста
+      // const currentContext = modalNameKey.value || 'create';
+      // console.log(`Текущий контекст: ${currentContext}`);
+
+      // // Создаем вложенный ключ для редактирования выбранной записи
+      // const nestedKey = generateNestedKey(currentContext, props.options.name, event.index);
+      // activeNestedKey.value = nestedKey;
+
+      // }
+
+      // Открываем диалог для редактирования
+      console.log('ViewSetInlineLayout: handleRowClick calling openEditDialog');
+      openEditDialog(event.data);
     }
   };
 
@@ -298,5 +516,10 @@ ViewSetInlineLayout управляет состоянием и данными
 <style scoped>
   .empty-container {
     padding: 1rem;
+  }
+
+  .deleted-count-text {
+    color: #ffb74d;
+    margin-left: 0.25rem;
   }
 </style>

@@ -1,7 +1,7 @@
 <template>
   <div class="field-computed">
     <label :for="id" class="block">{{ label }}</label>
-    <div :id="id" class="computed-value" :class="{ 'field-modified': props.isModified }">
+    <div :id="id" class="computed-value">
       {{ formattedValue }}
     </div>
   </div>
@@ -10,7 +10,6 @@
 <script setup lang="ts">
   import { computed } from 'vue';
 
-  // Определяем интерфейс для объекта options
   interface FieldOptions {
     name: string;
     label?: string;
@@ -20,34 +19,36 @@
   }
 
   const props = defineProps<{
-    modelValue?: any;
+    originalValue?: any;
+    draftValue?: any;
     options: FieldOptions;
-    isModified: boolean;
+    updateField: (newValue: any) => void;
   }>();
 
-  // Извлекаем свойства из объекта options для удобства использования
   const id = computed(() => props.options.name);
   const label = computed(() => props.options.label || props.options.name);
   const formatter = computed(() => props.options.formatter);
 
-  // Форматирование значения с использованием пользовательского форматтера или по умолчанию
+  // Форматирование значения (только draftValue)
   const formattedValue = computed(() => {
-    if (!props.modelValue) return '';
+    const value = props.draftValue;
+
+    if (!value) return '';
 
     if (formatter.value) {
-      return formatter.value(props.modelValue);
+      return formatter.value(value);
     }
 
     // Форматирование по умолчанию в зависимости от типа данных
-    if (typeof props.modelValue === 'object') {
+    if (typeof value === 'object') {
       try {
-        return JSON.stringify(props.modelValue);
+        return JSON.stringify(value);
       } catch (e) {
-        return String(props.modelValue);
+        return String(value);
       }
     }
 
-    return String(props.modelValue);
+    return String(value);
   });
 </script>
 
