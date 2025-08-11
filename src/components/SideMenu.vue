@@ -8,7 +8,7 @@
           <span class="topbar-title">{{ appConfig.siteTitle }}</span>
         </span>
       </div>
-      <PanelMenu :model="menuItems" :expandedKeys="openMenuItems" />
+      <PanelMenu :model="menuItems" :expandedKeys="openMenuItems" data-testid="side-menu-panel" />
     </div>
 
     <div class="user-menu-container">
@@ -112,6 +112,7 @@
     const homeItem = {
       label: appConfig.value.siteTitle,
       icon: 'pi pi-home',
+      class: 'data-testid-side-menu-home-item',
       command: (event: any) => handleMenuItemClick(event, '/'),
       style: isRouteActive('/')
         ? {
@@ -125,6 +126,7 @@
     const settingsItem = {
       label: 'Settings',
       icon: 'pi pi-cog',
+      class: 'data-testid-side-menu-settings-item',
       command: (event: any) => handleMenuItemClick(event, '/settings'),
       style: isRouteActive('/settings')
         ? {
@@ -142,6 +144,7 @@
       const moduleItem: any = {
         label: module.label,
         icon: 'pi pi-folder',
+        class: `data-testid-side-menu-module-${moduleName}-item`,
         command: (event: any) => handleMenuItemClick(event, path),
         key: moduleName, // Уникальный ключ для пункта меню
         style: isRouteActive(path)
@@ -166,6 +169,7 @@
               command: (event: any) => {
                 handleMenuItemClick(event, path);
               },
+              class: `data-testid-side-menu-group-${moduleName}-${group.name}-item`,
               key: `${moduleName}_${group.name}`, // Уникальный ключ для элемента подменю
               style: isRouteActive(path)
                 ? {

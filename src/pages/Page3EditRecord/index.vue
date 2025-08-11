@@ -8,9 +8,12 @@ URL для создания новой записи: http://localhost:5173/catal
 Роутер имеет всю необходимую информацию для загрузки данных еще до того, как компонент страницы будет создан.
 -->
 <template>
-  <div :class="['edit-record-page', isCreateMode ? 'create-mode' : 'edit-mode']">
+  <div
+    :class="['edit-record-page', isCreateMode ? 'create-mode' : 'edit-mode']"
+    data-testid="edit-record-page"
+  >
     <div class="flex justify-content-between align-items-center mb-4">
-      <h1 class="text-2xl font-bold">{{ pageTitle }}</h1>
+      <h1 class="text-2xl font-bold" data-testid="edit-record-title">{{ pageTitle }}</h1>
       <Button
         label="Назад"
         icon="pi pi-arrow-left"
@@ -18,6 +21,7 @@ URL для создания новой записи: http://localhost:5173/catal
         aria-label="Вернуться к списку"
         v-tooltip="'Вернуться к списку'"
         @click="goBack"
+        data-testid="edit-record-back-button"
       />
     </div>
 
@@ -54,6 +58,7 @@ URL для создания новой записи: http://localhost:5173/catal
           class="p-button-secondary"
           :disabled="!hasUnsavedChanges"
           @click="resetAllFields"
+          data-testid="edit-record-reset-all-button"
         />
         <div class="flex gap-2">
           <Button
@@ -63,6 +68,7 @@ URL для создания новой записи: http://localhost:5173/catal
             :loading="saving"
             :disabled="!hasUnsavedChanges"
             @click="saveData"
+            data-testid="edit-record-save-button"
           />
         </div>
       </div>

@@ -12,6 +12,8 @@ export default {
     "loginSuccess": "You have successfully logged in",
     "logoutSuccess": "You have successfully logged out",
     "user": "User",
+    "staff": "Staff",
+    "superuser": "Superuser",
     "role": "Role"
   },
   "home": {

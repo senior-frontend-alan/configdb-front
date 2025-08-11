@@ -12,6 +12,8 @@ export default {
     "loginSuccess": "Вы успешно вошли в систему",
     "logoutSuccess": "Вы успешно вышли из системы",
     "user": "Пользователь",
+    "staff": "Сотрудник",
+    "superuser": "Суперпользователь",
     "role": "Роль"
   },
   "home": {

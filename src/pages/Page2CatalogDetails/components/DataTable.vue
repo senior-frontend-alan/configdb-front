@@ -63,6 +63,7 @@ onLazyLoad вызывается при прокрутке таблицы
           :totalRecords="props.totalRecords || 0"
           showGridlines
           rowHover
+          data-testid="table-prime"
         >
           <!-- 
           Режимы выбора строк согласно документации PrimeVue:

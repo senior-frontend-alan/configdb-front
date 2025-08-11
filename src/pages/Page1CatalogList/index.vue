@@ -1,25 +1,24 @@
 <template>
-  <div class="catalog-page" data-testid="page1-page">
-    <div class="title-container" data-testid="page1-header">
-      <h2 data-testid="page1-title">{{ moduleTitle }}</h2>
+  <div class="catalog-page" data-testid="catalogs-list-page">
+    <div class="title-container">
+      <h2 data-testid="catalogs-list-title">{{ moduleTitle }}</h2>
       <!-- Панель инструментов с поиском -->
-      <ToolBar :initialQuery="searchQuery" data-testid="page1-toolbar" />
+      <ToolBar :initialQuery="searchQuery" data-testid="catalogs-list-toolbar" />
     </div>
-    <div v-if="loading" data-testid="page1-loading">
+    <div v-if="loading">
       <ProgressSpinner />
       <p>Загрузка данных каталога...</p>
     </div>
-    <div v-if="displayError" class="error-message" data-testid="page1-error">
+    <div v-if="displayError" class="error-message">
       <Message severity="error" :closable="false">{{ displayError }}</Message>
     </div>
-    <div v-else-if="!filteredData || filteredData.length === 0" data-testid="page1-empty">
+    <div v-else-if="!filteredData || filteredData.length === 0">
       <Message severity="info">Данные каталога отсутствуют</Message>
     </div>
-    <div v-else class="catalog-container" data-testid="page1-content">
+    <div v-else class="catalog-container">
       <!-- Отображение в виде JSON для отладки -->
       <pre
         v-if="showDebugJson"
-        data-testid="page1-debug"
         style="
           background-color: #f5f5f5;
           padding: 10px;
@@ -33,7 +32,7 @@
       <!-- Отображение в виде списка -->
       <ListViewP1
         v-if="!tabMode"
-        data-testid="page1-listview"
+        data-testid="catalogs-list-listview"
         :catalogData="filteredData"
         :moduleName="moduleName"
         :groupName="queryGroupName"
@@ -44,7 +43,7 @@
       <!-- Отображение в виде табов -->
       <P1_TabView
         v-else
-        data-testid="page1-tabview"
+        data-testid="catalogs-list-tabview"
         :catalogData="filteredData"
         :moduleName="moduleName"
         :groupName="queryGroupName"

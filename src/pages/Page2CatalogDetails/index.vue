@@ -11,10 +11,12 @@ CatalogDataTable отвечает только за отображение да�
 -->
 
 <template>
-  <div class="catalog-details-page">
+  <div class="catalog-details-page" data-testid="table-page">
     <div class="header-container">
       <div class="title-container">
-        <h3>{{ currentCatalog?.OPTIONS?.verbose_name || 'Каталог без названия' }}</h3>
+        <h3 data-testid="table-title">
+          {{ currentCatalog?.OPTIONS?.verbose_name || 'Каталог без названия' }}
+        </h3>
 
         <!-- Инпут для ввода ID записи и кнопка для прокрутки к ней -->
         <div class="scroll-to-id-container">
@@ -23,12 +25,14 @@ CatalogDataTable отвечает только за отображение да�
             placeholder="ID записи"
             class="p-inputtext-sm"
             style="width: 100px"
+            data-testid="table-scroll-input"
           />
           <Button
             label="Перейти"
             class="p-button-sm"
             @click="scrollToRecord(scrollToIdInput)"
             :disabled="!scrollToIdInput"
+            data-testid="table-scroll-button"
           />
         </div>
 
@@ -41,6 +45,7 @@ CatalogDataTable отвечает только за отображение да�
           :loading="loading"
           aria-label="Обновить данные"
           v-tooltip="'Обновить данные'"
+          data-testid="table-refresh-button"
         />
       </div>
       <div class="table-controls">
@@ -50,6 +55,7 @@ CatalogDataTable отвечает только за отображение да�
           class="p-button-sm"
           aria-label="Добавить запись"
           @click="goToAddRecord"
+          data-testid="table-add-button"
         />
         <ColumnVisibilitySelector
           :table-columns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
@@ -79,17 +85,18 @@ CatalogDataTable отвечает только за отображение да�
         @row-click="handleRowClick"
         :isTableScrollable="isTableScrollable"
         :totalRecords="totalRecords"
+        data-testid="table-datatable"
       />
 
       <!-- Элемент для отслеживания с помощью Intersection Observer -->
-      <div ref="loadMoreTrigger" class="load-more-trigger">
+      <div ref="loadMoreTrigger" class="load-more-trigger" data-testid="table-load-more">
         <ProgressSpinner v-if="loadingMore" style="width: 30px; height: 30px" />
         <span v-else-if="!hasMoreData && totalRecords >= 20">Все данные загружены</span>
         <span v-else-if="hasMoreData">Загрузка дополнительных данных...</span>
       </div>
     </div>
     <!-- Статус-бар с информацией о количестве элементов (скрывается в модальном режиме) -->
-    <div class="status-bar" v-if="!props.isModalMode">
+    <div class="status-bar" v-if="!props.isModalMode" data-testid="table-status-bar">
       <div class="status-item">
         <span class="status-label">Всего:</span>
         <span class="status-value">{{ currentCatalog?.GET?.count || 0 }}</span>

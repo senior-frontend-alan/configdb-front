@@ -54,6 +54,14 @@ const translations = {
       ru: 'Пользователь',
       en: 'User',
     },
+    staff: {
+      ru: 'Сотрудник',
+      en: 'Staff',
+    },
+    superuser: {
+      ru: 'Суперпользователь',
+      en: 'Superuser',
+    },
     role: {
       ru: 'Роль',
       en: 'Role',

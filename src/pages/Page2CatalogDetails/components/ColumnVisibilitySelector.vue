@@ -6,9 +6,10 @@
       aria-label="Настройка колонок"
       v-tooltip="'Настройка видимости колонок'"
       @click="toggle"
+      data-testid="table-column-selector-button"
     />
 
-    <Popover ref="popover">
+    <Popover ref="popover" data-testid="table-column-selector-popover">
       <div class="popover-content">
         <Button
           :icon="isTableScrollable ? 'pi pi-arrows-h' : 'pi pi-table'"
@@ -21,6 +22,7 @@
           "
           @click="toggleTableScrollable"
           label="Включить горизонтальную прокрутку"
+          data-testid="table-column-selector-scroll-toggle"
         />
         <div class="popover-header">
           <span>Настройка видимости колонок</span>
@@ -28,8 +30,18 @@
 
         <div class="column-selector-content">
           <div class="column-selector-actions">
-            <Button label="Выбрать все" class="p-button-sm p-button-text" @click="selectAll" />
-            <Button label="Снять выбор" class="p-button-sm p-button-text" @click="deselectAll" />
+            <Button
+              label="Выбрать все"
+              class="p-button-sm p-button-text"
+              @click="selectAll"
+              data-testid="table-column-selector-select-all"
+            />
+            <Button
+              label="Снять выбор"
+              class="p-button-sm p-button-text"
+              @click="deselectAll"
+              data-testid="table-column-selector-deselect-all"
+            />
           </div>
 
           <div class="column-selector-list">
@@ -51,8 +63,15 @@
             icon="pi pi-times"
             class="p-button-text p-button-sm"
             @click="cancel"
+            data-testid="table-column-selector-cancel"
           />
-          <Button label="Применить" icon="pi pi-check" class="p-button-sm" @click="applyChanges" />
+          <Button
+            label="Применить"
+            icon="pi pi-check"
+            class="p-button-sm"
+            @click="applyChanges"
+            data-testid="table-column-selector-apply"
+          />
         </div>
       </div>
     </Popover>
@@ -60,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed } from 'vue';
+  import { ref, computed } from 'vue';
   import Button from 'primevue/button';
   import Checkbox from 'primevue/checkbox';
   import Popover from 'primevue/popover';
@@ -69,7 +88,7 @@
     tableColumns?: Map<string, any>;
     isTableScrollable?: boolean;
   }>();
-  
+
   const TABLE_COLUMNS = computed(() => props.tableColumns);
 
   const emit = defineEmits<{
@@ -79,40 +98,50 @@
 
   const popover = ref();
 
-  // Выбранные поля
-  const selectedFields = ref<string[]>([]);
-  const availableFields = ref<string[]>([]);
-
-  // Инициализируем выбранные поля и доступные поля на основе tableColumns
-  onMounted(() => {
-    initializeFields();
-  });
-
-  // Функция для инициализации полей из tableColumns
-  function initializeFields() {
-    // Если нет колонок, ничего не делаем
+  // Доступные поля - вычисляются реактивно из tableColumns
+  const availableFields = computed(() => {
     if (!TABLE_COLUMNS.value || TABLE_COLUMNS.value.size === 0) {
-      return;
+      return [];
     }
 
-    // Инициализируем поля из TABLE_COLUMNS
     const allFields: string[] = [];
-    const visibleFields: string[] = [];
-
-    TABLE_COLUMNS.value.forEach((column: any, key: string) => {
+    TABLE_COLUMNS.value.forEach((_, key: string) => {
       allFields.push(key);
+    });
+
+    return allFields;
+  });
+
+  // Изначально видимые поля - вычисляются реактивно из tableColumns
+  const initialVisibleFields = computed(() => {
+    if (!TABLE_COLUMNS.value || TABLE_COLUMNS.value.size === 0) {
+      return [];
+    }
+
+    const visibleFields: string[] = [];
+    TABLE_COLUMNS.value.forEach((column: any, key: string) => {
       if (column.VISIBLE) {
         visibleFields.push(key);
       }
     });
 
-    availableFields.value = allFields;
-    console.log('!!!!availableFields.value', availableFields.value);
-    selectedFields.value = [...visibleFields];
+    return visibleFields;
+  });
+
+  // Выбранные поля - инициализируются из initialVisibleFields
+  const selectedFields = ref<string[]>([]);
+
+  // Синхронизируем selectedFields с initialVisibleFields при их изменении
+  const syncSelectedFields = () => {
+    if (initialVisibleFields.value.length > 0 && selectedFields.value.length === 0) {
+      selectedFields.value = [...initialVisibleFields.value];
+    }
   };
 
   // Функция для открытия/закрытия popover
   const toggle = (event: Event) => {
+    // Синхронизируем выбранные поля при открытии
+    syncSelectedFields();
     popover.value.toggle(event);
   };
 
@@ -144,8 +173,8 @@
       }
 
       // Проходим по всем полям и применяем изменения
-    if (TABLE_COLUMNS.value) {
-      TABLE_COLUMNS.value.forEach((column: any, key: string) => {
+      if (TABLE_COLUMNS.value) {
+        TABLE_COLUMNS.value.forEach((column: any, key: string) => {
           if (column) {
             // Устанавливаем VISIBLE в зависимости от того, выбрано ли поле
             column.VISIBLE = selectedFields.value.includes(key);
@@ -182,7 +211,7 @@
 
     // Используем имя поля как метку, если не удалось получить из метаданных
     return field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
-  };
+  }
 </script>
 
 <style scoped>

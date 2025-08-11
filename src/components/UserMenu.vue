@@ -1,7 +1,7 @@
 <template>
-  <div class="user-menu">
+  <div class="user-menu" data-testid="user-menu">
     <!-- Кнопка пользователя -->
-    <div class="user-button" @click="(event) => menu.toggle(event)">
+    <div class="user-button" @click="(event) => menu?.toggle(event)" data-testid="user-menu-button">
       <div class="user-avatar">
         <i class="pi pi-user"></i>
       </div>
@@ -13,20 +13,27 @@
     </div>
 
     <!-- Меню пользователя -->
-    <Menu id="user-menu" ref="menu" :model="userMenuItems" :popup="true" />
+    <Menu
+      id="user-menu"
+      ref="menu"
+      :model="userMenuItems"
+      :popup="true"
+      data-testid="side-menu-user-dropdown"
+    />
   </div>
 </template>
 
-<script setup>
-  import { ref, computed } from 'vue';
+<script setup lang="ts">
+  import { computed, ref } from 'vue';
   import { useI18n } from 'vue-i18n';
   import Menu from 'primevue/menu';
   import { useAuthStore } from '../stores/authStore';
+  import type { MenuItem } from 'primevue/menuitem';
+
+  // Template ref для компонента Menu
+  const menu = ref<InstanceType<typeof Menu>>();
 
   const { t } = useI18n();
-
-  // Ссылка на меню пользователя
-  const menu = ref(null);
 
   // Получаем хранилище аутентификации
   const authStore = useAuthStore();
@@ -39,29 +46,34 @@
     return 'username';
   });
 
-  // Получаем роль пользователя
+  // Получаем роль пользователя на основе существующих полей
   const userRole = computed(() => {
-    if (authStore.session && authStore.session.user && authStore.session.user.role) {
-      return authStore.session.user.role;
+    if (authStore.session && authStore.session.user) {
+      const user = authStore.session.user;
+      if (user.is_superuser) {
+        return t('auth.superuser');
+      } else if (user.is_staff) {
+        return t('auth.staff');
+      }
+      return t('auth.user');
     }
     return t('auth.user');
   });
-
   // Пункты меню пользователя
-  const userMenuItems = computed(() => [
+  const userMenuItems = computed((): MenuItem[] => [
     {
       label: t('auth.profile'),
       icon: 'pi pi-user',
+      class: 'data-testid-side-menu-user-profile',
       command: () => {
-        // Переход на страницу профиля
         console.log(t('auth.profile'));
       },
     },
     {
       label: t('auth.logout'),
       icon: 'pi pi-sign-out',
+      class: 'data-testid-side-menu-user-logout',
       command: () => {
-        // Выход из системы
         authStore.logout();
       },
     },
