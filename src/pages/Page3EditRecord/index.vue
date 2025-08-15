@@ -146,10 +146,7 @@ URL для создания новой записи: http://localhost:5173/catal
   provide('dataChain', dataChain);
 
   // 2. Цепочка метаданных - просто ссылка на глобальный elementsIndex
-  const metadataChain = computed(() => {
-    const layoutElements = currentCatalog.value?.OPTIONS?.layout?.elementsIndex;
-    return layoutElements ? [layoutElements] : [];
-  });
+  const metadataChain = computed(() => [currentCatalog.value?.OPTIONS?.layout?.elementsIndex]);
   provide('metadataChain', metadataChain);
 
   const currentCatalog = ref<Catalog | null>(null);

@@ -14,12 +14,27 @@ CatalogDataTable отвечает только за отображение да�
   <div class="catalog-details-page" data-testid="table-page">
     <div class="header-container">
       <div class="title-container">
-        <h3 data-testid="table-title">
-          {{ currentCatalog?.OPTIONS?.verbose_name || 'Каталог без названия' }}
-        </h3>
+        <div>
+          <h3 data-testid="table-title">
+            {{ currentCatalog?.OPTIONS?.verbose_name || 'Каталог без названия' }}
+            <Button
+              id="refresh-button"
+              icon="pi pi-refresh"
+              class="p-button-rounded p-button-text"
+              :disabled="loading"
+              @click=""
+              :loading="loading"
+              aria-label="Обновить данные"
+              v-tooltip="'Обновить данные'"
+              data-testid="table-refresh-button"
+            />
+          </h3>
+          <h4 v-if="activeFiltersText" class="filters-info">{{ activeFiltersText }}</h4>
+        </div>
 
         <!-- Инпут для ввода ID записи и кнопка для прокрутки к ней -->
-        <div class="scroll-to-id-container">
+        <!--  Не удалять! -->
+        <!-- <div class="scroll-to-id-container">
           <InputText
             v-model="scrollToIdInput"
             placeholder="ID записи"
@@ -34,19 +49,7 @@ CatalogDataTable отвечает только за отображение да�
             :disabled="!scrollToIdInput"
             data-testid="table-scroll-button"
           />
-        </div>
-
-        <Button
-          id="refresh-button"
-          icon="pi pi-refresh"
-          class="p-button-rounded p-button-text"
-          :disabled="loading"
-          @click=""
-          :loading="loading"
-          aria-label="Обновить данные"
-          v-tooltip="'Обновить данные'"
-          data-testid="table-refresh-button"
-        />
+        </div> -->
       </div>
       <div class="table-controls">
         <!-- <AddNewDataDialog :moduleName="moduleName" @data-added="refreshData" /> -->
@@ -118,6 +121,7 @@ CatalogDataTable отвечает только за отображение да�
   import { useRouter } from 'vue-router';
   import { useModuleStore, type Catalog } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
+  import { formatFieldValueForDisplay } from './components/fields/index';
   import { getOrfetchCatalogGET, getOrFetchCatalogOPTIONS } from '../../stores/data-loaders';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import DataTable from './components/DataTable.vue';
@@ -138,6 +142,12 @@ CatalogDataTable отвечает только за отображение да�
     selectedItems?: any[]; // Опциональный массив выделенных строк
     isModalMode?: boolean; // Флаг, указывающий, что компонент отображается в модальном окне
     selectionMode?: 'single' | 'multiple' | undefined; // Режим выбора строк: одиночный или множественный, или undefined для отключения выбора
+    relatedFields?: Array<{
+      name: string;
+      data: any;
+      metadata: any;
+      isEmpty: boolean;
+    }>; // Массив связанных полей для фильтрации
   }>();
 
   // Определение режима выбора строк
@@ -180,6 +190,33 @@ CatalogDataTable отвечает только за отображение да�
   const moduleStore = computed(() => useModuleStore(moduleName.value));
   // Устанавливаем currentCatalog из результата getOrfetchCatalogGET
   const currentCatalog = ref<Catalog | null>(null);
+
+  // Computed свойство для отображения активных фильтров
+  const activeFiltersText = computed(() => {
+    if (!props.relatedFields || props.relatedFields.length === 0) {
+      return '';
+    }
+
+    const activeFilters = props.relatedFields
+      .filter((field) => !field.isEmpty && field.data !== undefined)
+      .map((field) => {
+        const label = field.metadata?.label || field.name;
+        const formattedValue = formatFieldValueForDisplay(
+          field.data,
+          field.metadata?.FRONTEND_CLASS,
+          field.metadata,
+          userLocale.value
+        );
+
+        return `${label}: ${formattedValue}`;
+      });
+
+    if (activeFilters.length === 0) {
+      return '';
+    }
+
+    return `(отфильтровано по: ${activeFilters.join(', ')})`;
+  });
 
   // Обработка изменения порядка колонок
   const onColumnReorder = (event: any) => {
@@ -255,11 +292,27 @@ CatalogDataTable отвечает только за отображение да�
 
     loading.value = true;
 
+    // Создаем фильтры из relatedFields, если они переданы
+    let filters: Record<string, any> | undefined;
+    if (props.relatedFields && props.relatedFields.length > 0) {
+      filters = {};
+      props.relatedFields.forEach((field) => {
+        if (!field.isEmpty && field.data !== undefined) {
+          // Если данные - объект с id, используем id, иначе используем само значение
+          const filterValue =
+            typeof field.data === 'object' && field.data?.id ? field.data.id : field.data;
+          filters![field.name] = filterValue;
+        }
+      });
+    }
+
     const catalogResult = await getOrfetchCatalogGET(
       moduleName.value,
       applName.value,
       catalogName.value,
       offset,
+      20, // limit
+      filters,
     );
 
     if (!catalogResult.success || !catalogResult.catalog) {
@@ -407,6 +460,13 @@ CatalogDataTable отвечает только за отображение да�
   .title-container {
     display: flex;
     align-items: center;
+  }
+
+  .filters-info {
+    display: block;
+    font-weight: normal;
+    color: #6b7280;
+    font-style: italic;
   }
 
   .table-controls {

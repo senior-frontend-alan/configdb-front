@@ -192,31 +192,27 @@
   }>();
 
   // Две отдельные цепочки для чистоты архитектуры
-  
+
   // 1. Получаем цепочку данных от родителя
-  const parentDataChain = inject<ComputedRef<Record<string, any>[]>>('dataChain', computed(() => []));
-  
+  const parentDataChain = inject<ComputedRef<Record<string, any>[]>>(
+    'dataChain',
+    computed(() => []),
+  );
+
   // Просто передаем ссылку на currentEditingRecord - никакого копирования!
-  const dataChain = computed(() => {
-    if (currentEditingRecord.value && Object.keys(currentEditingRecord.value).length > 0) {
-      return [currentEditingRecord.value, ...parentDataChain.value];
-    }
-    return parentDataChain.value;
-  });
-  
+  const dataChain = computed(() => [currentEditingRecord.value, ...parentDataChain.value]);
+
   provide('dataChain', dataChain);
-  
+
   // 2. Получаем цепочку метаданных от родителя
-  const parentMetadataChain = inject<ComputedRef<Map<string, any>[]>>('metadataChain', computed(() => []));
-  
+  const parentMetadataChain = inject<ComputedRef<Map<string, any>[]>>(
+    'metadataChain',
+    computed(() => []),
+  );
+
   // Просто передаем ссылку на локальный elementsIndex - никакого копирования!
-  const metadataChain = computed(() => {
-    if (props.options.elementsIndex) {
-      return [props.options.elementsIndex, ...parentMetadataChain.value];
-    }
-    return parentMetadataChain.value;
-  });
-  
+  const metadataChain = computed(() => [props.options.elementsIndex, ...parentMetadataChain.value]);
+
   provide('metadataChain', metadataChain);
 
   // Получаем массивы с fallback на пустой массив

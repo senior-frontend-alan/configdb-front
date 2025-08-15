@@ -131,3 +131,59 @@ export function resolveComponent(
   // Если компонент не является фабрикой, возвращаем его как есть
   return component || (() => h('span', {}, String(value || '')));
 }
+
+/**
+ * Форматирует значение поля для отображения в тексте (без HTML компонентов)
+ * Используется для отображения значений в фильтрах, заголовках и других текстовых контекстах
+ */
+export function formatFieldValueForDisplay(
+  value: unknown,
+  fieldType?: string,
+  metadata?: unknown,
+  locale: string = 'ru'
+): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  // Определяем тип поля и используем соответствующую функцию форматирования
+  // Приводим fieldType к нижнему регистру для сравнения
+  const normalizedFieldType = fieldType?.toLowerCase();
+  
+  switch (normalizedFieldType) {
+    case FRONTEND.CHOICE:
+      return formatChoiceValue(value as string | number | boolean | null | undefined, metadata as any);
+    
+    case FRONTEND.INTEGER:
+      return formatInteger(value as FieldDefinition);
+    
+    case FRONTEND.DECIMAL:
+      return formatDecimal(value as FieldDefinition);
+    
+    case FRONTEND.DATE:
+      return formatDate(value as FieldDefinition, locale);
+    
+    case FRONTEND.TIME:
+      return formatTime(value as FieldDefinition, locale);
+    
+    case FRONTEND.DATE_TIME:
+      return formatDateTime(value as FieldDefinition, locale);
+    
+    case FRONTEND.COMPUTED:
+      return formatComputedValue(value as FieldDefinition);
+    
+    case FRONTEND.RELATED:
+      return formatRelatedValue(value as FieldDefinition);
+    
+    case FRONTEND.PRIMARY_KEY_RELATED:
+      return formatPrimaryKeyRelatedValue(value as FieldDefinition);
+    
+    case FRONTEND.MANY_RELATED:
+      return formatManyRelatedValue(value);
+    
+    case FRONTEND.CHAR:
+    case FRONTEND.RICH_EDIT:
+    default:
+      return formatChar(value as FieldDefinition);
+  }
+}

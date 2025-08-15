@@ -82,6 +82,7 @@
 
 <style scoped>
   .user-menu {
+    border-top: 1px solid var(--p-surface-200);
     width: 100%;
   }
 

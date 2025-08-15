@@ -88,6 +88,7 @@
           :moduleName="currentModuleName"
           :applName="currentApplName"
           :catalogName="currentCatalogName"
+          :relatedFields="relatedFields"
           :isModalMode="true"
           @row-click="customRowClick"
         />
@@ -112,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, inject, ref, type ComputedRef } from 'vue';
+  import { computed, ref, inject, onMounted, onUnmounted, type ComputedRef } from 'vue';
   import { useRoute } from 'vue-router';
   import { useToast } from 'primevue/usetoast';
 
@@ -163,6 +164,7 @@
     appl_name?: string; // Имя приложения
     lookup?: boolean; // Является ли поле поисковым
 
+    related_fk?: string[] | Record<string, any>; // Фильтры для связанных полей
     // ВАЖНО! Если есть related_fk, то мы не имеем право редактировать текущий компонент, пока связанное поле в форме не заполнено
     // related_fk = "Related Foreign Key" - это механизм для фильтрации связанных данных на основе внешних ключей.
 
@@ -178,8 +180,6 @@
 
     // То char_spec_value должен искать char_spec сначала в своем контексте (characteristics), а потом в глобальном контексте.
 
-    related_fk?: string[] | Record<string, any>; // Фильтры для связанных полей
-
     // Другие возможные свойства
     [key: string]: any;
   }
@@ -192,6 +192,9 @@
     updateField?: (newValue: any) => void;
   }>();
 
+  // Эмиты для передачи данных о связанных полях наверх
+  // Emit работает только "снизу вверх" по иерархии компонентов.
+  // Если нужно передать данные компонентам на том же уровне (siblings) или в другие ветки дерева компонентов, то emit не подходит.
   // Получаем две отдельные цепочки - все необходимые данные уже в них!
   // [
   //   {
@@ -213,19 +216,46 @@
     computed(() => []),
   );
 
+  // Lifecycle логирование для диагностики
+  onMounted(() => {
+    console.log('🚀 ViewSetInlineLayout mounted');
+    console.log('🔍 Принудительно вызываем computed свойства:');
+
+    // Принудительно вызываем computed свойства для логирования
+    dataChain.value; // Принудительно вызываем для логирования
+    metadataChain.value; // Принудительно вызываем для логирования
+
+    console.log('---------------------------------------------------');
+    console.log(
+      `🔗 ViewSetInlineLayout dataChain (длина: ${dataChain.value.length}):`,
+      dataChain.value,
+    );
+    console.log(
+      `🔗 ViewSetInlineLayout metadataChain (длина: ${metadataChain.value.length}):`,
+      metadataChain.value,
+    );
+
+    console.log('---------------------------------------------------');
+    console.log(`relatedFields`, relatedFields.value);
+  });
+
+  onUnmounted(() => {
+    console.log('💀 ViewSetInlineLayout unmounted');
+  });
+
   // metadataChain:
   //[
   //  Map {
   //    // ← Прямая ссылка на props.options.elementsIndex (локальный ViewSetInlineLayout)
-  //    "char_1" => { name: "char_spec", label: "Тип характеристики", type: "CharField" },
-  //    "char_2" => { name: "char_value", label: "Значение", type: "CharField" },
-  //    "char_3" => { name: "char_unit", label: "Единица измерения", type: "CharField" }
+  //    "char_spec" => { name: "char_spec", label: "Тип характеристики", type: "CharField" },
+  //    "char_value" => { name: "char_value", label: "Значение", type: "CharField" },
+  //    "char_unit" => { name: "char_unit", label: "Единица измерения", type: "CharField" }
   //  },
   //  Map {
   //    // ← Прямая ссылка на currentCatalog.OPTIONS.layout.elementsIndex (глобальный)
-  //    "field_1" => { name: "name", label: "Название товара", type: "CharField" },
-  //    "field_2" => { name: "price", label: "Цена", type: "DecimalField" },
-  //    "field_3" => { name: "category", label: "Категория", type: "ForeignKey" }
+  //    "name" => { name: "name", label: "Название товара", type: "CharField" },
+  //    "price" => { name: "price", label: "Цена", type: "DecimalField" },
+  //    "category" => { name: "category", label: "Категория", type: "ForeignKey" }
   //  }
   //]
   const metadataChain = inject<ComputedRef<Map<string, any>[]>>(
@@ -233,113 +263,80 @@
     computed(() => []),
   );
 
-  const label = computed(() => props.options.label || props.options.name);
-  const required = computed(() => !props.options.allow_null);
-  const help_text = computed(() => props.options.help_text);
-
-  // Функция для поиска label поля через цепочку контекстов
-  const getFieldLabel = (fieldName: string): string => {
-    console.log(`🔍 getFieldLabel вызван для '${fieldName}'`);
-    console.log(`🔗 Цепочка метаданных для label:`, metadataChain.value);
-
+  // Функция для поиска метаданных поля в цепочке metadataChain
+  const findFieldMetadata = (fieldName: string): any => {
     for (let i = 0; i < metadataChain.value.length; i++) {
       const elementsMap = metadataChain.value[i];
-      const contextName =
-        i === 0
-          ? 'локальном'
-          : i === metadataChain.value.length - 1
-          ? 'глобальном'
-          : `промежуточном[${i}]`;
-
-      // Поиск в Map по всем элементам
-      for (const [, element] of elementsMap.entries()) {
-        if (element.name === fieldName && element.label) {
-          console.log(
-            `✅ Нашли label для '${fieldName}' в ${contextName} контексте: '${element.label}'`,
-          );
-          return element.label;
-        }
+      if (elementsMap && elementsMap.has(fieldName)) {
+        return elementsMap.get(fieldName);
       }
-      console.log(`🔍 Не нашли label для '${fieldName}' в ${contextName} контексте`);
     }
-
-    console.log(`❌ Не нашли label для '${fieldName}' ни в одном из контекстов метаданных`);
-    return `Нет label в метаданных для ${fieldName}`;
+    return null;
   };
 
-  // Функция для поиска значения поля по имени в цепочке данных
-  const getFieldValue = (fieldName: string): any => {
-    console.log(`🔍 getFieldValue вызван для '${fieldName}'`);
-    console.log(`🔗 Цепочка данных:`, dataChain.value);
-
+  // Функция для поиска данных поля в цепочке dataChain
+  const findFieldData = (fieldName: string): any => {
     for (let i = 0; i < dataChain.value.length; i++) {
       const context = dataChain.value[i];
-      const contextName =
-        i === 0
-          ? 'локальном'
-          : i === dataChain.value.length - 1
-          ? 'глобальном'
-          : `промежуточном[${i}]`;
-
-      if (context && typeof context === 'object') {
-        const value = context[fieldName];
-        if (value !== undefined && value !== null) {
-          console.log(`✅ Нашли '${fieldName}' в ${contextName} контексте:`, value);
-          return value;
-        }
-        console.log(`🔍 Не нашли '${fieldName}' в ${contextName} контексте`);
+      if (context && typeof context === 'object' && context[fieldName] !== undefined) {
+        return context[fieldName];
       }
     }
-
-    console.log(`❌ Не нашли '${fieldName}' ни в одном из контекстов данных`);
     return undefined;
   };
 
-  // Проверяем заполненность связанных полей из related_fk
-  const relatedFieldsStatus = computed(() => {
-    console.log('🔍 relatedFieldsStatus computed called', {
-      fieldName: props.options.name,
-      relatedFk: props.options.related_fk,
-      dataChainLength: dataChain.value.length,
-      dataChain: dataChain.value,
+  // Создаем структуру связанных полей для удобства работы
+  // [{ name, data, metadata, isEmpty }, ...]
+  const relatedFields = computed(() => {
+    const relatedFk = props.options.related_fk;
+    if (!relatedFk) return [];
+
+    const fields: Array<{
+      name: string;
+      data: any;
+      metadata: any;
+      isEmpty: boolean;
+    }> = [];
+
+    // Извлекаем имена полей из разных форматов related_fk
+    let fieldNames: string[] = [];
+
+    if (Array.isArray(relatedFk)) {
+      fieldNames = relatedFk;
+    } else if (typeof relatedFk === 'object') {
+      fieldNames = Object.entries(relatedFk)
+        .filter(([, value]) => typeof value === 'string' && isNaN(Number(value)))
+        .map(([, value]) => value as string);
+    }
+
+    // Создаем объекты для каждого связанного поля
+    fieldNames.forEach((fieldName) => {
+      const metadata = findFieldMetadata(fieldName);
+      const data = findFieldData(fieldName);
+      const isEmpty = !data || (typeof data === 'object' && !data.id);
+
+      fields.push({
+        name: fieldName,
+        data,
+        metadata,
+        isEmpty,
+      });
     });
 
-    const relatedFk = props.options.related_fk;
-    if (!relatedFk) {
-      console.log('❌ Early return - no relatedFk');
+    return fields;
+  });
+
+  // Проверяем заполненность связанных полей из related_fk
+  const relatedFieldsStatus = computed(() => {
+    const fields = relatedFields.value;
+
+    if (fields.length === 0) {
       return { isBlocked: false, missingFields: [] };
     }
 
-    const missingFields: string[] = [];
-
-    if (Array.isArray(relatedFk)) {
-      // related_fk: ["char_spec"] - проверяем поля формы
-      relatedFk.forEach((fieldName) => {
-        const fieldValue = getFieldValue(fieldName);
-        if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.id)) {
-          missingFields.push(getFieldLabel(fieldName));
-        }
-      });
-    } else if (typeof relatedFk === 'object') {
-      // related_fk: { "char_spec": "3" } - проверяем поля формы по строковым значениям
-      Object.entries(relatedFk).forEach(([, value]) => {
-        if (typeof value === 'string' && isNaN(Number(value))) {
-          // Это имя поля формы
-          const fieldValue = getFieldValue(value);
-          if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.id)) {
-            missingFields.push(getFieldLabel(value));
-          }
-        }
-        // Если value - число, то это константа, не блокируем
-      });
-    }
-
-    console.log('✅ relatedFieldsStatus result', {
-      fieldName: props.options.name,
-      isBlocked: missingFields.length > 0,
-      missingFields,
-      relatedFk,
-    });
+    const missingFields = fields
+      .filter((field) => field.isEmpty)
+      .map((field) => field.metadata?.label || field.name);
 
     return {
       isBlocked: missingFields.length > 0,
@@ -354,36 +351,31 @@
   // Список недостающих полей для отображения
   const missingFieldsList = computed(() => {
     if (relatedFieldsStatus.value.isBlocked) {
-      const relatedFk = props.options.related_fk;
-      const missingFieldsWithContext: string[] = [];
+      return relatedFields.value
+        .filter((field) => field.isEmpty)
+        .map((field) => {
+          const fieldLabel = field.metadata?.label || field.name;
 
-      if (Array.isArray(relatedFk)) {
-        // related_fk: ["char_spec"] - проверяем поля формы
-        relatedFk.forEach((fieldName) => {
-          const fieldValue = getFieldValue(fieldName);
-          if (!fieldValue || (typeof fieldValue === 'object' && !fieldValue.id)) {
-            const fieldLabel = getFieldLabel(fieldName);
-
-            // Определяем контекст поиска
-            let contextDescription = 'в текущем модальном окне';
-            if (dataChain.value.length > 0) {
-              const localContext = dataChain.value[0];
-              if (localContext && localContext.hasOwnProperty(fieldName)) {
-                contextDescription = 'в текущем модальном окне';
-              } else if (dataChain.value.length > 1) {
-                contextDescription = 'в родительском модальном окне';
-              }
+          // Определяем контекст поиска
+          let contextDescription = 'в текущем модальном окне';
+          if (dataChain.value.length > 0) {
+            const localContext = dataChain.value[0];
+            if (localContext && localContext.hasOwnProperty(field.name)) {
+              contextDescription = 'в текущем модальном окне';
+            } else if (dataChain.value.length > 1) {
+              contextDescription = 'в родительском модальном окне';
             }
-
-            missingFieldsWithContext.push(`${fieldLabel} (${contextDescription})`);
           }
-        });
-      }
 
-      return missingFieldsWithContext;
+          return `${fieldLabel} (${contextDescription})`;
+        });
     }
     return [];
   });
+
+  const label = computed(() => props.options.label || props.options.name);
+  const required = computed(() => !props.options.allow_null);
+  const help_text = computed(() => props.options.help_text);
 
   // Получаем контекст для специфичных операций PrimaryKeyRelated
   const route = useRoute();
@@ -495,6 +487,7 @@
 
   const closeDialog = () => {
     dialogVisible.value = false;
+    error.value = null;
   };
 
   // Очистка выбранного элемента и закрытие диалога

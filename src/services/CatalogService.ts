@@ -89,7 +89,7 @@ interface LayoutWithElements {
 // Расширяем интерфейс Layout для включения дополнительных свойств
 interface ExtendedLayout extends Layout {
   TABLE_COLUMNS: Map<string, any>; // Соответствует возвращаемому значению createTableColumns
-  elementsIndex: Map<string, any>; // Соответствует возвращаемому значению createElementsMap
+  elementsIndex: Map<string, any>; // Соответствует возвращаемому значению createElementsIndex
 }
 
 export class CatalogService {
@@ -148,7 +148,12 @@ export class CatalogService {
    * Загружает данные с указанным смещением
    * @description Только взаимодействие с API, без работы со стором
    */
-  static async GET(url: string, offset: number, limit: number = 20): Promise<any> {
+  static async GET(
+    url: string,
+    offset: number,
+    limit: number = 20,
+    filters?: Record<string, any>,
+  ): Promise<any> {
     try {
       if (!url) {
         throw new Error(`URL каталога не указан.`);
@@ -156,7 +161,18 @@ export class CatalogService {
 
       // Формируем URL с параметрами пагинации
       const queryChar = url.includes('?') ? '&' : '?';
-      const paginatedUrl = `${url}${queryChar}limit=${limit}&offset=${offset}&mode=short`;
+      let paginatedUrl = `${url}${queryChar}limit=${limit}&offset=${offset}&mode=short`;
+
+      if (filters) {
+        const filterParams = Object.entries(filters)
+          .filter(([, value]) => value !== undefined && value !== null && value !== '')
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          .join('&');
+
+        if (filterParams) {
+          paginatedUrl += `&${filterParams}`;
+        }
+      }
 
       console.log(`CatalogService.GET: Запрос к API: ${paginatedUrl}`);
       const response = await api.get<CatalogDetailsAPIResponseGET>(paginatedUrl);
@@ -185,7 +201,7 @@ export class CatalogService {
         layout.TABLE_COLUMNS = CatalogService.createTableColumns(layout);
 
         // Создаем иерархическую структуру элементов
-        layout.elementsIndex = CatalogService.createElementsMap(layout.elements);
+        layout.elementsIndex = CatalogService.createElementsIndex(layout.elements);
       }
 
       console.log(`CatalogService.OPTIONS: Метаданные успешно загружены для ${url}`);
@@ -287,7 +303,7 @@ export class CatalogService {
   // FRONTEND_CLASS - определяет тип поля для фронтенда
   // TABLE_COLUMNS - для элементов типа ViewSetInlineLayout
   // elementsIndex - вложенная Map-структура для дочерних элементов
-  static createElementsMap = (elements: any[] | undefined): Map<string, any> => {
+  static createElementsIndex = (elements: any[] | undefined): Map<string, any> => {
     const elementsIndex = new Map<string, any>();
 
     if (!elements || !Array.isArray(elements)) {
@@ -314,12 +330,107 @@ export class CatalogService {
       // Если у элемента есть вложенные элементы, создаем для них свою Map-структуру
       if (element.elements?.length > 0) {
         // Создаем Map для вложенных элементов
-        element.elementsIndex = CatalogService.createElementsMap(element.elements);
+        element.elementsIndex = CatalogService.createElementsIndex(element.elements);
       }
     });
 
-    return elementsIndex;
+    // Разрешаем зависимости после создания всей структуры
+    // Для каждого поля с related_fk находит связанное поле и добавляет hasDependentFields
+    const elementsWithDependencies = CatalogService.resolveFieldDependencies(elementsIndex);
+
+    return elementsWithDependencies;
   };
+
+  // Поиск связанного поля по related_fk в дереве элементов
+  // Ищет "снизу вверх": сначала на текущем уровне, затем на родительских уровнях
+  static findRelatedField(
+    targetField: any,
+    currentLevel: Map<string, any>,
+    scopeChain: Map<string, any>[] = [],
+  ): any | null {
+    const relatedFk = targetField.related_fk;
+    if (!relatedFk) return null;
+
+    // Поддерживаем разные форматы related_fk:
+    // - строка: "char_spec"
+    // - массив: ["char_spec"]
+    // - объект: {"char_spec": "someValue"}
+    let relatedNames: string[] = [];
+
+    if (typeof relatedFk === 'string') {
+      relatedNames = [relatedFk];
+    } else if (Array.isArray(relatedFk)) {
+      relatedNames = relatedFk;
+    } else if (typeof relatedFk === 'object') {
+      relatedNames = Object.keys(relatedFk);
+    }
+
+    // Ищем первое найденное связанное поле
+    for (const relatedName of relatedNames) {
+      // 1. Сначала ищем на текущем уровне (siblings)
+      if (currentLevel.has(relatedName)) {
+        return currentLevel.get(relatedName);
+      }
+
+      // 2. Поднимаемся по родительским уровням (от ближайшего к дальнему)
+      for (let i = scopeChain.length - 1; i >= 0; i--) {
+        const parentLevel = scopeChain[i];
+        if (parentLevel.has(relatedName)) {
+          return parentLevel.get(relatedName);
+        }
+      }
+    }
+
+    return null; // Не найдено
+  }
+
+  // Разрешение зависимостей полей в дереве элементов
+  // Рекурсивно обходит дерево и находит связанные поля для каждого элемента с related_fk
+  // Модифицирует переданную Map напрямую, добавляя поля hasDependentFields и resolvedRelatedField
+  static resolveFieldDependencies(
+    elements: Map<string, any>,
+    parentScopes: Map<string, any>[] = [],
+    currentPath: string[] = [],
+  ): Map<string, any> {
+    elements.forEach((field) => {
+      // Строим полный путь к текущему полю
+      const fieldPath = [...currentPath, field.name].join(' → ');
+
+      // Если у поля есть related_fk, ищем связанное поле
+      if (field.related_fk) {
+        const relatedField = this.findRelatedField(
+          field,
+          elements, // текущий уровень
+          parentScopes, // родительские уровни
+        );
+
+        if (relatedField) {
+          field.resolvedRelatedField = relatedField;
+
+          // Отмечаем связанное поле как имеющее зависимые от него поля
+          if (!relatedField.hasDependentFields) {
+            relatedField.hasDependentFields = [];
+          }
+          relatedField.hasDependentFields.push({
+            name: field.name,
+            path: fieldPath, // полный путь к зависимому полю
+            dependentField: field,
+          });
+        }
+      }
+
+      // Рекурсивно обрабатываем вложенные элементы
+      if (field.elementsIndex) {
+        this.resolveFieldDependencies(
+          field.elementsIndex,
+          [elements, ...parentScopes], // добавляем текущий уровень в цепочку
+          [...currentPath, field.name], // добавляем текущее поле в путь
+        );
+      }
+    });
+
+    return elements; // возвращаем модифицированную Map
+  }
 
   /**
    * Получает общее количество элементов

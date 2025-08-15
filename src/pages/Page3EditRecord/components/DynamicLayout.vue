@@ -60,7 +60,7 @@ DynamicLayout: чисто презентационный компонент
         <div v-if="debugField(fieldMeta)" class="debug-info">
           Поле: {{ fieldMeta.name }} (отладка отключена)
         </div>
-        {{ fieldMeta.FRONTEND_CLASS }}
+        <!-- {{ fieldMeta.FRONTEND_CLASS }} -->
         <!-- Компоненты полей получают стандартные пропсы -->
         <!-- PrimaryKeyRelated получает глобальные данные через inject -->
         <component

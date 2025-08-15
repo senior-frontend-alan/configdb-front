@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import api from '../api';
-import type { AuthSessionData, AuthState, ApiErrorState, Session } from './types/authStoreTypes';
+import type {
+  AuthSessionData,
+  AuthState,
+  ApiErrorState,
+  Session,
+  TransactionDetails,
+} from './types/authStoreTypes';
 
 // Механизм работы с CSRF-токеном:
 
@@ -29,6 +35,8 @@ const initialState: AuthState = {
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(initialState.session);
+  // Текущая транзакция пользователя
+  const currentTransaction = ref<TransactionDetails | null>(null);
   const csrfToken = ref<string | null>(initialState.csrfToken);
   const loading = ref(initialState.loading);
   const error = ref<ApiErrorState>(initialState.error);
@@ -268,6 +276,10 @@ export const useAuthStore = defineStore('auth', () => {
           session.value = response.data as Session;
           console.log('Сессия действительна, данные обновлены в сторе:', session.value);
         }
+
+        // После успешной проверки сессии получаем текущую транзакцию пользователя
+        await getCurrentTransaction();
+
         return true;
       } else {
         // Если нет CSRF-токена, сессия недействительна
@@ -285,6 +297,60 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Установить текущую транзакцию пользователя
+  const setCurrentTransaction = async (
+    transactionId: number,
+  ): Promise<TransactionDetails | null> => {
+    try {
+      if (!session.value?.url) {
+        console.error('URL сессии не найден в authStore');
+        return null;
+      }
+
+      // URL из authStore.session.url + /auditTransaction
+      const sessionUrl = `${session.value.url}auditTransaction/`;
+
+      const headers: Record<string, string> = {};
+      if (csrfToken.value) {
+        headers['X-CSRFToken'] = csrfToken.value;
+      }
+
+      const response = await api.post(sessionUrl, { id: transactionId }, { headers });
+      const transactionDetails: TransactionDetails = response.data;
+
+      currentTransaction.value = transactionDetails;
+
+      return transactionDetails;
+    } catch (error) {
+      console.error('Ошибка при загрузке деталей транзакции:', error);
+      return null;
+    }
+  };
+
+  const getCurrentTransaction = async (): Promise<TransactionDetails | null> => {
+    try {
+      if (!session.value?.url) {
+        console.error('URL сессии не найден в authStore');
+        return null;
+      }
+
+      const sessionUrl = `${session.value.url}auditTransaction/`;
+      const response = await api.get(sessionUrl);
+
+      // Если есть активная транзакция, сохраняем её
+      if (response.data) {
+        const transactionDetails: TransactionDetails = response.data;
+        currentTransaction.value = transactionDetails;
+        return transactionDetails;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Ошибка при получении текущей транзакции:', error);
+      return null;
+    }
+  };
+
   // Экспортируем состояние и методы
   return {
     // Состояние
@@ -293,6 +359,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     isAuthenticated,
+    currentTransaction,
 
     // Методы
     login,
@@ -301,5 +368,7 @@ export const useAuthStore = defineStore('auth', () => {
     checkSession,
     saveError,
     resetError,
+    setCurrentTransaction,
+    getCurrentTransaction,
   };
 });

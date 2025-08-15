@@ -171,6 +171,7 @@ export async function getOrFetchCatalogOPTIONS(
  * @param catalogName Имя каталога
  * @param offset Смещение для пагинации
  * @param limit Лимит записей для загрузки
+ * @param filters Фильтры для запроса
  * @returns Объект с результатом загрузки, URL каталога и данными
  */
 export async function getOrfetchCatalogGET(
@@ -179,6 +180,7 @@ export async function getOrfetchCatalogGET(
   catalogName: string,
   offset = 0,
   limit = 20,
+  filters?: Record<string, any>,
 ): Promise<CatalogResult> {
   const moduleStore = useModuleStore(moduleName);
   const currentCatalog: Catalog = moduleStore.initCatalog(applName, catalogName);
@@ -230,7 +232,7 @@ export async function getOrfetchCatalogGET(
       return { success: false, error };
     }
 
-    responseGET = await CatalogService.GET(catalogUrl, offset, limit);
+    responseGET = await CatalogService.GET(catalogUrl, offset, limit, filters);
 
     // Получаем новые результаты из ответа API
     const newResults = responseGET.results || [];

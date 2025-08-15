@@ -35,6 +35,20 @@ export interface Session {
   appconfig: Record<string, any>;
 }
 
+// Интерфейс для деталей транзакции
+export interface TransactionDetails {
+  id: number;
+  application: any | null;
+  date_closed: string | null;
+  date_opened: string;
+  date_updated: string;
+  description: string;
+  scope: number;
+  state: number;
+  transaction_num: string;
+  user: string;
+}
+
 // Интерфейс для ошибки
 export interface ApiErrorState {
   type: string;

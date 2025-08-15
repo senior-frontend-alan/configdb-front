@@ -12,6 +12,7 @@
     </div>
 
     <div class="user-menu-container">
+      <AuditTransactions />
       <UserMenu />
     </div>
   </div>
@@ -25,6 +26,7 @@
   import { useRouter, useRoute } from 'vue-router';
   import { useModuleName } from '../composables/useModuleName';
   import UserMenu from './UserMenu.vue';
+  import AuditTransactions from './AuditTransactions.vue';
 
   // Определяем пропсы компонента
   defineProps({
@@ -202,10 +204,6 @@
   .side-menu-content {
     flex: 1;
     overflow-y: auto;
-  }
-
-  .user-menu-container {
-    border-top: 1px solid var(--p-surface-200);
   }
 </style>
 
