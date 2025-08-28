@@ -10,20 +10,32 @@
       :max="max"
       :step="1"
       class="w-full"
-      :class="{ 'field-modified': props.isModified }"
+      :class="{ 'field-modified': isModified }"
       integerOnly
+      :data-testid="`integer-field-${props.options.name}`"
     />
     <label :for="id">{{ label }}</label>
   </FloatLabel>
+  <Message
+    v-if="help_text"
+    size="small"
+    severity="secondary"
+    variant="simple"
+    class="flex-grow-1 ml-2"
+  >
+    {{ help_text }}
+  </Message>
 </template>
 
 <script setup lang="ts">
   import { computed } from 'vue';
   import InputNumber from 'primevue/inputnumber';
   import FloatLabel from 'primevue/floatlabel';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   // Определяем интерфейс для объекта options
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.INTEGER;
     name: string;
     label?: string;
     placeholder?: string;
@@ -36,9 +48,10 @@
   }
 
   const props = defineProps<{
-    modelValue?: number;
+    originalValue?: number;
+    draftValue?: number;
     options: FieldOptions;
-    isModified: boolean;
+    updateField: (newValue: any) => void;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
@@ -47,19 +60,21 @@
   const placeholder = computed(() => props.options.placeholder || '');
   const disabled = computed(() => props.options.readonly || false);
   const required = computed(() => props.options.required || false);
+  const help_text = computed(() => props.options.help_text);
   const min = computed(() => props.options.min);
   const max = computed(() => props.options.max);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: number | null | undefined): void;
-  }>();
+  const isModified = computed(() => {
+    // Если нет draft значения, поле не изменено
+    if (props.draftValue === undefined) return false;
+
+    return props.draftValue !== props.originalValue;
+  });
 
   // Используем вычисляемое свойство для двустороннего связывания
   const value = computed({
-    get: () => props.modelValue,
-    set: (newValue: number | null | undefined) => {
-      emit('update:modelValue', newValue);
-    },
+    get: () => props.draftValue, // Всегда показываем только draftValue
+    set: (newValue: number | null) => props.updateField(newValue),
   });
 </script>
 

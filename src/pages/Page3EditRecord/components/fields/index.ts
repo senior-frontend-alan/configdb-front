@@ -11,7 +11,8 @@ import { FRONTEND } from '../../../../services/fieldTypeService';
 
 // Импортируем все компоненты полей
 import Char from './Char.vue';
-import IntegerDecimal from './IntegerDecimal.vue';
+import Integer from './Integer.vue';
+import Decimal from './Decimal.vue';
 import Boolean from './Boolean.vue';
 import DateTime from './DateTime.vue';
 import Date from './Date.vue';
@@ -30,8 +31,8 @@ import ViewSetInlineLayout from './ViewSetInlineLayout.vue';
  */
 export const dynamicField: Record<string, Component> = {
   [FRONTEND.CHAR]: Char,
-  [FRONTEND.INTEGER]: IntegerDecimal,
-  [FRONTEND.DECIMAL]: IntegerDecimal,
+  [FRONTEND.INTEGER]: Integer,
+  [FRONTEND.DECIMAL]: Decimal,
   [FRONTEND.BOOLEAN]: Boolean,
   [FRONTEND.DATE_TIME]: DateTime,
   [FRONTEND.DATE]: Date,
@@ -57,7 +58,8 @@ export function getComponent(fieldType: string): Component {
 // Экспортируем все компоненты для удобства использования
 export {
   Char,
-  IntegerDecimal,
+  Integer,
+  Decimal,
   Boolean,
   DateTime,
   Date,

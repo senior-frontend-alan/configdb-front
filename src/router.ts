@@ -64,7 +64,7 @@ routes.push({
 routes.push({
   path: '/:moduleName/:applName/:catalogName',
   name: 'CatalogDetails',
-  component: () => import('./pages/Page2CatalogDetails/index.vue'),
+  component: () => import('./pages/Page2CatalogDetails/MasterDetailLayout.vue'),
   props: true, // Автоматически передаем параметры маршрута как props
 });
 

@@ -40,6 +40,7 @@
       class="w-full"
       style="height: 130px"
       @init="editorInit"
+      :data-testid="`${FRONTEND.RICH_EDIT}-field-${props.options.name}`"
     />
   </div>
   <div v-if="help_text" class="mb-2">

@@ -11,6 +11,7 @@
       hourFormat="24"
       class="w-full"
       :class="{ 'field-modified': props.isModified }"
+      :data-testid="`${FRONTEND.TIME}-field-${props.options.name}`"
     />
     <label :for="id">{{ label }}</label>
   </FloatLabel>
@@ -20,9 +21,11 @@
   import { ref, watch, computed } from 'vue';
   import Calendar from 'primevue/calendar';
   import FloatLabel from 'primevue/floatlabel';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   // Определяем интерфейс для объекта options
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.TIME;
     name: string;
     label?: string;
     placeholder?: string;

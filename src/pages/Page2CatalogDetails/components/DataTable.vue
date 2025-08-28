@@ -93,6 +93,25 @@ onLazyLoad вызывается при прокрутке таблицы
             headerStyle="width: 3rem"
           />
 
+          <!-- Колонка с иконкой деталей -->
+          <Column
+            v-if="props.showDetailsColumn"
+            header=""
+            headerStyle="width: 3rem"
+            bodyStyle="text-align: center"
+          >
+            <template #body="slotProps">
+              <Button
+                v-if="props.shouldShowDetailsForRow?.(slotProps.data)"
+                icon="pi pi-eye"
+                class="p-button-rounded p-button-text p-button-sm"
+                @click="handleShowDetails(slotProps.data, $event)"
+                v-tooltip="'Показать деталь таблицу'"
+                aria-label="Показать деталь таблицу"
+              />
+            </template>
+          </Column>
+
           <!-- Остальные колонки -->
           <Column
             v-if="columns && columns.length > 0"
@@ -144,6 +163,7 @@ onLazyLoad вызывается при прокрутке таблицы
   import PrimeDataTable from 'primevue/datatable';
   import Column from 'primevue/column';
   import Message from 'primevue/message';
+  import Button from 'primevue/button';
   // Импортируем динамические компоненты полей
   import { dynamicField } from './fields';
 
@@ -176,6 +196,8 @@ onLazyLoad вызывается при прокрутке таблицы
       totalRecords?: number;
       selectionMode?: 'single' | 'multiple' | undefined;
       modifiedRows?: Set<string>; // Множество ID измененных строк
+      showDetailsColumn?: boolean; // Показывать ли колонку с деталями
+      shouldShowDetailsForRow?: (rowData: any) => boolean; // Функция для проверки, нужно ли показывать детали для строки
     }>(),
     {
       loading: false,
@@ -254,10 +276,17 @@ onLazyLoad вызывается при прокрутке таблицы
 
   // эмиттер для оповещения родителя о изменении выделенных строк, клике по строке
   const emit = defineEmits<{
-    (e: 'row-click', event: any): void;
-    (e: 'selection-change', selection: any[]): void;
-    (e: 'update:selectedItems', value: any[]): void;
+    (e: 'row-click', rowData: any): void;
+    (e: 'selection-change', items: any[]): void;
+    (e: 'update:selectedItems', items: any[]): void;
+    (e: 'show-details-table', rowData: any): void;
   }>();
+
+  // Обработчик клика по иконке деталей
+  const handleShowDetails = (rowData: any, event: Event) => {
+    event.stopPropagation(); // Предотвращаем всплытие события
+    emit('show-details-table', rowData);
+  };
 
   // Следим за изменениями в таблице и отправляем их родителю
   watch(tableSelection, (newSelection) => {

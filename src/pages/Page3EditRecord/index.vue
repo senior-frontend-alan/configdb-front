@@ -9,7 +9,7 @@ URL для создания новой записи: http://localhost:5173/catal
 -->
 <template>
   <div
-    :class="['edit-record-page', isCreateMode ? 'create-mode' : 'edit-mode']"
+    :class="['edit-record-page px-6', isCreateMode ? 'create-mode' : 'edit-mode']"
     data-testid="edit-record-page"
   >
     <div class="flex justify-content-between align-items-center mb-4">

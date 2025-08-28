@@ -81,23 +81,21 @@
         <AppTopbar />
       </div> -->
 
-      <div class="layout-content">
-        <!-- :key="route.fullPath" - Это важно! 
+      <!-- :key="route.fullPath" - Это важно! 
          Оно заставляет Vue полностью пересоздавать компонент при изменении маршрута. 
          Когда мы переходим между разными модулями (например, с /catalog на /ocsmanage), 
          Vue будет полностью уничтожать старый компонент и создавать новый, вместо того чтобы 
          пытаться переиспользовать существующий иначе загружаются данные из предыдущего стора -->
-        <!-- Используем keep-alive для сохранения состояния компонентов каталога -->
-        <!-- Для компонентов в keep-alive не используем key, чтобы сохранить состояние -->
-        <router-view v-slot="{ Component, route }">
-          <keep-alive :include="['Page2CatalogDetails']" :max="10">
-            <component
-              :is="Component"
-              :key="['Page2CatalogDetails'].includes(Component?.name) ? undefined : route.fullPath"
-            />
-          </keep-alive>
-        </router-view>
-      </div>
+      <!-- Используем keep-alive для сохранения состояния компонентов каталога -->
+      <!-- Для компонентов в keep-alive не используем key, чтобы сохранить состояние -->
+      <router-view v-slot="{ Component, route }">
+        <keep-alive :include="['Page2CatalogDetails']" :max="10">
+          <component
+            :is="Component"
+            :key="['Page2CatalogDetails'].includes(Component?.name) ? undefined : route.fullPath"
+          />
+        </keep-alive>
+      </router-view>
     </div>
 
     <!-- Компонент Toast для уведомлений -->
@@ -198,13 +196,6 @@
   .sticky {
     position: fixed;
     width: 100%;
-  }
-
-  .layout-content {
-    flex: 1;
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-    background-color: var(--p-surface-50);
   }
 
   .layout-mask {

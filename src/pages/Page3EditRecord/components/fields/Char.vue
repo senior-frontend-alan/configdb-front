@@ -10,6 +10,7 @@
           :placeholder="placeholder"
           class="w-full"
           :maxlength="max_length"
+          :data-testid="`char-field-${props.options.name}`"
         />
         <label :for="id">{{ label }}</label>
       </FloatLabel>

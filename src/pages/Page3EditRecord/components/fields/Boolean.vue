@@ -8,6 +8,7 @@
         :binary="true"
         :disabled="disabled"
         :required="required"
+        :data-testid="`boolean-field-${props.options.name}`"
       />
       <label :for="id" class="ml-2">{{ label }}</label>
     </div>
@@ -26,8 +27,10 @@
 <script setup lang="ts">
   import { computed } from 'vue';
   import Checkbox from 'primevue/checkbox';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.BOOLEAN;
     name: string;
     label?: string;
     required?: boolean;

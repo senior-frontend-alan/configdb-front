@@ -12,6 +12,7 @@
         :required="required"
         class="w-full"
         :class="{ 'field-modified': isModified }"
+        :data-testid="`${FRONTEND.RELATED}-field-${props.options.name}`"
       />
       <label>{{ label }}</label>
     </FloatLabel>
@@ -29,6 +30,7 @@
   import Select from 'primevue/select';
   import FloatLabel from 'primevue/floatlabel';
   import Message from 'primevue/message';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   interface ChoiceOption {
     value: string | number;
@@ -37,6 +39,7 @@
 
   // Определяем интерфейс для объекта options
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.RELATED;
     name: string;
     label?: string;
     readonly?: boolean;

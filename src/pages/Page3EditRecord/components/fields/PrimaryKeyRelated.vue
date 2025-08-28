@@ -21,6 +21,7 @@
           optionLabel="name"
           :disabled="disabled"
           :required="required"
+          :data-testid="`${FRONTEND.PRIMARY_KEY_RELATED}-field-${props.options.name}`"
         />
         <label>{{ label }} </label>
       </FloatLabel>

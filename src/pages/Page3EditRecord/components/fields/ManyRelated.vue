@@ -19,6 +19,7 @@
           @update:modelValue="handleModelValueChange"
           @click="!disabled && openDialog()"
           :panelStyle="{ display: 'none' }"
+          :data-testid="`${FRONTEND.MANY_RELATED}-field-${props.options.name}`"
         />
         <label>{{ label }}</label>
       </FloatLabel>

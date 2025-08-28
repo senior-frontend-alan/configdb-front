@@ -18,7 +18,7 @@ function deepClone<T>(obj: T): T {
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => deepClone(item)) as T;
+    return obj.map((item) => deepClone(item)) as T;
   }
 
   if (typeof obj === 'object') {
@@ -409,7 +409,9 @@ export function createModuleStore(moduleConfig: Module): any {
         if (!(this as any)[catalogKey][draftKey]) {
           return {
             success: false,
-            error: new Error(`Draft для записи ${recordId} не найден. Сначала вызовите initRecord.`),
+            error: new Error(
+              `Draft для записи ${recordId} не найден. Сначала вызовите initRecord.`,
+            ),
           };
         }
 
@@ -458,7 +460,7 @@ export function createModuleStore(moduleConfig: Module): any {
         // Восстанавливаем draft как глубокую копию original данных
         const originalData = (this as any)[catalogKey][recordId];
         const draftCopy = deepClone(originalData);
-        
+
         (this as any)[catalogKey][draftKey] = draftCopy;
 
         // Используем $patch для обеспечения реактивности

@@ -9,22 +9,35 @@
       :placeholder="placeholder"
       :min="min"
       :max="max"
-      :minFractionDigits="2"
-      :maxFractionDigits="6"
+      :step="step"
+      :minFractionDigits="minFractionDigits"
+      :maxFractionDigits="maxFractionDigits"
       class="w-full"
-      :class="{ 'field-modified': props.isModified }"
+      :class="{ 'field-modified': isModified }"
+      :data-testid="`${FRONTEND.DECIMAL}-field-${props.options.name}`"
     />
     <label :for="id">{{ label }}</label>
   </FloatLabel>
+  <Message
+    v-if="help_text"
+    size="small"
+    severity="secondary"
+    variant="simple"
+    class="flex-grow-1 ml-2"
+  >
+    {{ help_text }}
+  </Message>
 </template>
 
 <script setup lang="ts">
   import { computed } from 'vue';
   import InputNumber from 'primevue/inputnumber';
   import FloatLabel from 'primevue/floatlabel';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   // Определяем интерфейс для объекта options
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.DECIMAL;
     name: string;
     label?: string;
     placeholder?: string;
@@ -37,9 +50,10 @@
   }
 
   const props = defineProps<{
-    modelValue?: number;
+    originalValue?: number;
+    draftValue?: number;
     options: FieldOptions;
-    isModified: boolean;
+    updateField: (newValue: any) => void;
   }>();
 
   // Извлекаем свойства из объекта options для удобства использования
@@ -48,19 +62,28 @@
   const placeholder = computed(() => props.options.placeholder || '');
   const disabled = computed(() => props.options.readonly || false);
   const required = computed(() => props.options.required || false);
+  const help_text = computed(() => props.options.help_text);
   const min = computed(() => props.options.min);
   const max = computed(() => props.options.max);
 
-  const emit = defineEmits<{
-    (e: 'update:modelValue', value: number | null): void;
-  }>();
+  // Настройки для десятичных чисел
+  const minFractionDigits = computed(() => props.options.decimal_places || 2);
+  const maxFractionDigits = computed(() => props.options.decimal_places || 6);
+
+  // Шаг для целых чисел - 1, для десятичных - 0.01 или меньше в зависимости от decimal_places
+  const step = computed(() => Math.pow(10, -(props.options.decimal_places || 2)));
+
+  const isModified = computed(() => {
+    // Если нет draft значения, поле не изменено
+    if (props.draftValue === undefined) return false;
+
+    return props.draftValue !== props.originalValue;
+  });
 
   // Используем вычисляемое свойство для двустороннего связывания
   const value = computed({
-    get: () => props.modelValue,
-    set: (newValue: number | null) => {
-      emit('update:modelValue', newValue);
-    },
+    get: () => props.draftValue, // Всегда показываем только draftValue
+    set: (newValue: number | null) => props.updateField(newValue),
   });
 </script>
 

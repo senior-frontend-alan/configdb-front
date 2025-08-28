@@ -11,6 +11,7 @@
       hourFormat="24"
       class="w-full"
       :class="{ 'field-modified': isModified }"
+      :data-testid="`${FRONTEND.DATE_TIME}-field-${props.options.name}`"
     />
     <label :for="id">{{ label }}</label>
   </FloatLabel>
@@ -30,8 +31,10 @@
   import DatePicker from 'primevue/datepicker';
   import FloatLabel from 'primevue/floatlabel';
   import Message from 'primevue/message';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.DATE_TIME;
     name: string;
     label?: string;
     placeholder?: string;

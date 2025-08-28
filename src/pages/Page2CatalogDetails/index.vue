@@ -11,7 +11,7 @@ CatalogDataTable отвечает только за отображение да�
 -->
 
 <template>
-  <div class="catalog-details-page" data-testid="table-page">
+  <div class="px-6" data-testid="table-page">
     <div class="header-container">
       <div class="title-container">
         <div>
@@ -34,7 +34,7 @@ CatalogDataTable отвечает только за отображение да�
 
         <!-- Инпут для ввода ID записи и кнопка для прокрутки к ней -->
         <!--  Не удалять! -->
-        <!-- <div class="scroll-to-id-container">
+        <!-- <div>
           <InputText
             v-model="scrollToIdInput"
             placeholder="ID записи"
@@ -84,10 +84,14 @@ CatalogDataTable отвечает только за отображение да�
         :onColumnReorder="onColumnReorder"
         :loading="loading"
         :locale="userLocale"
+        :modifiedRows="selectedRowsForDetailTables"
         @update:selectedItems="tableSelection = $event"
         @row-click="handleRowClick"
+        @show-details-table="handleShowDetails"
         :isTableScrollable="isTableScrollable"
         :totalRecords="totalRecords"
+        :showDetailsColumn="!!catalogDetailsInfo"
+        :shouldShowDetailsForRow="shouldShowDetailsForRow"
         data-testid="table-datatable"
       />
 
@@ -117,7 +121,7 @@ CatalogDataTable отвечает только за отображение да�
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, watch, onUnmounted, nextTick } from 'vue';
+  import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
   import { useModuleStore, type Catalog } from '../../stores/module-factory';
   import { useSettingsStore } from '../../stores/settingsStore';
@@ -127,7 +131,6 @@ CatalogDataTable отвечает только за отображение да�
   import DataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
   import Button from 'primevue/button';
-  import InputText from 'primevue/inputtext';
   import ProgressSpinner from 'primevue/progressspinner';
 
   const router = useRouter();
@@ -171,7 +174,12 @@ CatalogDataTable отвечает только за отображение да�
   const tableSelection = ref<any[]>([]);
   const isTableScrollable = ref(false);
   const totalRecords = ref(0);
-  const scrollToIdInput = ref<string>(''); // Инпут для ввода ID записи
+
+  // Локальное состояние для хранения выбранных строк для деталь-таблиц и подсветки
+  const selectedRowsForDetailTables = ref<Set<string>>(new Set<string>());
+
+  // Функция для проверки условия show_if
+  const detailsShowIfFn = ref<Function | null>(null);
 
   // Реф для элемента триггера ленивой загрузки
   const loadMoreTrigger = ref<HTMLDivElement | null>(null);
@@ -191,6 +199,41 @@ CatalogDataTable отвечает только за отображение да�
   // Устанавливаем currentCatalog из результата getOrfetchCatalogGET
   const currentCatalog = ref<Catalog | null>(null);
 
+  // Computed свойство для получения details_info из OPTIONS
+  const catalogDetailsInfo = computed(() => {
+    return currentCatalog.value?.OPTIONS?.details_info || null;
+  });
+
+  // Функция для проверки условия show_if
+  const shouldShowDetailsForRow = (rowData: any): boolean => {
+    const detailsConfig = catalogDetailsInfo.value;
+    if (!detailsConfig || !detailsConfig.show_if) {
+      return !!detailsConfig; // Показываем, если есть details_info без условий
+    }
+
+    const showIf = detailsConfig.show_if;
+
+    // Если show_if - строка с JS кодом
+    if (typeof showIf === 'string') {
+      try {
+        if (!detailsShowIfFn.value) {
+          detailsShowIfFn.value = new Function('data', showIf);
+        }
+        return detailsShowIfFn.value(rowData);
+      } catch (error) {
+        console.error('Ошибка выполнения show_if функции:', error);
+        return false;
+      }
+    }
+
+    // Если show_if - название поля, проверяем его значение
+    if (typeof showIf === 'string' && !showIf.includes('return')) {
+      return !!rowData[showIf];
+    }
+
+    return false;
+  };
+
   // Computed свойство для отображения активных фильтров
   const activeFiltersText = computed(() => {
     if (!props.relatedFields || props.relatedFields.length === 0) {
@@ -205,7 +248,7 @@ CatalogDataTable отвечает только за отображение да�
           field.data,
           field.metadata?.FRONTEND_CLASS,
           field.metadata,
-          userLocale.value
+          userLocale.value,
         );
 
         return `${label}: ${formattedValue}`;
@@ -230,6 +273,23 @@ CatalogDataTable отвечает только за отображение да�
     storeDetails.userSettings.displayColumns = newColumns;
 
     console.log('Порядок столбцов изменен:', newColumns);
+  };
+
+  // Функция для обработки клика по иконке деталей
+  const handleShowDetails = (rowData: any) => {
+    if (!rowData || !rowData.id) return;
+    // Обновляем состояние выбранных строк
+    const rowId = String(rowData.id);
+    const newSet = new Set(selectedRowsForDetailTables.value);
+    if (newSet.has(rowId)) {
+      newSet.delete(rowId);
+    } else {
+      newSet.add(rowId);
+    }
+    // Обновляем состояние
+    selectedRowsForDetailTables.value = newSet;
+    // // Эмитим событие для показа деталь-таблицы в родительский компонент
+    // emit('show-details-table', rowData);
   };
 
   const handleRowClick = (event: any) => {
@@ -258,10 +318,11 @@ CatalogDataTable отвечает только за отображение да�
 
   // Создаем эмиттер для оповещения родительских компонентов
   const emit = defineEmits<{
-    (e: 'update:selectedItems', value: any[]): void;
+    (e: 'update:selectedItems', items: any[]): void;
     (e: 'virtual-scroll', event: any): void;
     (e: 'row-click', event: any): void;
     (e: 'record-selected', record: any): void;
+    (e: 'show-details-table', row: any): void;
   }>();
 
   // Мы следим за изменениями в таблице и отправляем их родителю
@@ -353,6 +414,9 @@ CatalogDataTable отвечает только за отображение да�
   let observer: IntersectionObserver | null = null;
 
   onMounted(async () => {
+    console.log('Монтируем таблицу: moduleName', moduleName.value);
+    console.log('applName', applName.value);
+    console.log('catalogName', catalogName.value);
     // Проверяем наличие всех необходимых параметров перед загрузкой данных
     if (moduleName.value && applName.value && catalogName.value) {
       await loadCatalogData(0);
@@ -443,48 +507,36 @@ CatalogDataTable отвечает только за отображение да�
 </script>
 
 <style scoped>
-  .catalog-details-page {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    padding: 1rem;
-  }
-
   .header-container {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
     margin-bottom: 1rem;
   }
 
   .title-container {
     display: flex;
-    align-items: center;
+    flex-direction: column;
   }
 
   .filters-info {
-    display: block;
-    font-weight: normal;
-    color: #6b7280;
-    font-style: italic;
-  }
-
-  .table-controls {
-    align-items: center;
-    display: flex;
-    justify-content: flex-end;
+    font-size: 0.9rem;
+    color: var(--text-color-secondary);
+    margin-top: 0.25rem;
   }
 
   .loading-container,
-  .error-container,
-  .empty-container {
+  .error-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 2rem;
+    gap: 1rem;
   }
+</style>
 
+<style scoped>
   .catalog-details {
     display: flex;
     flex-direction: column;

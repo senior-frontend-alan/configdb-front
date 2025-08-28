@@ -9,6 +9,7 @@
       dateFormat="dd.mm.yy"
       class="w-full"
       :class="{ 'field-modified': props.isModified }"
+      :data-testid="`${FRONTEND.DATE}-field-${props.options.name}`"
     />
     <label :for="id">{{ label }}</label>
   </FloatLabel>
@@ -18,9 +19,11 @@
   import { computed } from 'vue';
   import DatePicker from 'primevue/datepicker';
   import FloatLabel from 'primevue/floatlabel';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   // Определяем интерфейс для объекта options
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.DATE;
     name: string;
     label?: string;
     placeholder?: string;

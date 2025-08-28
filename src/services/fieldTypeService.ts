@@ -67,12 +67,12 @@ export const FRONTEND = {
   DATE: 'date',
   TIME: 'time',
   CHOICE: 'choice',
-  RICH_EDIT: 'rich_edit',
+  RICH_EDIT: 'rich-edit',
   COMPUTED: 'computed',
   RELATED: 'related', // простой дропдаун (как choice)
-  PRIMARY_KEY_RELATED: 'primary_key_related', // модальное окно с новой таблицей
-  MANY_RELATED: 'many_related', // модальное окно с новой таблицей и возможность добавления нескольких записей (chips)
-  VIEW_SET_INLINE_LAYOUT: 'view_set_inline_layout', // подчиненная вложенная в поле таблица/объект
+  PRIMARY_KEY_RELATED: 'primary-key-related', // модальное окно с новой таблицей
+  MANY_RELATED: 'many-related', // модальное окно с новой таблицей и возможность добавления нескольких записей (chips)
+  VIEW_SET_INLINE_LAYOUT: 'view-set-inline-layout', // подчиненная вложенная в поле таблица/объект
 } as const;
 
 // Теперь используем только BACKEND и FRONTEND константы

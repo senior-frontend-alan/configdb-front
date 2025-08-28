@@ -81,6 +81,7 @@
         locale="ru"
         @row-click="handleRowClick"
         @update:selectedItems="handleSelectedItemsChange"
+        :data-testid="`${FRONTEND.VIEW_SET_INLINE_LAYOUT}-field-${props.options.name}`"
       />
     </div>
 

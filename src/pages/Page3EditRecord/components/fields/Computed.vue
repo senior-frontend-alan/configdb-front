@@ -1,7 +1,11 @@
 <template>
   <div class="field-computed">
     <label :for="id" class="block">{{ label }}</label>
-    <div :id="id" class="computed-value">
+    <div
+      :id="id"
+      class="computed-value"
+      :data-testid="`${FRONTEND.COMPUTED}-field-${props.options.name}`"
+    >
       {{ formattedValue }}
     </div>
   </div>
@@ -9,8 +13,10 @@
 
 <script setup lang="ts">
   import { computed } from 'vue';
+  import { FRONTEND } from '../../../../services/fieldTypeService';
 
   interface FieldOptions {
+    FRONTEND_CLASS: typeof FRONTEND.COMPUTED;
     name: string;
     label?: string;
     formatter?: (value: any) => string;
