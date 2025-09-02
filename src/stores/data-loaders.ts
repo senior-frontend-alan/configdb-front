@@ -79,7 +79,7 @@ async function findCatalogInAllModules(
  * @param catalogName Имя каталога
  * @returns Объект с результатом поиска, URL каталога, стором и каталогом
  */
-async function findCatalogUrlAndStore(
+async function findCatalogUrlAllModules(
   moduleName: string,
   applName: string,
   catalogName: string,
@@ -87,12 +87,10 @@ async function findCatalogUrlAndStore(
   success: boolean;
   catalogUrl?: string;
   moduleStore?: any;
-  catalog?: Catalog;
   actualModuleName?: string;
   error?: Error;
 }> {
   let moduleStore = useModuleStore(moduleName);
-  let currentCatalog: Catalog = moduleStore.initCatalog(applName, catalogName);
   let actualModuleName = moduleName;
 
   // Получаем URL каталога для загрузки
@@ -118,13 +116,12 @@ async function findCatalogUrlAndStore(
       catalogUrl = catalogSearch.catalogUrl;
 
       const foundModuleStore = catalogSearch.moduleStore;
-      const foundCatalog: Catalog = foundModuleStore.initCatalog(applName, catalogName);
 
       console.log(`Каталог найден в модуле ${foundModuleName}`);
       // Обновляем переменные для дальнейшей работы
       actualModuleName = foundModuleName;
       moduleStore = foundModuleStore;
-      currentCatalog = foundCatalog;
+      // Инициализация каталога будет выполнена позже
     } else {
       // Каталог не найден ни в одном модуле
       return { success: false, error: catalogSearch.error };
@@ -135,7 +132,6 @@ async function findCatalogUrlAndStore(
     success: true,
     catalogUrl,
     moduleStore,
-    catalog: currentCatalog,
     actualModuleName,
   };
 }
@@ -234,9 +230,10 @@ export async function getOrFetchModuleCatalogGroups(
 
 interface CatalogResult {
   success: boolean;
+  /** Полный объект каталога (нужен для getOrFetchRecord) */
   catalog?: Catalog;
-  /** Только новые записи, загруженные в текущем запросе */
-  newItems?: any[];
+  /** Конкретный Ключ кэша для которого делался запрос GET */
+  cacheKey?: string;
   error?: Error;
 }
 
@@ -252,28 +249,33 @@ export async function getOrFetchCatalogOPTIONS(
   applName: string,
   catalogName: string,
 ): Promise<{ success: boolean; catalog?: Catalog; error?: Error }> {
+  // Проверяем, есть ли уже инициализированный каталог
   const moduleStore = useModuleStore(moduleName);
-  const currentCatalog: Catalog = moduleStore.initCatalog(applName, catalogName);
+  const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+  const existingCatalog = (moduleStore as any)[catalogKey];
 
-  // Проверяем кэш сразу после инициализации каталога
-  if (currentCatalog.OPTIONS && Object.keys(currentCatalog.OPTIONS).length > 0) {
+  // Если каталог уже существует и имеет OPTIONS
+  if (existingCatalog?.OPTIONS && Object.keys(existingCatalog.OPTIONS).length > 0) {
     console.log(
       `getOrFetchCatalogOPTIONS: Используем кэшированные метаданные для ${moduleName}/${applName}/${catalogName}`,
     );
-    return { success: true, catalog: currentCatalog };
+    return { success: true, catalog: existingCatalog };
   }
 
-  // Используем общую функцию для поиска URL каталога
-  const catalogResult = await findCatalogUrlAndStore(moduleName, applName, catalogName);
+  const catalogResult = await findCatalogUrlAllModules(moduleName, applName, catalogName);
 
   if (!catalogResult.success) {
     return { success: false, error: catalogResult.error };
   }
 
   try {
+    // Используем существующий каталог или создаем новый
+    const catalog = existingCatalog || moduleStore.initCatalog(applName, catalogName, undefined);
+
     const responseOPTIONS = await CatalogService.OPTIONS(catalogResult.catalogUrl!);
-    catalogResult.catalog!.OPTIONS = responseOPTIONS;
-    return { success: true, catalog: catalogResult.catalog };
+    catalog.OPTIONS = responseOPTIONS;
+
+    return { success: true, catalog: catalog };
   } catch (error) {
     console.error(`Ошибка при загрузке OPTIONS для каталога ${applName}/${catalogName}:`, error);
     return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
@@ -302,93 +304,54 @@ export async function getOrfetchCatalogGET(
   filters?: Record<string, any>,
 ): Promise<CatalogResult> {
   const moduleStore = useModuleStore(moduleName);
-  let currentCatalog: Catalog = moduleStore.initCatalog(applName, catalogName);
+  let currentCatalog: Catalog = moduleStore.initCatalog(applName, catalogName, filters);
 
-  // Если есть фильтры, формируем имя поля для поиска в кэше
-  let cacheFieldName = 'GET';
-  if (filters && Object.keys(filters).length > 0) {
-    const filterParams = Object.entries(filters)
-      .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
-      .join('&');
-    cacheFieldName = `GET?${filterParams}`;
-  }
+  const cacheKey = moduleStore.buildCacheKey(filters);
+  const cacheResult = moduleStore.checkCacheForData(currentCatalog, cacheKey, offset, limit);
 
-  // Проверяем наличие данных в кэше с учетом фильтров
-  if (currentCatalog?.[cacheFieldName]?.results) {
-    // Проверяем, загружен ли уже требуемый диапазон данных
-    const cachedResults = currentCatalog[cacheFieldName].results;
-    const cachedCount = cachedResults.length;
-
-    // Простая проверка: если запрашиваемый офсет меньше чем количество загруженных записей
-    // и офсет + лимит не превышает количество загруженных записей
-    if (offset < cachedCount && offset + limit <= cachedCount) {
-      console.log(
-        `getOrfetchCatalogGET: Данные для ${moduleName}/${applName}/${catalogName} с offset=${offset}, limit=${limit} и фильтрами уже загружены в стор, используем кэш`,
-      );
-      // Возвращаем данные из кэша
-      return {
-        success: true,
-        catalog: currentCatalog,
-        newItems: [], // Новых записей нет, все уже в кэше
-      };
-    }
+  if (cacheResult.isCached) {
+    console.log(
+      `getOrfetchCatalogGET: Данные для ${moduleName}/${applName}/${catalogName} с offset=${offset}, limit=${limit} и фильтрами уже загружены в стор, используем кэш`,
+    );
+    // Возвращаем данные из кэша
+    return {
+      success: true,
+      catalog: currentCatalog,
+      cacheKey,
+    };
   }
 
   // Структура каталога ${catalogName} инициализирована, но данных еще нет, загружаем с сервера
   try {
-    // Используем общую функцию для поиска URL каталога
-    const catalogResult = await findCatalogUrlAndStore(moduleName, applName, catalogName);
+    const catalogResult = await findCatalogUrlAllModules(moduleName, applName, catalogName);
 
     if (!catalogResult.success) {
       return { success: false, error: catalogResult.error };
     }
 
-    // Обновляем currentCatalog на найденный каталог
-    currentCatalog = catalogResult.catalog!;
+    // Проверяем, есть ли уже инициализированный каталог
+    const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
+    currentCatalog =
+      (moduleStore as any)[catalogKey] || moduleStore.initCatalog(applName, catalogName);
 
     const responseGET = await CatalogService.GET(catalogResult.catalogUrl!, offset, limit, filters);
     const newResults = responseGET.results || [];
 
-    // Обновляем данные в сторе
-    const updatedResults =
-      offset === 0
-        ? newResults // Первая загрузка - заменяем все данные
-        : [...(currentCatalog.GET?.results || []), ...newResults]; // Подгрузка - добавляем к существующим
-
-    // Сохраняем результаты в соответствующее поле в зависимости от наличия фильтров
-    // Используем то же имя поля, что и при проверке кэша
-    if (filters && Object.keys(filters).length > 0) {
-      // Формируем строку с фильтрами в формате "GET?param1=value1&param2=value2"
-      const filterParams = Object.entries(filters)
-        .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
-        .join('&');
-
-      const filteredFieldName = `GET?${filterParams}`;
-
-      // Сохраняем результаты только в поле с фильтрами
-      currentCatalog[filteredFieldName] = {
-        ...responseGET,
-        results: newResults,
-        loadedCount: newResults.length,
-        pageSize: limit,
-        filters: filters, // Сохраняем использованные фильтры для справки
-      };
-    } else {
-      // Обновляем основное поле GET только если нет фильтров
-      currentCatalog.GET = {
-        ...currentCatalog.GET, // Сохраняем существующие данные (lastEditedID)
-        ...responseGET, // Добавляем все поля из ответа API
-        results: updatedResults,
-        loadedCount: updatedResults.length, // Просто сохраняем количество загруженных записей
-        pageSize: limit,
-      };
-    }
+    moduleStore.updateCatalog(
+      currentCatalog,
+      cacheKey,
+      responseGET,
+      newResults,
+      offset,
+      limit,
+      filters,
+    );
 
     console.log(`getOrfetchCatalogGET: Каталог ${catalogName} успешно загружен и сохранен в сторе`);
     return {
       success: newResults.length > 0,
       catalog: currentCatalog,
-      newItems: newResults,
+      cacheKey,
       error: undefined,
     };
   } catch (error) {
@@ -396,7 +359,7 @@ export async function getOrfetchCatalogGET(
     return {
       success: false,
       catalog: undefined,
-      newItems: [],
+      cacheKey: undefined,
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }
@@ -421,6 +384,7 @@ interface RecordResult {
  * @param applName Имя приложения
  * @param catalogName Имя каталога
  * @param recordId ID записи
+ * @param filters Фильтры для запроса
  * @returns Объект с результатом загрузки и данными записи
  */
 export async function getOrFetchRecord(
@@ -490,6 +454,7 @@ export async function getOrFetchRecord(
     };
   }
 }
+
 export interface RecordSaveResult {
   success: boolean;
   recordId?: string;

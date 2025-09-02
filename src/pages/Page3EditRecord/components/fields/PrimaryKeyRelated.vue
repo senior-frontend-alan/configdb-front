@@ -9,7 +9,7 @@
     >
       <!-- Иконка замочка для заблокированных полей -->
       <InputGroupAddon
-        v-if="relatedFieldsStatus.isBlocked"
+        v-if="missingFields.fieldNames.length > 0"
         style="background-color: var(--p-surface-200)"
       >
         <i class="pi pi-lock" />
@@ -26,7 +26,7 @@
         <label>{{ label }} </label>
       </FloatLabel>
       <InputGroupAddon
-        v-if="relatedFieldsStatus.isBlocked"
+        v-if="missingFields.fieldNames.length > 0"
         style="background-color: var(--p-surface-200)"
       >
         <i
@@ -40,16 +40,19 @@
     </InputGroup>
 
     <div
-      v-if="help_text || relatedFieldsStatus.isBlocked"
+      v-if="help_text || missingFields.fieldNames.length > 0"
       class="flex align-items-center justify-content-between mt-1"
     >
       <Message size="small" severity="secondary" variant="simple" class="flex-grow-1">
         {{ help_text }}
       </Message>
     </div>
-    <div v-if="relatedFieldsStatus.isBlocked" :style="{ color: 'var(--field-modified-color)' }">
+    <div
+      v-if="missingFields.fieldNames.length > 0"
+      :style="{ color: 'var(--field-modified-color)' }"
+    >
       <div>Сначала заполните:</div>
-      <div v-for="field in missingFieldsList" :key="field">
+      <div v-for="field in missingFields.displayLabels" :key="field">
         {{ field }}
       </div>
     </div>
@@ -89,7 +92,7 @@
           :moduleName="currentModuleName"
           :applName="currentApplName"
           :catalogName="currentCatalogName"
-          :relatedFields="relatedFields"
+          :filters="filtersObject"
           :isModalMode="true"
           @row-click="customRowClick"
         />
@@ -117,6 +120,7 @@
   import { computed, ref, inject, onMounted, onUnmounted, type ComputedRef } from 'vue';
   import { useRoute } from 'vue-router';
   import { useToast } from 'primevue/usetoast';
+  import { FilterItem, FiltersResult } from '../../../../router';
 
   import { FRONTEND } from '../../../../services/fieldTypeService';
   import Button from 'primevue/button';
@@ -219,29 +223,24 @@
 
   // Lifecycle логирование для диагностики
   onMounted(() => {
-    console.log('🚀 ViewSetInlineLayout mounted');
-    console.log('🔍 Принудительно вызываем computed свойства:');
-
-    // Принудительно вызываем computed свойства для логирования
-    dataChain.value; // Принудительно вызываем для логирования
-    metadataChain.value; // Принудительно вызываем для логирования
-
     console.log('---------------------------------------------------');
     console.log(
-      `🔗 ViewSetInlineLayout dataChain (длина: ${dataChain.value.length}):`,
+      `🔗 PrimaryKeyRelated dataChain (длина: ${dataChain.value.length}):`,
       dataChain.value,
     );
     console.log(
-      `🔗 ViewSetInlineLayout metadataChain (длина: ${metadataChain.value.length}):`,
+      `🔗 PrimaryKeyRelated metadataChain (длина: ${metadataChain.value.length}):`,
       metadataChain.value,
     );
 
     console.log('---------------------------------------------------');
-    console.log(`relatedFields`, relatedFields.value);
+    console.log(`🔍 Связанные поля:`, props.options.related_fk);
+    console.log(`🔍 Фильтры:`, filtersObject.value);
+    console.log(`🔍 Отсутствующие поля:`, missingFields.value);
   });
 
   onUnmounted(() => {
-    console.log('💀 ViewSetInlineLayout unmounted');
+    console.log('💀 PrimaryKeyRelated unmounted');
   });
 
   // metadataChain:
@@ -286,20 +285,14 @@
     return undefined;
   };
 
-  // Создаем структуру связанных полей для удобства работы
-  // [{ name, data, metadata, isEmpty }, ...]
-  const relatedFields = computed(() => {
+  // Создаем объект фильтров с метаданными
+  const filtersObject = computed<FiltersResult>(() => {
+    const result: FiltersResult = {};
     const relatedFk = props.options.related_fk;
-    if (!relatedFk) return [];
 
-    const fields: Array<{
-      name: string;
-      data: any;
-      metadata: any;
-      isEmpty: boolean;
-    }> = [];
+    if (!relatedFk) return result;
 
-    // Извлекаем имена полей из разных форматов related_fk
+    // Получаем имена полей из related_fk
     let fieldNames: string[] = [];
 
     if (Array.isArray(relatedFk)) {
@@ -310,70 +303,61 @@
         .map(([, value]) => value as string);
     }
 
-    // Создаем объекты для каждого связанного поля
-    fieldNames.forEach((fieldName) => {
-      const metadata = findFieldMetadata(fieldName);
+    // Для всех полей создаем запись в фильтрах в том же формате, что и в router.ts
+    // Для пустых полей значение будет undefined
+    fieldNames.forEach((fieldName: string) => {
       const data = findFieldData(fieldName);
+      const metadata = findFieldMetadata(fieldName);
       const isEmpty = !data || (typeof data === 'object' && !data.id);
 
-      fields.push({
-        name: fieldName,
-        data,
-        metadata,
-        isEmpty,
-      });
+      const value = isEmpty ? undefined : data?.id ?? data;
+      const valueLabel =
+        !isEmpty && typeof data === 'object' && data?.name ? data.name : String(value || '');
+
+      result[fieldName] = {
+        value,
+        metadata: {
+          label: metadata?.label || fieldName,
+          valueLabel,
+        },
+      };
     });
 
-    return fields;
+    return result;
   });
 
-  // Проверяем заполненность связанных полей из related_fk
-  const relatedFieldsStatus = computed(() => {
-    const fields = relatedFields.value;
+  const missingFields = computed<{ fieldNames: string[]; displayLabels: string[] }>(() => {
+    // Получаем имена полей с undefined значениями
+    const fieldNames = Object.entries(filtersObject.value)
+      .filter(([_, item]: [string, FilterItem]) => item.value === undefined)
+      .map(([fieldName]) => fieldName);
 
-    if (fields.length === 0) {
-      return { isBlocked: false, missingFields: [] };
-    }
+    const displayLabels = fieldNames.map((fieldName: string) => {
+      const metadata = findFieldMetadata(fieldName);
+      const fieldLabel = metadata?.label || fieldName;
 
-    const missingFields = fields
-      .filter((field) => field.isEmpty)
-      .map((field) => field.metadata?.label || field.name);
+      let contextDescription = 'в текущем модальном окне';
 
-    return {
-      isBlocked: missingFields.length > 0,
-      missingFields,
-    };
+      // Проверяем контекст поля в цепочке данных
+      if (dataChain.value.length > 1) {
+        const localContext = dataChain.value[0];
+        const hasInLocalContext =
+          localContext && typeof localContext === 'object' && fieldName in localContext;
+
+        if (!hasInLocalContext) {
+          contextDescription = 'в родительском модальном окне';
+        }
+      }
+
+      return `${fieldLabel} (${contextDescription})`;
+    });
+
+    return { fieldNames, displayLabels };
   });
 
-  const disabled = computed(() => {
-    return Boolean(props.options.read_only) || relatedFieldsStatus.value.isBlocked;
-  });
-
-  // Список недостающих полей для отображения
-  const missingFieldsList = computed(() => {
-    if (relatedFieldsStatus.value.isBlocked) {
-      return relatedFields.value
-        .filter((field) => field.isEmpty)
-        .map((field) => {
-          const fieldLabel = field.metadata?.label || field.name;
-
-          // Определяем контекст поиска
-          let contextDescription = 'в текущем модальном окне';
-          if (dataChain.value.length > 0) {
-            const localContext = dataChain.value[0];
-            if (localContext && localContext.hasOwnProperty(field.name)) {
-              contextDescription = 'в текущем модальном окне';
-            } else if (dataChain.value.length > 1) {
-              contextDescription = 'в родительском модальном окне';
-            }
-          }
-
-          return `${fieldLabel} (${contextDescription})`;
-        });
-    }
-    return [];
-  });
-
+  const disabled = computed(
+    () => Boolean(props.options.read_only) || missingFields.value.fieldNames.length > 0,
+  );
   const label = computed(() => props.options.label || props.options.name);
   const required = computed(() => !props.options.allow_null);
   const help_text = computed(() => props.options.help_text);

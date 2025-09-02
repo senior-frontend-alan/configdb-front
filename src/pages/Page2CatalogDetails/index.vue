@@ -29,7 +29,7 @@ CatalogDataTable отвечает только за отображение да�
               data-testid="table-refresh-button"
             />
           </h3>
-          <h4 v-if="activeFiltersText" class="filters-info">{{ activeFiltersText }}</h4>
+          <h4 v-if="filtersText" class="filters-info">{{ filtersText }}</h4>
         </div>
 
         <!-- Инпут для ввода ID записи и кнопка для прокрутки к ней -->
@@ -124,8 +124,8 @@ CatalogDataTable отвечает только за отображение да�
   import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
   import { useRouter } from 'vue-router';
   import { useModuleStore, type Catalog } from '../../stores/module-factory';
+  import { FiltersResult } from '../../router';
   import { useSettingsStore } from '../../stores/settingsStore';
-  import { formatFieldValueForDisplay } from './components/fields/index';
   import { getOrfetchCatalogGET, getOrFetchCatalogOPTIONS } from '../../stores/data-loaders';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import DataTable from './components/DataTable.vue';
@@ -145,12 +145,7 @@ CatalogDataTable отвечает только за отображение да�
     selectedItems?: any[]; // Опциональный массив выделенных строк
     isModalMode?: boolean; // Флаг, указывающий, что компонент отображается в модальном окне
     selectionMode?: 'single' | 'multiple' | undefined; // Режим выбора строк: одиночный или множественный, или undefined для отключения выбора
-    relatedFields?: Array<{
-      name: string;
-      data: any;
-      metadata: any;
-      isEmpty: boolean;
-    }>; // Массив связанных полей для фильтрации
+    filters?: FiltersResult; // Объект фильтров для фильтрации данных в таблице
   }>();
 
   // Определение режима выбора строк
@@ -235,30 +230,42 @@ CatalogDataTable отвечает только за отображение да�
   };
 
   // Computed свойство для отображения активных фильтров
-  const activeFiltersText = computed(() => {
-    if (!props.relatedFields || props.relatedFields.length === 0) {
+  const filtersText = computed(() => {
+    if (!props.filters || Object.keys(props.filters).length === 0) {
       return '';
     }
 
-    const activeFilters = props.relatedFields
-      .filter((field) => !field.isEmpty && field.data !== undefined)
-      .map((field) => {
-        const label = field.metadata?.label || field.name;
-        const formattedValue = formatFieldValueForDisplay(
-          field.data,
-          field.metadata?.FRONTEND_CLASS,
-          field.metadata,
-          userLocale.value,
-        );
+    const activeFilters = Object.entries(props.filters)
+      .filter(([_, filterObj]) => {
+        // Проверяем наличие объекта и его значения
+        if (!filterObj || filterObj.value === undefined || filterObj.value === null) return false;
+        if (typeof filterObj.value === 'string' && filterObj.value === '') return false;
 
-        return `${label}: ${formattedValue}`;
+        return true;
+      })
+      .map(([key, filterObj]) => {
+        // Используем метку из metadata, если она есть, иначе используем ключ
+        const value = filterObj.value;
+        const label = filterObj.metadata?.label;
+        const valueLabel = filterObj.metadata?.valueLabel;
+
+        let displayText = `${key} = ${value}`;
+
+        // Если есть расшифровка - добавляем
+        if (label !== undefined && valueLabel !== undefined) {
+          displayText += ` (${label} = ${valueLabel})`;
+        } else if (label !== undefined) {
+          displayText += ` (${label})`;
+        }
+
+        return displayText;
       });
 
     if (activeFilters.length === 0) {
       return '';
     }
 
-    return `(отфильтровано по: ${activeFilters.join(', ')})`;
+    return `(фильтр: ${activeFilters.join(', ')})`;
   });
 
   // Обработка изменения порядка колонок
@@ -353,17 +360,13 @@ CatalogDataTable отвечает только за отображение да�
 
     loading.value = true;
 
-    // Создаем фильтры из relatedFields, если они переданы
-    let filters: Record<string, any> | undefined;
-    if (props.relatedFields && props.relatedFields.length > 0) {
+    // Используем фильтры напрямую из props, если они переданы
+    // Преобразуем структуру фильтров для API (извлекаем только value)
+    let filters: Record<string, any> | undefined = undefined;
+    if (props.filters) {
       filters = {};
-      props.relatedFields.forEach((field) => {
-        if (!field.isEmpty && field.data !== undefined) {
-          // Если данные - объект с id, используем id, иначе используем само значение
-          const filterValue =
-            typeof field.data === 'object' && field.data?.id ? field.data.id : field.data;
-          filters![field.name] = filterValue;
-        }
+      Object.entries(props.filters).forEach(([key, filterObj]) => {
+        filters![key] = filterObj.value;
       });
     }
 
@@ -383,15 +386,17 @@ CatalogDataTable отвечает только за отображение да�
       return;
     }
 
-    const { catalog } = catalogResult;
+    const { catalog, cacheKey } = catalogResult;
 
-    // Обновляем ссылку на каталог и синхронизируем данные таблицы со стором
+    // Обновляем ссылку на каталог
     currentCatalog.value = catalog;
-    tableRows.value = catalog.GET?.results || [];
-    totalRecords.value = catalog.GET?.count || 0;
-    loading.value = false;
 
-    console.log(`Загружено ${tableRows.value.length} записей из ${totalRecords.value}`);
+    // Используем данные из каталога по ключу кэша
+    tableRows.value = catalog && cacheKey ? catalog[cacheKey]?.results || [] : [];
+    totalRecords.value =
+      catalog && cacheKey ? catalog[cacheKey]?.count || tableRows.value.length : 0;
+
+    loading.value = false;
   };
 
   // Функция для обработки пересечения элемента с областью видимости
@@ -414,9 +419,6 @@ CatalogDataTable отвечает только за отображение да�
   let observer: IntersectionObserver | null = null;
 
   onMounted(async () => {
-    console.log('Монтируем таблицу: moduleName', moduleName.value);
-    console.log('applName', applName.value);
-    console.log('catalogName', catalogName.value);
     // Проверяем наличие всех необходимых параметров перед загрузкой данных
     if (moduleName.value && applName.value && catalogName.value) {
       await loadCatalogData(0);

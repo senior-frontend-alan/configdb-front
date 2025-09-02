@@ -50,7 +50,7 @@
           :applName="transactionsApplName"
           :catalogName="transactionsCatalogName"
           :isModalMode="true"
-          :relatedFields="auditTransactionFilters"
+          :filters="auditTransactionFilters"
           @row-click="handleTransactionClick"
         />
         <div v-else class="loading-state">
@@ -121,27 +121,16 @@
     PUBLISHED: 4,
   } as const;
 
-  // Создаем Map для состояний аудита транзакций
-  const stateChoicesMap = new Map([
-    [String(AuditTransactionState.PLANING), 'Planning'],
-    [String(AuditTransactionState.OPEN), 'Open'],
-    [String(AuditTransactionState.CLOSED), 'Closed'],
-    [String(AuditTransactionState.PUBLISHED), 'Published'],
-  ]);
-
   // Фильтр аудита транзакций - показываем только открытые транзакции
-  const auditTransactionFilters = computed(() => [
-    {
-      name: 'state',
-      data: AuditTransactionState.OPEN,
+  const auditTransactionFilters = computed(() => ({
+    state: {
+      value: AuditTransactionState.OPEN,
       metadata: {
         label: 'Состояние',
-        FRONTEND_CLASS: 'CHOICE',
-        choicesIndex: stateChoicesMap,
+        valueLabel: 'Open',
       },
-      isEmpty: false,
     },
-  ]);
+  }));
 
   // Флаг готовности данных для отображения
   const isDataReady = computed(() => {
@@ -254,9 +243,20 @@
         return;
       }
 
-      // Переходим на страницу справочника
+      const authStore = useAuthStore();
+      const currentTransaction = authStore.currentTransaction;
+
+      if (!currentTransaction) {
+        console.error('Текущая транзакция не найдена в authStore');
+        return;
+      }
+
+      // Переходим на страницу справочника с фильтром по id из текущей транзакции
       const routePath = `/${transactionsModuleName.value}/${catalogInfo.applName}/${transactionsLogCatalogName.value}`;
-      await router.push(routePath);
+      await router.push({
+        path: routePath,
+        query: { transaction: currentTransaction.id },
+      });
     } catch (error) {
       console.error('Ошибка при открытии справочника логов транзакций:', error);
       toast.add({
@@ -290,6 +290,20 @@
     if (result) {
       // Успешно - закрываем диалог
       closeDialog();
+
+      // Проверяем, находимся ли мы на странице логов транзакций
+      const currentRoute = router.currentRoute.value;
+      const isTransactionLogPage = currentRoute.path.includes(
+        `/${transactionsLogCatalogName.value}`,
+      );
+
+      if (isTransactionLogPage) {
+        // Если мы на странице логов транзакций, перезагружаем страницу с новым фильтром ?transaction={значение}, чтобы увидеть отфильтрованный лог
+        await router.replace({
+          path: currentRoute.path,
+          query: { ...currentRoute.query, transaction: transaction.id },
+        });
+      }
     } else {
       toast.add({
         severity: 'error',

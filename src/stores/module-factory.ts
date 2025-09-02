@@ -172,14 +172,14 @@ export function useModuleStore(moduleName: string): ModuleStore {
 // Для маршрута /module/catalog/record загрузит всю иерархию
 
 export interface Catalog {
-  GET: {
+  // Опциональное поле GET для обратной совместимости
+  GET?: {
     results: any[]; // Основные данные в виде массива
     loadedCount?: number; // Количество загруженных записей
     [key: string]: any;
   };
   OPTIONS: any;
-  // Динамические поля {id} для редактирования записей
-  // Каждое поле содержит Map с изменениями для конкретной записи
+  // Динамические поля для кэша с разными параметрами фильтрации
   [key: string]: any;
 }
 
@@ -194,7 +194,7 @@ export interface ModuleStore {
   loading: boolean;
   error: any | null;
   fetchCatalogGroups: (moduleName: string) => Promise<any[]>;
-  initCatalog: (applName: string, catalogName: string) => Catalog;
+  initCatalog: (applName: string, catalogName: string, filters?: Record<string, any>) => Catalog;
   initRecord: (
     applName: string,
     catalogName: string,
@@ -236,7 +236,6 @@ export function createModuleStore(moduleConfig: Module): any {
     moduleConfig.routes.getCatalog,
   );
 
-  // Если не удалось извлечь имя модуля, выбрасываем ошибку
   if (!moduleNameFromUrl) {
     throw new Error(`Не удалось извлечь имя модуля из URL: ${moduleConfig.routes.getCatalog}`);
   }
@@ -245,7 +244,6 @@ export function createModuleStore(moduleConfig: Module): any {
 
   // Используем объектный синтаксис для определения стора
   return defineStore(`${storeId}`, {
-    // Определяем начальное состояние стора
     state: () => ({
       getCatalog: moduleConfig.routes['getCatalog'],
       catalogGroups: [] as CatalogsAPIResponseGET,
@@ -258,15 +256,13 @@ export function createModuleStore(moduleConfig: Module): any {
       error: null as any | null,
     }),
 
-    // Добавляем раздел геттеров
     getters: {
       // Геттеры могут быть добавлены позже
     },
 
-    // Добавляем раздел действий
     actions: {
-      // Инициализация каталога в сторе (делает его реактивным и видимым в DevTools)
-      initCatalog(applName: string, catalogName: string): Catalog {
+      // Создаем новый каталог с базовой структурой
+      initCatalog(applName: string, catalogName: string, filters?: Record<string, any>): Catalog {
         const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
 
         // Проверяем, существует ли уже каталог
@@ -274,9 +270,11 @@ export function createModuleStore(moduleConfig: Module): any {
           return (this as any)[catalogKey];
         }
 
-        // Создаем новый каталог с базовой структурой
+        // ключ кэша типа GET?state=2
+        const defaultCacheKey = this.buildCacheKey(filters);
+
         const newCatalog: Catalog = {
-          GET: {
+          [defaultCacheKey]: {
             results: [], // Массив записей
             loadedCount: 0, // Количество загруженных записей
           },
@@ -292,6 +290,64 @@ export function createModuleStore(moduleConfig: Module): any {
         });
 
         return newCatalog;
+      },
+      updateCatalog(
+        catalog: Catalog,
+        cacheKey: string,
+        responseData: any,
+        newResults: any[],
+        offset: number,
+        limit: number,
+        filters?: Record<string, any>,
+      ): void {
+        const existingResults = catalog[cacheKey]?.results || [];
+
+        const updatedResults =
+          offset === 0
+            ? newResults // Первая загрузка - заменяем все данные
+            : [...existingResults, ...newResults]; // Подгрузка - добавляем к существующим
+
+        catalog[cacheKey] = {
+          ...catalog[cacheKey], // Сохраняем существующие данные
+          ...responseData, // Добавляем все поля из ответа API
+          results: updatedResults,
+          loadedCount: updatedResults.length,
+          pageSize: limit,
+          ...(filters && { filters }), // Сохраняем фильтры, если они есть
+        };
+      },
+      buildCacheKey(filters?: Record<string, any>): string {
+        if (!filters || Object.keys(filters).length === 0) {
+          return 'GET';
+        }
+
+        const filterParams = Object.entries(filters)
+          .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+          .join('&');
+
+        return `GET?${filterParams}`;
+      },
+      checkCacheForData(
+        catalog: Catalog,
+        cacheKey: string,
+        offset: number,
+        limit: number,
+      ): { isCached: boolean; cachedData?: any[] } {
+        if (!catalog?.[cacheKey]?.results) {
+          return { isCached: false };
+        }
+
+        const cachedResults = catalog[cacheKey].results;
+        const cachedCount = cachedResults.length;
+
+        if (offset < cachedCount && offset + limit <= cachedCount) {
+          return {
+            isCached: true,
+            cachedData: cachedResults.slice(offset, offset + limit),
+          };
+        }
+
+        return { isCached: false };
       },
 
       /**

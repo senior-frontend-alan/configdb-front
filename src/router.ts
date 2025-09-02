@@ -60,12 +60,42 @@ routes.push({
   props: true, // Автоматически передаем параметры маршрута как props
 });
 
+export interface FilterMetadata {
+  label: string; // Название поля
+  valueLabel?: string; // Название значения поля
+}
+
+export interface FilterItem {
+  value: any;
+  metadata?: FilterMetadata;
+}
+
+export type FiltersResult = Record<string, FilterItem>;
+
 // Страница 2 - Отображение деталей элемента каталога
 routes.push({
   path: '/:moduleName/:applName/:catalogName',
   name: 'CatalogDetails',
-  component: () => import('./pages/Page2CatalogDetails/MasterDetailLayout.vue'),
-  props: true, // Автоматически передаем параметры маршрута как props
+  component: () => import('./pages/Page2CatalogDetails/index.vue'),
+  props: (route) => {
+    const { moduleName, applName, catalogName } = route.params;
+    const filters: FiltersResult = {};
+
+    // Преобразуем query параметры в объект фильтров ?state=2&name=John
+    for (const [key, value] of Object.entries(route.query)) {
+      filters[key] = {
+        value: value,
+        // metadata
+      };
+    }
+
+    return {
+      moduleName,
+      applName,
+      catalogName,
+      filters: Object.keys(filters).length > 0 ? filters : undefined,
+    };
+  },
 });
 
 // Страница 3 - Редактирование записи
