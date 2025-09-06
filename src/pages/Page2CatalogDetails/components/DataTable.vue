@@ -1,21 +1,19 @@
 <!-- 
-Родительский компонент Page2CatalogDetails/index.vue теперь отвечает за загрузку и подготовку данных
-DataTable.vue чисто презентационный и отвечает только за отображение данных
-Не должен сам обращаться к стору, если следовать принципу разделения ответственности
+Имеет 2 режима работы 
+Режим 1: Получение данных через props.tableRows и props.tableColumns
+Режим 2: Самостоятельная загрузка данных через catalogDescriptor
 
-  Компонент для отображения данных в виде таблицы.
-  Принимает TABLE_COLUMNS и данные напрямую, не обращаясь к стору.
-  Отображать данные и эмитить события, и не выполнять навигацию.
 
-  Маршрутизатор
+Используется PrimaryKeyRelated который формирует строки и стобцы сразу
+Используется в DataTableInfinite который умеет загружать данные бесконечно
+
+
+Маршрутизатор
     ↓ (загружает данные при переходе на страницу)
   Page2CatalogDetails
     ↓ (получает данные из стора, подготавливает их)
   DataTable
     ↓ (только отображает данные)
-
-DataTable отвечает только за отображение данных и отправку событий
-Родительский компонент отвечает за загрузку данных из стора
 
 если использовать встроенные возможности PrimeVue, то событие scroll будет наиболее близким аналогом.
 
@@ -45,7 +43,7 @@ onLazyLoad вызывается при прокрутке таблицы
     <div class="table-container">
       <div class="table-wrapper" :class="{ 'table-scrollable': isTableScrollable }">
         <PrimeDataTable
-          :value="props.tableRows"
+          :value="props.catalogDescriptor ? tableRows : props.tableRows"
           stripedRows
           responsiveLayout="scroll"
           :rowClass="getRowClass"
@@ -59,12 +57,29 @@ onLazyLoad вызывается при прокрутке таблицы
           :resizableColumns="true"
           columnResizeMode="fit"
           @row-click="handleRowClick"
-          :loading="props.loading"
-          :totalRecords="props.totalRecords || 0"
+          :totalRecords="props.catalogDescriptor ? totalRecords : props.totalRecords || 0"
           showGridlines
           rowHover
           data-testid="table-prime"
+          :expandedRows="expandedRows"
         >
+          <!-- Слот для футера с элементом бесконечной загрузки должен быть тут чтобы срабатывать когда первая загрузка таблицы не до низа -->
+          <template #footer v-if="!!props.catalogDescriptor && tableRows.length < totalRecords">
+            <div
+              ref="loadMoreTrigger"
+              class="load-more-trigger"
+              data-testid="table-load-more"
+              style="
+                height: 30px;
+                width: 100%;
+                background-color: #f8f9fa;
+                text-align: center;
+                padding: 5px;
+              "
+            >
+              <div class="load-more-text">Загрузка дополнительных данных...</div>
+            </div>
+          </template>
           <!-- 
           Режимы выбора строк согласно документации PrimeVue:
           single - Column с selectionMode="single" отображает радиокнопки.
@@ -93,34 +108,18 @@ onLazyLoad вызывается при прокрутке таблицы
             headerStyle="width: 3rem"
           />
 
-          <!-- Колонка с иконкой деталей -->
-          <Column
-            v-if="props.showDetailsColumn"
-            header=""
-            headerStyle="width: 3rem"
-            bodyStyle="text-align: center"
-          >
-            <template #body="slotProps">
-              <Button
-                v-if="props.shouldShowDetailsForRow?.(slotProps.data)"
-                icon="pi pi-eye"
-                class="p-button-rounded p-button-text p-button-sm"
-                @click="handleShowDetails(slotProps.data, $event)"
-                v-tooltip="'Показать деталь таблицу'"
-                aria-label="Показать деталь таблицу"
-              />
-            </template>
-          </Column>
+          <!-- Колонка для расширения строк -->
+          <!-- Скрываем стрелку разворачивания для строк, которые не должны её показывать через CSS чтобы не ломать механизм через слоты-->
+          <Column v-if="catalogDetailsInfo" expander style="width: 3rem" />
 
           <!-- Остальные колонки -->
           <Column
             v-if="columns && columns.length > 0"
-            v-for="col in columns"
+            v-for="col in props.catalogDescriptor ? columns : props.tableColumns"
             :key="col.field"
             :field="col.field"
             :header="col.header"
             :sortable="true"
-            :style="getColumnStyle(col.field || '')"
           >
             <template #body="slotProps">
               <!-- Используем динамический рендеринг на основе FRONTEND_CLASS -->
@@ -144,10 +143,35 @@ onLazyLoad вызывается при прокрутке таблицы
               <span v-else>Компонент не определен</span>
             </template>
           </Column>
+
+          <!-- Слот для вложенной таблицы -->
+          <template #expansion="slotProps">
+            <div class="p-3 nested-table-container">
+              <!-- Рекурсивно используем DataTable для вложенной таблицы -->
+              <DataTable
+                v-if="catalogDetailsInfo"
+                :catalogDescriptor="{
+                  // Не указываем moduleName, чтобы система искала каталог по всем модулям
+                  applName: catalogDetailsInfo?.appl_name || '',
+                  catalogName: catalogDetailsInfo?.view_name || '',
+                  filters: catalogDetailsInfo?.primary_field
+                    ? {
+                        [catalogDetailsInfo.primary_field]:
+                          slotProps.data[
+                            currentCatalog?.value?.OPTIONS?.layout?.primary_key || 'id'
+                          ],
+                      }
+                    : {},
+                }"
+                primaryKey="id"
+                data-testid="nested-datatable"
+              />
+            </div>
+          </template>
         </PrimeDataTable>
 
         <div
-          v-if="!props.tableRows.length"
+          v-if="props.catalogDescriptor ? !tableRows.length : !(props.tableRows || []).length"
           class="empty-container flex justify-content-center align-items-center"
         >
           <Message severity="secondary" variant="simple">Данные отсутствуют</Message>
@@ -158,12 +182,14 @@ onLazyLoad вызывается при прокрутке таблицы
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, h } from 'vue';
+  import { ref, computed, watch, h, onMounted, onUnmounted } from 'vue';
   import type { Component } from 'vue';
   import PrimeDataTable from 'primevue/datatable';
   import Column from 'primevue/column';
   import Message from 'primevue/message';
   import Button from 'primevue/button';
+  import { getOrfetchCatalogGET, getOrFetchCatalogOPTIONS } from '../../../stores/data-loaders';
+  import type { Catalog } from '../../../stores/module-factory';
   // Импортируем динамические компоненты полей
   import { dynamicField } from './fields';
 
@@ -171,7 +197,7 @@ onLazyLoad вызывается при прокрутке таблицы
     // Если компонент является фабрикой, вызываем ее с переданными параметрами
     if (component && 'factory' in component && component.factory) {
       // Передаем локаль как отдельный третий параметр
-      return component(value, metadata, props.locale);
+      return component(value, metadata);
     }
 
     // Если это обычный компонент, возвращаем его как есть
@@ -185,22 +211,24 @@ onLazyLoad вызывается при прокрутке таблицы
 
   const props = withDefaults(
     defineProps<{
-      tableRows: any[];
+      tableRows?: any[];
       tableColumns?: Map<string, any>;
-      locale: string; // Локаль для форматирования дат и чисел
       primaryKey: string;
       selectedItems?: any[];
       onColumnReorder?: (event: any) => void;
-      loading?: boolean;
       isTableScrollable?: boolean;
       totalRecords?: number;
       selectionMode?: 'single' | 'multiple' | undefined;
       modifiedRows?: Set<string>; // Множество ID измененных строк
-      showDetailsColumn?: boolean; // Показывать ли колонку с деталями
-      shouldShowDetailsForRow?: (rowData: any) => boolean; // Функция для проверки, нужно ли показывать детали для строки
+      // бесконечная загрузка автоматически включается при наличии catalogDescriptor
+      catalogDescriptor?: {
+        moduleName?: string; // Имя модуля для загрузки данных
+        applName: string; // Имя приложения для загрузки данных
+        catalogName: string; // Имя каталога для загрузки данных
+        filters?: Record<string, any>;
+      };
     }>(),
     {
-      loading: false,
       totalRecords: 0,
       tableColumns: () => new Map<string, any>(), // Значение по умолчанию - пустая Map
     },
@@ -208,64 +236,209 @@ onLazyLoad вызывается при прокрутке таблицы
 
   // Состояние компонента
   const tableSelection = ref<any[]>([]);
-  const isTableScrollable = ref(true);
 
-  // Список колонок для отображения в таблице (Обрабатываем TABLE_COLUMNS, если они существуют)
+  // Состояние развернутых строк для вложенных таблиц
+  const expandedRows = ref<Record<string, boolean>>({});
+
+  // Функция для проверки условия show_if
+  const detailsShowIfFn = ref<Function | null>(null);
+
+  // Объявляем currentCatalog перед использованием в computed
+  const currentCatalog = ref<Catalog | null>(null);
+
+  // Вычисляемое свойство для получения details_info из OPTIONS
+  const catalogDetailsInfo = computed(() => {
+    const detailsInfo = currentCatalog.value?.OPTIONS?.details_info;
+    // console.log('-------->>>>> catalogDetailsInfo:', detailsInfo);
+    // console.log('-------->>>>> currentCatalog.moduleName:', currentCatalog.value?.moduleName);
+    return detailsInfo || null;
+  });
+  // Локальные переменные для данных таблицы
+  // Если props.catalogDescriptor задан, эти переменные будут заполнены из загруженных данных
+  // Если props.catalogDescriptor не задан, используются данные из props.tableRows и props.totalRecords
+  const tableRows = ref<any[]>([]);
+  const totalRecords = ref<number>(0);
+
+  // Состояние для бесконечной загрузки
+  const offset = ref(0);
+  const limit = ref(20);
+
+  // Список колонок для отображения в таблице
   const columns = computed(() => {
-    const columnsList: any[] = [];
-
-    if (props.tableColumns) {
-      props.tableColumns.forEach((column: any, fieldName: string) => {
-        // Если поле видимое, добавляем его в список колонок таблицы
-        if (column.VISIBLE) {
-          columnsList.push({
-            field: fieldName,
-            header: `${column.label || fieldName} [${column.FRONTEND_CLASS}]`,
-            frontendClass: column.FRONTEND_CLASS || '',
-          });
-        }
-      });
-    } else {
-      console.warn('tableColumns не определены, невозможно отобразить колонки');
+    // Если нет каталога, возвращаем пустой массив
+    if (!props.catalogDescriptor || !currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS) {
+      return [];
     }
 
+    const columnsList: any[] = [];
+    const tableColumns = currentCatalog.value.OPTIONS.layout.TABLE_COLUMNS;
+
+    try {
+      // Обрабатываем как Map
+      if (tableColumns instanceof Map) {
+        tableColumns.forEach((columnData: any, fieldName: string) => {
+          // Фильтруем только видимые поля
+          if (columnData.VISIBLE !== false) {
+            columnsList.push({
+              field: fieldName,
+              header: columnData.TITLE || fieldName,
+              sortable: true,
+              frontendClass: columnData.FRONTEND_CLASS || 'char',
+              metadata: columnData,
+            });
+          }
+        });
+      }
+      // Обрабатываем как обычный объект
+      else {
+        Object.entries(tableColumns).forEach(([fieldName, columnData]: [string, any]) => {
+          if (columnData.VISIBLE !== false) {
+            columnsList.push({
+              field: fieldName,
+              header: columnData.TITLE || fieldName,
+              sortable: true,
+              frontendClass: columnData.FRONTEND_CLASS || 'char',
+              metadata: columnData,
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Ошибка при обработке TABLE_COLUMNS:', error);
+    }
     return columnsList;
   });
 
   const getColumnFrontendClass = (fieldName: string): string => {
-    if (!props.tableColumns || !props.tableColumns.has(fieldName)) return '';
-    return props.tableColumns.get(fieldName)?.FRONTEND_CLASS || '';
+    // Вариант 1: Используем props.tableColumns
+    if (props.tableColumns && props.tableColumns.has(fieldName)) {
+      return props.tableColumns.get(fieldName)?.FRONTEND_CLASS || '';
+    }
+
+    // Вариант 2: Используем данные из OPTIONS.layout.TABLE_COLUMNS каталога
+    if (props.catalogDescriptor && currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS) {
+      const tableColumns = currentCatalog.value.OPTIONS.layout.TABLE_COLUMNS;
+
+      // Проверяем, является ли TABLE_COLUMNS объектом Map
+      if (tableColumns instanceof Map) {
+        return tableColumns.get(fieldName)?.FRONTEND_CLASS || '';
+      } else {
+        return tableColumns[fieldName]?.FRONTEND_CLASS || '';
+      }
+    }
+
+    return '';
   };
 
   // Функция для получения метаданных поля
   const getFieldMetadata = (fieldName: string): any => {
-    if (!props.tableColumns || !props.tableColumns.has(fieldName)) return null;
-    return props.tableColumns.get(fieldName);
+    // Вариант 1: Используем props.tableColumns
+    if (props.tableColumns && props.tableColumns.has(fieldName)) {
+      return props.tableColumns.get(fieldName);
+    }
+
+    // Вариант 2: Используем данные из OPTIONS.layout.TABLE_COLUMNS каталога
+    if (props.catalogDescriptor && currentCatalog.value?.OPTIONS?.layout?.TABLE_COLUMNS) {
+      const tableColumns = currentCatalog.value.OPTIONS.layout.TABLE_COLUMNS;
+
+      // Проверяем, является ли TABLE_COLUMNS объектом Map
+      if (tableColumns instanceof Map) {
+        return tableColumns.get(fieldName) || null;
+      } else {
+        return tableColumns[fieldName] || null;
+      }
+    }
+
+    return null;
+  };
+  // Функция для проверки условия show_if
+  const shouldShowDetailsForRow = (rowData: any): boolean => {
+    const detailsConfig = catalogDetailsInfo.value;
+    if (!detailsConfig) {
+      return false;
+    }
+
+    // Если нет условия show_if, показываем иконку для всех строк
+    const showIf = detailsConfig.show_if;
+    if (!showIf) {
+      return true;
+    }
+
+    // Обработка строкового условия (функция JavaScript)
+    try {
+      // Кэшируем скомпилированную функцию
+      detailsShowIfFn.value ||= new Function('data', showIf);
+      const result = detailsShowIfFn.value(rowData);
+      return result;
+    } catch (error) {
+      console.error('Ошибка выполнения show_if функции:', error);
+      return false;
+    }
+    return true;
   };
 
-  // Функция для определения стиля колонки
-  const getColumnStyle = (field: string) => {
-    if (isTableScrollable.value) {
-      // Если tableColumns не определены, возвращаем пустой стиль
-      if (!props.tableColumns) return '';
+  // // Функция для определения стиля колонки
+  // const getColumnStyle = (field: string) => {
+  //   if (!isTableScrollable.value) return '';
 
-      // Если ID колонки можно задать меньшую ширину
-      if (field === props.primaryKey) {
-        return 'width: 100px';
-      }
-      // Для остальных колонок можно задать стандартную ширину
-      return 'min-width: 200px';
+  //   // Если ID колонки, задаем меньшую ширину
+  //   if (field === props.primaryKey) {
+  //     return 'width: 80px; min-width: 80px';
+  //   }
+
+  //   // Если есть метаданные поля и в них указана ширина
+  //   const metadata = getFieldMetadata(field);
+  //   if (metadata?.WIDTH) {
+  //     return `width: ${metadata.WIDTH}px; min-width: ${metadata.WIDTH}px`;
+  //   }
+
+  //   // Получаем тип поля из метаданных
+  //   const frontendClass = getColumnFrontendClass(field);
+
+  //   // По умолчанию для текстовых полей
+  //   if (frontendClass === 'char' || frontendClass === 'text') {
+  //     return 'width: 200px; min-width: 200px';
+  //   }
+
+  //   // Для числовых полей
+  //   if (frontendClass === 'number' || frontendClass === 'integer') {
+  //     return 'width: 120px; min-width: 120px';
+  //   }
+
+  //   // Для дат
+  //   if (frontendClass === 'date' || frontendClass === 'datetime') {
+  //     return 'width: 150px; min-width: 150px';
+  //   }
+
+  //   // Для булевых полей
+  //   if (frontendClass === 'boolean') {
+  //     return 'width: 100px; min-width: 100px';
+  //   }
+
+  //   // По умолчанию
+  //   return 'width: 150px; min-width: 150px';
+  // };
+
+  // Функция для определения класса строки
+  const getRowClass = (rowData: any) => {
+    const classes = [];
+
+    // Добавляем класс для измененных строк
+    if (props.modifiedRows?.has(rowData[props.primaryKey])) {
+      classes.push('field-modified');
     }
-    return '';
+
+    // Добавляем класс для строк, которые не должны показывать стрелку разворачивания
+    if (catalogDetailsInfo && !shouldShowDetailsForRow(rowData)) {
+      classes.push('hide-expander');
+    }
+
+    return classes.join(' ');
   };
 
   const handleRowClick = (event: any) => {
-    // Предотвращаем автоматический выбор строки при клике
-    // if (event.originalEvent) {
-    //   event.originalEvent.preventDefault();
-    //   event.originalEvent.stopPropagation();
-    // }
-    emit('row-click', event);
+    // При необходимости можно добавить логику обработки клика по строке
+    console.log('Row clicked:', event.data);
   };
 
   const onColumnReorder = (event: any) => {
@@ -279,14 +452,9 @@ onLazyLoad вызывается при прокрутке таблицы
     (e: 'row-click', rowData: any): void;
     (e: 'selection-change', items: any[]): void;
     (e: 'update:selectedItems', items: any[]): void;
-    (e: 'show-details-table', rowData: any): void;
+    (e: 'show-details', rowData: any): void;
+    (e: 'load-more'): void; // Событие для загрузки дополнительных данных
   }>();
-
-  // Обработчик клика по иконке деталей
-  const handleShowDetails = (rowData: any, event: Event) => {
-    event.stopPropagation(); // Предотвращаем всплытие события
-    emit('show-details-table', rowData);
-  };
 
   // Следим за изменениями в таблице и отправляем их родителю
   watch(tableSelection, (newSelection) => {
@@ -326,16 +494,187 @@ onLazyLoad вызывается при прокрутке таблицы
     }, 0);
   };
 
-  // Функция для определения класса строки
-  const getRowClass = (data: any) => {
-    return {
-      'field-modified': props.modifiedRows?.has(String(data.id)) || false,
-    };
+  // -------------ОБСЕРВЕР и логика бесконечной загрузки-------------------
+  const loadMoreTrigger = ref<HTMLDivElement | null>(null);
+  let observer: IntersectionObserver | null = null;
+
+  const handleIntersection = (entries: IntersectionObserverEntry[]) => {
+    // Если элемент виден и есть еще данные для загрузки
+    if (
+      entries[0].isIntersecting &&
+      tableRows.value.length < totalRecords.value &&
+      props.catalogDescriptor
+    ) {
+      const { moduleName, applName, catalogName, filters } = props.catalogDescriptor;
+
+      if (!moduleName || !catalogName || !applName) return;
+
+      // Сохраняем текущее смещение для загрузки
+      const currentOffset = offset.value;
+
+      // Загружаем данные с текущим смещением
+      loadCatalogData({
+        moduleName,
+        applName,
+        catalogName,
+        offset: currentOffset,
+        limit: limit.value,
+        filters,
+      });
+
+      // Увеличиваем смещение для следующей загрузки
+      // Важно: увеличиваем offset ПОСЛЕ вызова loadCatalogData
+      offset.value += limit.value;
+    }
   };
 
-  // Экспортируем метод для использования в родительском компоненте
+  // -------------Логика ЗАГРУЗКИ данных -------------------
+
+  const loadCatalogData = async (params: {
+    moduleName?: string;
+    applName: string;
+    catalogName: string;
+    offset?: number;
+    limit?: number;
+    filters?: Record<string, any>;
+  }) => {
+    const catalogResult = await getOrfetchCatalogGET(params);
+
+    if (!catalogResult.success || !catalogResult.catalog) {
+      // Устанавливаем totalRecords равным текущему количеству записей,
+      // чтобы предотвратить дальнейшую загрузку
+      totalRecords.value = tableRows.value.length;
+      return;
+    }
+
+    const { catalog, cacheKey, newResults = [] } = catalogResult;
+    currentCatalog.value = catalog;
+
+    if (catalog && cacheKey && catalog[cacheKey]?.count !== undefined) {
+      totalRecords.value = catalog[cacheKey].count;
+    }
+
+    const existingResults = tableRows.value || [];
+
+    // Объединяем данные в зависимости от смещения
+    tableRows.value =
+      params.offset === 0 || params.offset === undefined
+        ? newResults // Первая загрузка - заменяем все данные
+        : [...existingResults, ...newResults]; // Подгрузка - добавляем к существующимые данные
+  };
+
+  const setupObserver = () => {
+    if ('IntersectionObserver' in window && loadMoreTrigger.value) {
+      // Создаем наблюдатель только если его еще нет
+      if (!observer) {
+        observer = new IntersectionObserver(handleIntersection, {
+          root: null, // используем viewport как корневой элемент
+          rootMargin: '0px',
+          threshold: 0.1, // срабатывает, когда 10% элемента видно
+        });
+        console.log('Создан новый наблюдатель IntersectionObserver');
+      }
+
+      // IntersectionObserver автоматически игнорирует повторные вызовы observe для одного и того же элемента
+      observer.observe(loadMoreTrigger.value);
+
+      // Проверяем, виден ли элемент загрузки сразу после рендеринга
+      // Это нужно, потому что IntersectionObserver не срабатывает для элементов,
+      // которые уже видны при создании наблюдателя
+      setTimeout(() => {
+        if (loadMoreTrigger.value) {
+          const rect = loadMoreTrigger.value.getBoundingClientRect();
+          const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+
+          // Если элемент уже виден и есть еще данные для загрузки, загружаем их
+          if (isVisible && tableRows.value.length < totalRecords.value && props.catalogDescriptor) {
+            const { moduleName, applName, catalogName, filters } = props.catalogDescriptor;
+            if (applName && catalogName) {
+              loadCatalogData({
+                moduleName,
+                applName,
+                catalogName,
+                offset: offset.value,
+                limit: limit.value,
+                filters,
+              });
+            }
+          }
+        }
+      }, 100); // Небольшая задержка для уверенности, что DOM обновился
+    }
+  };
+
+  onMounted(async () => {
+    if (!props.catalogDescriptor) return;
+    const { moduleName, applName, catalogName, filters } = props.catalogDescriptor;
+
+    if (!catalogName || !applName) {
+      console.warn('Не все необходимые параметры доступны для загрузки данных');
+      return;
+    }
+
+    console.log('------------Загрузка данных для каталога:', moduleName, applName, catalogName);
+    // Сначала загружаем метаданные каталога (OPTIONS)
+    const optionsResult = await getOrFetchCatalogOPTIONS({
+      moduleName,
+      applName,
+      catalogName,
+    });
+
+    // Если не удалось загрузить метаданные, прерываем загрузку
+    if (!optionsResult.success) {
+      return;
+    }
+
+    await loadCatalogData({
+      moduleName,
+      applName,
+      catalogName,
+      offset: 0,
+      limit: 20,
+      filters,
+    });
+
+    setupObserver();
+  });
+
+  onUnmounted(() => {
+    if (observer) {
+      observer.disconnect();
+    }
+  });
+
+  const refreshData = async () => {
+    if (!props.catalogDescriptor) return;
+    const { moduleName, applName, catalogName, filters } = props.catalogDescriptor;
+
+    if (!moduleName || !catalogName || !applName) {
+      console.warn('Не все необходимые параметры доступны для обновления данных');
+      return;
+    }
+
+    // Сбрасываем смещение и загружаем данные с начала
+    offset.value = 0;
+    await loadCatalogData({
+      moduleName,
+      applName,
+      catalogName,
+      offset: 0,
+      limit: 20,
+      filters,
+    });
+    await getOrFetchCatalogOPTIONS({
+      moduleName,
+      applName,
+      catalogName,
+    });
+  };
+
+  // Экспортируем методы для использования в родительском компоненте
   defineExpose({
     scrollToRowByIndex,
+    refreshData,
   });
 </script>
 
@@ -345,6 +684,11 @@ onLazyLoad вызывается при прокрутке таблицы
     flex-direction: column;
     height: 100%;
     width: 100%;
+  }
+
+  /* Скрытие кнопки разворачивания для строк, которые не должны её показывать */
+  :deep(.hide-expander .p-datatable-row-toggle-button) {
+    display: none !important;
   }
 
   /* Стиль для курсора при наведении на строки таблицы */
@@ -371,24 +715,10 @@ onLazyLoad вызывается при прокрутке таблицы
     background: transparent !important;
   }
 
-  /* Скрываем иконку загрузки по умолчанию */
-  :deep(.p-datatable-loading-icon) {
-    display: none;
-  }
-
   :deep(.p-datatable-gridlines .p-datatable-thead > tr > th) {
     /* background-color: var(--p-floatlabel-color); */
     background-color: #f0f5fb;
     white-space: normal;
-  }
-
-  /* Стили для индикатора загрузки в футере */
-  .loading-footer {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.5rem;
-    gap: 0.5rem;
   }
 
   .table-container {
@@ -405,7 +735,6 @@ onLazyLoad вызывается при прокрутке таблицы
     overflow-x: auto;
   }
 
-  .loading-container,
   .error-container {
     display: flex;
     flex-direction: column;

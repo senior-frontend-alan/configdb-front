@@ -121,8 +121,7 @@ DynamicLayout: чисто презентационный компонент
 
   // В шаблоне Vue директива v-for работает с массивами
   const elementsArray = computed(() => {
-    const elements = Array.from(props.layoutElements.values());
-    return elements;
+    return Array.from(props.layoutElements.values());
   });
 
   // DynamicLayout теперь чисто презентационный компонент

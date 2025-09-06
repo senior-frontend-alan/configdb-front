@@ -3,8 +3,6 @@ import { FieldTypeService, FRONTEND } from '../services/fieldTypeService';
 import api from '../api';
 import { useModuleStore, Catalog } from '../stores/module-factory';
 import type { CatalogDetailsAPIResponseGET } from '../stores/types/catalogDetailsAPIResponseGET.type';
-import type { CatalogDetailsAPIResponseOPTIONS } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
-import type { Layout } from '../stores/types/catalogDetailsAPIResponseOPTIONS.type';
 import type { CatalogItem } from '../stores/types/catalogsAPIResponseGET.type';
 
 // Сервис отвечает только за коммуникацию с API (не отвечают за кэширование и обновление соответствующих сторов)
@@ -65,6 +63,151 @@ export interface CatalogGroup {
   catalogs?: CatalogInfo[];
 }
 
+// Тип для ответа OPTIONS запроса
+export interface CatalogOPTIONS {
+  name: string;
+  description: string;
+  renders: string[];
+  parses: string[];
+  actions: {
+    POST: Record<
+      string,
+      {
+        type: string;
+        required: boolean;
+        read_only: boolean;
+        label: string;
+        help_text?: string;
+        max_length?: number;
+        choices?: Array<{
+          value: number;
+          display_name: string;
+        }>;
+      }
+    >;
+  };
+  layout: {
+    class_name: string;
+    element_id: string;
+    name: string;
+    elements: Array<{
+      class_name: string;
+      element_id: string;
+      name: string;
+      label: string;
+      field_class: string;
+      read_only?: boolean;
+      input_type: string;
+      filterable?: boolean;
+      help_text?: string;
+      allow_null?: boolean;
+      max_length?: number;
+      multiline?: boolean;
+      default?: number;
+      choices?: Array<{
+        value: number;
+        display_name: string;
+      }>;
+      list_url?: string;
+      view_name?: string;
+      appl_name?: string;
+      lookup?: boolean;
+      required?: boolean;
+    }>;
+    view_name: string;
+    display_list: string[];
+    filterable_list: string[];
+    natural_key: string[];
+    primary_key: string;
+    keyset: string[];
+    item_repr: string;
+    set_operations: boolean;
+    // Дополнительные свойства, добавляемые в CatalogService.OPTIONS
+    TABLE_COLUMNS?:
+      | Map<
+          string,
+          {
+            FRONTEND_CLASS?: string;
+            VISIBLE?: boolean;
+            TITLE?: string;
+            [key: string]: any;
+          }
+        >
+      | {
+          [key: string]: {
+            FRONTEND_CLASS?: string;
+            VISIBLE?: boolean;
+            TITLE?: string;
+            [key: string]: any;
+          };
+        };
+    elementsIndex?:
+      | Map<string, any>
+      | {
+          [key: string]: any;
+        };
+  };
+  transaction_required: boolean;
+  permitted_actions: {
+    get: boolean;
+    post: boolean;
+    patch: boolean;
+    put: boolean;
+    delete: boolean;
+    apiSchema: {
+      detail: boolean;
+      methods: string[];
+    };
+    batch: {
+      detail: boolean;
+      methods: string[];
+    };
+    count: {
+      detail: boolean;
+      methods: string[];
+    };
+    export: {
+      detail: boolean;
+      methods: string[];
+    };
+    exportData: {
+      detail: boolean;
+      methods: string[];
+    };
+    importData: {
+      detail: boolean;
+      methods: string[];
+    };
+    lastTransaction: {
+      detail: boolean;
+      methods: string[];
+    };
+    maxUpdated: {
+      detail: boolean;
+      methods: string[];
+    };
+    copy: boolean;
+  };
+  filterset_fields: Array<{
+    filter_name: string;
+    lookup_expr: string;
+    label: string;
+    class_name: string;
+    field_name: string;
+  }>;
+  search_fields: string[];
+  model_name: string;
+  verbose_name: string;
+  verbose_name_plural: string;
+  help: string;
+  details_info?: {
+    appl_name: string;
+    view_name: string;
+    primary_field: string;
+    show_if: string;
+  };
+}
+
 /**
  * Структура стора модуля
  */
@@ -86,11 +229,9 @@ interface LayoutWithElements {
   display_list?: string[];
 }
 
-// Расширяем интерфейс Layout для включения дополнительных свойств
-interface ExtendedLayout extends Layout {
-  TABLE_COLUMNS: Map<string, any>; // Соответствует возвращаемому значению createTableColumns
-  elementsIndex: Map<string, any>; // Соответствует возвращаемому значению createElementsIndex
-}
+// Дополнительные свойства, которые мы добавляем в layout:
+// - TABLE_COLUMNS: Map<string, any> - соответствует возвращаемому значению createTableColumns
+// - elementsIndex: Map<string, any> - соответствует возвращаемому значению createElementsIndex
 
 export class CatalogService {
   /**
@@ -152,7 +293,7 @@ export class CatalogService {
     url: string,
     offset: number,
     limit: number = 20,
-    filters?: Record<string, any>,
+    filters?: Record<string, any>, // transaction: '1' !!!НЕ transaction: {value: '1'}
   ): Promise<any> {
     try {
       if (!url) {
@@ -184,24 +325,29 @@ export class CatalogService {
   }
 
   // Загрузка метаданных каталога через OPTIONS-запрос
-  static async OPTIONS(url: string): Promise<CatalogDetailsAPIResponseOPTIONS> {
+  static async OPTIONS(url: string): Promise<CatalogOPTIONS> {
     try {
       if (!url) {
         throw new Error(`URL каталога не указан.`);
       }
 
-      const optionsResponse = await api.options<CatalogDetailsAPIResponseOPTIONS>(url);
+      const optionsResponse = await api.options<CatalogOPTIONS>(url);
       const optionsResponseData = optionsResponse.data;
 
       // Добавляем наши вычисляемые поля в OPTIONS для удобства
       if (optionsResponseData?.layout) {
-        const layout = optionsResponseData.layout as ExtendedLayout;
+        // Создаем необходимые свойства
+        const tableColumns = CatalogService.createTableColumns(optionsResponseData.layout);
+        const elementsIndex = CatalogService.createElementsIndex(
+          optionsResponseData.layout.elements,
+        );
 
+        // Добавляем свойства напрямую в layout
+        // Используем приведение типов для обхода ограничений TypeScript
         // Создаем таблицу колонок с учетом порядка из display_list
-        layout.TABLE_COLUMNS = CatalogService.createTableColumns(layout);
-
+        (optionsResponseData.layout as any).TABLE_COLUMNS = tableColumns;
         // Создаем иерархическую структуру элементов
-        layout.elementsIndex = CatalogService.createElementsIndex(layout.elements);
+        (optionsResponseData.layout as any).elementsIndex = elementsIndex;
       }
 
       console.log(`CatalogService.OPTIONS: Метаданные успешно загружены для ${url}`);

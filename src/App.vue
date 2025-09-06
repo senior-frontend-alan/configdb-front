@@ -9,6 +9,8 @@
   import AppProgressBar from './components/AppProgressBar.vue';
   import Button from 'primevue/button';
   import Toast from 'primevue/toast';
+  import { useToast } from 'primevue/usetoast';
+  import { setToastInstance } from './stores/data-loaders';
 
   const route = useRoute();
   const router = useRouter();
@@ -39,8 +41,12 @@
     isTopbarSticky.value = window.scrollY > 50;
   };
 
-  // Добавляем слушатель события прокрутки при монтировании компонента
+  const toast = useToast();
+
   onMounted(() => {
+    // передаем экземпляр Toast в ApiClient
+    setToastInstance(toast);
+
     window.addEventListener('scroll', handleScroll);
   });
 

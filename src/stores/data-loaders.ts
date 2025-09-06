@@ -3,44 +3,104 @@ import { useModuleStore, type Catalog } from './module-factory';
 import { CatalogService } from '../services/CatalogService';
 import { RecordService } from '../services/RecordService';
 import api from '../api';
+import type { ToastServiceMethods } from 'primevue/toastservice';
 import type {
   CatalogsAPIResponseGET,
   CatalogGroup,
   CatalogItem,
 } from './types/catalogsAPIResponseGET.type';
 
+// Переменная для хранения экземпляра Toast
+let toastInstance: ToastServiceMethods | null = null;
+
 /**
- * Ищет каталог во всех модулях
- * @param applName Имя приложения
- * @param catalogName Имя каталога
+ * Устанавливает экземпляр Toast для использования в data-loaders
+ * @param toast Экземпляр Toast из компонента App
+ */
+export function setToastInstance(toast: ToastServiceMethods) {
+  toastInstance = toast;
+}
+
+function showErrorToast(message: string, error?: any) {
+  if (toastInstance) {
+    toastInstance.add({
+      severity: 'error',
+      summary: 'Ошибка',
+      detail: message,
+      life: 0, // 0 = отображается постоянно
+    });
+  }
+
+  // Логируем ошибку в консоль в любом случае
+  if (error) {
+    console.error(message, error);
+  } else {
+    console.error(message);
+  }
+}
+
+/**
+ * Ищет каталог во всех модулях или в указанном модуле
+ * @param params Объект с параметрами applName, catalogName и необязательным moduleName
  * @returns Объект с результатом поиска, именем модуля и URL каталога
  */
-async function findCatalogInAllModules(
-  applName: string,
-  catalogName: string,
-): Promise<{
-  found: boolean;
+async function findCatalogInAllModules(params: {
+  applName: string;
+  catalogName: string;
+  moduleName?: string;
+}): Promise<{
+  success: boolean;
   moduleName: string;
   catalogUrl: string;
   moduleStore?: any;
   error?: Error;
 }> {
-  // список модулей из конфигурации
+  const { applName, catalogName, moduleName } = params;
+
+  // Список модулей из конфигурации
   if (!window.APP_CONFIG?.modules || !Array.isArray(window.APP_CONFIG.modules)) {
     return {
-      found: false,
+      success: false,
       moduleName: '',
       catalogUrl: '',
       error: new Error(`Не удалось получить список модулей из конфигурации`),
     };
   }
 
+  // Если указан конкретный модуль, сначала ищем в нем
+  if (moduleName) {
+    const moduleCatalogGroupsResult = await getOrFetchModuleCatalogGroups(moduleName);
+
+    if (moduleCatalogGroupsResult.success && moduleCatalogGroupsResult.indexCatalogsByApplName) {
+      const indexCatalogsByApplName = moduleCatalogGroupsResult.indexCatalogsByApplName;
+      const applNameLower = applName.toLowerCase();
+
+      if (indexCatalogsByApplName[applNameLower]) {
+        const catalogMap = indexCatalogsByApplName[applNameLower];
+        const catalogInfo = catalogMap.get(catalogName.toLowerCase());
+
+        if (catalogInfo?.href) {
+          const moduleStore = useModuleStore(moduleName);
+          return {
+            success: true,
+            moduleName,
+            catalogUrl: catalogInfo.href,
+            moduleStore,
+          };
+        }
+      }
+    }
+  }
+
+  // Если модуль не указан или каталог не найден в указанном модуле, ищем во всех модулях
   for (const moduleConfig of window.APP_CONFIG.modules) {
     const moduleUrlPath = moduleConfig.urlPath;
     if (!moduleUrlPath) continue; // Пропускаем модули без идентификатора
 
-    const moduleCatalogGroupsResult = await getOrFetchModuleCatalogGroups(moduleUrlPath);
+    // Если указан модуль и мы его уже проверили, пропускаем
+    if (moduleName && moduleUrlPath === moduleName) continue;
 
+    const moduleCatalogGroupsResult = await getOrFetchModuleCatalogGroups(moduleUrlPath);
     if (!moduleCatalogGroupsResult.success) continue;
 
     // Пропускаем, если нет нужного приложения
@@ -55,86 +115,27 @@ async function findCatalogInAllModules(
       // Создаем и возвращаем стор модуля для дальнейшего использования
       const moduleStore = useModuleStore(moduleUrlPath);
       return {
-        found: true,
+        success: true,
         moduleName: moduleUrlPath,
         catalogUrl: catalogInfo.href,
-        moduleStore: moduleStore,
+        moduleStore,
       };
     }
   }
 
-  // Каталог не найден ни в одном модуле
+  // Каталог не найден ни в одном из модулей
+  const errorMessage = `Каталог ${applName}/${catalogName} не найден ни в одном из модулей.`;
+  const detailedError = new Error(errorMessage);
+  showErrorToast(errorMessage, detailedError);
   return {
-    found: false,
+    success: false,
     moduleName: '',
     catalogUrl: '',
-    error: new Error(`Каталог ${applName}/${catalogName} не найден ни в одном из модулей`),
+    error: detailedError,
   };
 }
 
-/**
- * Общая функция для поиска URL каталога и инициализации стора
- * @param moduleName Имя модуля
- * @param applName Имя приложения
- * @param catalogName Имя каталога
- * @returns Объект с результатом поиска, URL каталога, стором и каталогом
- */
-async function findCatalogUrlAllModules(
-  moduleName: string,
-  applName: string,
-  catalogName: string,
-): Promise<{
-  success: boolean;
-  catalogUrl?: string;
-  moduleStore?: any;
-  actualModuleName?: string;
-  error?: Error;
-}> {
-  let moduleStore = useModuleStore(moduleName);
-  let actualModuleName = moduleName;
-
-  // Получаем URL каталога для загрузки
-  const catalogGroupsResult = await getOrFetchModuleCatalogGroups(moduleName);
-  let catalogUrl: string | undefined;
-
-  if (catalogGroupsResult.success && catalogGroupsResult.indexCatalogsByApplName) {
-    const indexCatalogsByApplName = catalogGroupsResult.indexCatalogsByApplName;
-
-    if (indexCatalogsByApplName[applName]) {
-      const catalogMap = indexCatalogsByApplName[applName];
-      const catalogInfo = catalogMap.get(catalogName);
-      catalogUrl = catalogInfo?.href;
-    }
-  }
-
-  if (!catalogUrl) {
-    // Если каталог не найден в текущем модуле, ищем его во всех модулях
-    const catalogSearch = await findCatalogInAllModules(applName, catalogName);
-
-    if (catalogSearch.found) {
-      const foundModuleName = catalogSearch.moduleName;
-      catalogUrl = catalogSearch.catalogUrl;
-
-      const foundModuleStore = catalogSearch.moduleStore;
-
-      console.log(`Каталог найден в модуле ${foundModuleName}`);
-      // Обновляем переменные для дальнейшей работы
-      actualModuleName = foundModuleName;
-      moduleStore = foundModuleStore;
-      // Инициализация каталога будет выполнена позже
-    } else {
-      // Каталог не найден ни в одном модуле
-      return { success: false, error: catalogSearch.error };
-    }
-  }
-
-  return {
-    success: true,
-    catalogUrl,
-    moduleStore,
-    actualModuleName,
-  };
-}
+// Функция findCatalogUrlAllModules удалена, её логика теперь напрямую в getOrfetchCatalogGET
 
 export interface ModuleCatalogsResult {
   success: boolean;
@@ -215,15 +216,14 @@ export async function getOrFetchModuleCatalogGroups(
       indexCatalogsByApplName: moduleStore.indexCatalogsByApplName,
     };
   } catch (error) {
-    console.error(`Ошибка при загрузке каталогов для модуля ${moduleName}:`, error);
+    const errorMessage = `Ошибка при загрузке каталогов для модуля ${moduleName}`;
+    showErrorToast(errorMessage, error);
+
     return {
       success: false,
       catalogGroups: [],
       indexCatalogsByApplName: {},
-      error:
-        error instanceof Error
-          ? error
-          : new Error(`Ошибка при загрузке каталогов для модуля ${moduleName}`),
+      error: error instanceof Error ? error : new Error(String(error)),
     };
   }
 }
@@ -234,77 +234,166 @@ interface CatalogResult {
   catalog?: Catalog;
   /** Конкретный Ключ кэша для которого делался запрос GET */
   cacheKey?: string;
+  /** !!! Нужны для динамической подгрузки данных таблицы Page2 !!! */
+  newResults?: any[];
   error?: Error;
+}
+
+interface CatalogOptionsParams {
+  moduleName?: string;
+  applName: string;
+  catalogName: string;
 }
 
 /**
  * Загружает OPTIONS метаданные каталога, используя кэш если доступно
- * @param moduleName Имя модуля
- * @param applName Имя приложения
- * @param catalogName Имя каталога
+ * @param params Объект с параметрами moduleName, applName, catalogName
  * @returns OPTIONS данные каталога
  */
 export async function getOrFetchCatalogOPTIONS(
-  moduleName: string,
-  applName: string,
-  catalogName: string,
+  params: CatalogOptionsParams,
 ): Promise<{ success: boolean; catalog?: Catalog; error?: Error }> {
-  // Проверяем, есть ли уже инициализированный каталог
-  const moduleStore = useModuleStore(moduleName);
+  const { moduleName, applName, catalogName } = params;
+
+  let moduleStore;
+  let actualModuleName = moduleName;
+  let catalogUrl: string | undefined;
+
+  // Шаг 1: Определяем модуль и URL каталога
+  // Используем findCatalogInAllModules для поиска каталога в указанном модуле или во всех модулях
+  console.log(
+    `Поиск каталога ${applName}/${catalogName}${
+      moduleName ? ` в модуле ${moduleName}` : ' во всех модулях'
+    }...`,
+  );
+
+  const catalogSearch = await findCatalogInAllModules({
+    applName,
+    catalogName,
+    moduleName,
+  });
+
+  if (!catalogSearch.success) {
+    return {
+      success: false,
+      error:
+        catalogSearch.error ||
+        new Error(
+          `Каталог ${applName}/${catalogName} не найден${
+            moduleName ? ` в модуле ${moduleName}` : ' ни в одном из модулей'
+          }`,
+        ),
+    };
+  }
+
+  // Используем найденный модуль и URL
+  actualModuleName = catalogSearch.moduleName;
+  moduleStore = catalogSearch.moduleStore;
+  catalogUrl = catalogSearch.catalogUrl;
+  console.log(`Каталог ${applName}/${catalogName} найден в модуле ${actualModuleName}`);
+
+  // Шаг 2: Проверяем кэш и загружаем OPTIONS при необходимости
   const catalogKey = `${applName}_${catalogName.toLowerCase()}`;
   const existingCatalog = (moduleStore as any)[catalogKey];
 
-  // Если каталог уже существует и имеет OPTIONS
+  // Если каталог уже существует и имеет OPTIONS, используем кэш
   if (existingCatalog?.OPTIONS && Object.keys(existingCatalog.OPTIONS).length > 0) {
     console.log(
-      `getOrFetchCatalogOPTIONS: Используем кэшированные метаданные для ${moduleName}/${applName}/${catalogName}`,
+      `getOrFetchCatalogOPTIONS: Используем кэшированные метаданные для ${actualModuleName}/${applName}/${catalogName}`,
     );
     return { success: true, catalog: existingCatalog };
   }
 
-  const catalogResult = await findCatalogUrlAllModules(moduleName, applName, catalogName);
-
-  if (!catalogResult.success) {
-    return { success: false, error: catalogResult.error };
+  // Шаг 3: Загружаем OPTIONS с сервера
+  if (!catalogUrl) {
+    return {
+      success: false,
+      error: new Error(`Не удалось получить URL каталога ${applName}/${catalogName}`),
+    };
   }
 
   try {
     // Используем существующий каталог или создаем новый
     const catalog = existingCatalog || moduleStore.initCatalog(applName, catalogName, undefined);
 
-    const responseOPTIONS = await CatalogService.OPTIONS(catalogResult.catalogUrl!);
+    // Загружаем OPTIONS с сервера
+    const responseOPTIONS = await CatalogService.OPTIONS(catalogUrl);
+
     catalog.OPTIONS = responseOPTIONS;
 
-    return { success: true, catalog: catalog };
+    return { success: true, catalog };
   } catch (error) {
-    console.error(`Ошибка при загрузке OPTIONS для каталога ${applName}/${catalogName}:`, error);
+    const errorMessage = `Ошибка при загрузке OPTIONS для каталога ${applName}/${catalogName}`;
+    showErrorToast(errorMessage, error);
     return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
   }
 }
+interface CatalogGetParams {
+  moduleName?: string;
+  applName: string;
+  catalogName: string;
+  offset?: number;
+  limit?: number;
+  filters?: Record<string, any>; // transaction: '1' !!!НЕ transaction: {value: '1'}
+}
 
 /**
- * (ШАГ 2) Загружает данные каталога, если они еще не загружены,
- * Для загрузки данных каталога нужна загрузка групп каталогов (ШАГ 1)
- * Загружает данные каталога, если они еще не загружены
- * @param moduleName Имя модуля
- * @param applName Имя приложения
- * @param catalogName Имя каталога
- * @param offset Смещение для пагинации
- * @param limit Лимит записей для загрузки
- * @param filters Фильтры для запроса
- * @returns Объект с результатом загрузки, URL каталога и данными
+ * Преобразует фильтры из формата {key: {value: '1'}} в формат {key: '1'}
+ * @param rawFilters Исходные фильтры
+ * @returns Преобразованные фильтры
  */
+function processFilters(rawFilters?: Record<string, any>): Record<string, any> | undefined {
+  if (!rawFilters) return undefined;
 
-export async function getOrfetchCatalogGET(
-  moduleName: string,
-  applName: string,
-  catalogName: string,
-  offset = 0,
-  limit = 20,
-  filters?: Record<string, any>,
-): Promise<CatalogResult> {
-  const moduleStore = useModuleStore(moduleName);
-  let currentCatalog: Catalog = moduleStore.initCatalog(applName, catalogName, filters);
+  const processedFilters: Record<string, any> = {};
+  Object.entries(rawFilters).forEach(([key, filterObj]) => {
+    // Проверяем, является ли значение объектом с полем value
+    if (typeof filterObj === 'object' && filterObj !== null && 'value' in filterObj) {
+      processedFilters[key] = filterObj.value;
+    } else {
+      processedFilters[key] = filterObj;
+    }
+  });
+
+  return processedFilters;
+}
+
+export async function getOrfetchCatalogGET(params: CatalogGetParams): Promise<CatalogResult> {
+  const { moduleName, applName, catalogName, offset = 0, limit = 20, filters: rawFilters } = params;
+
+  // Преобразуем фильтры из формата {value: '1'} в формат '1'
+  const filters = processFilters(rawFilters);
+
+  let moduleStore;
+  let currentCatalog: Catalog;
+  let actualModuleName = moduleName;
+  let catalogUrl: string | undefined;
+
+  const catalogSearch = await findCatalogInAllModules({
+    applName,
+    catalogName,
+    moduleName,
+  });
+
+  if (!catalogSearch.success) {
+    return {
+      success: false,
+      error:
+        catalogSearch.error ||
+        new Error(
+          `Каталог ${applName}/${catalogName} не найден${
+            moduleName ? ` в модуле ${moduleName}` : ' ни в одном из модулей'
+          }`,
+        ),
+    };
+  }
+
+  actualModuleName = catalogSearch.moduleName;
+  moduleStore = catalogSearch.moduleStore;
+  catalogUrl = catalogSearch.catalogUrl;
+
+  // Инициализируем каталог
+  currentCatalog = moduleStore.initCatalog(applName, catalogName, filters);
 
   const cacheKey = moduleStore.buildCacheKey(filters);
   const cacheResult = moduleStore.checkCacheForData(currentCatalog, cacheKey, offset, limit);
@@ -314,19 +403,26 @@ export async function getOrfetchCatalogGET(
       `getOrfetchCatalogGET: Данные для ${moduleName}/${applName}/${catalogName} с offset=${offset}, limit=${limit} и фильтрами уже загружены в стор, используем кэш`,
     );
     // Возвращаем данные из кэша
+    // Получаем только нужную часть данных для текущего offset
+    const cachedResults = currentCatalog[cacheKey]?.results || [];
+    const slicedResults = cachedResults.slice(offset, offset + limit);
+
     return {
       success: true,
       catalog: currentCatalog,
       cacheKey,
+      newResults: slicedResults,
     };
   }
 
   // Структура каталога ${catalogName} инициализирована, но данных еще нет, загружаем с сервера
   try {
-    const catalogResult = await findCatalogUrlAllModules(moduleName, applName, catalogName);
-
-    if (!catalogResult.success) {
-      return { success: false, error: catalogResult.error };
+    // Используем уже полученный URL каталога
+    if (!catalogUrl) {
+      return {
+        success: false,
+        error: new Error(`Не удалось получить URL каталога ${applName}/${catalogName}`),
+      };
     }
 
     // Проверяем, есть ли уже инициализированный каталог
@@ -334,7 +430,7 @@ export async function getOrfetchCatalogGET(
     currentCatalog =
       (moduleStore as any)[catalogKey] || moduleStore.initCatalog(applName, catalogName);
 
-    const responseGET = await CatalogService.GET(catalogResult.catalogUrl!, offset, limit, filters);
+    const responseGET = await CatalogService.GET(catalogUrl, offset, limit, filters);
     const newResults = responseGET.results || [];
 
     moduleStore.updateCatalog(
@@ -352,10 +448,13 @@ export async function getOrfetchCatalogGET(
       success: newResults.length > 0,
       catalog: currentCatalog,
       cacheKey,
+      newResults, // Добавляем новые результаты в ответ
       error: undefined,
     };
   } catch (error) {
-    console.error(`Ошибка при загрузке каталога ${catalogName}:`, error);
+    const errorMessage = `Ошибка при загрузке каталога ${catalogName}`;
+    showErrorToast(errorMessage, error);
+
     return {
       success: false,
       catalog: undefined,
@@ -395,7 +494,11 @@ export async function getOrFetchRecord(
 ): Promise<RecordResult> {
   try {
     // Шаг 1: Загружаем метаданные каталога
-    const catalogResult = await getOrFetchCatalogOPTIONS(moduleName, applName, catalogName);
+    const catalogResult = await getOrFetchCatalogOPTIONS({
+      moduleName,
+      applName,
+      catalogName,
+    });
 
     // Проверяем кэш записи в самом начале
     const moduleStore = useModuleStore(moduleName);
@@ -447,7 +550,9 @@ export async function getOrFetchRecord(
       catalog: currentCatalog,
     };
   } catch (error) {
-    console.error(`Ошибка при загрузке записи ${recordId}:`, error);
+    const errorMessage = `Ошибка при загрузке записи ${recordId}`;
+    showErrorToast(errorMessage, error);
+
     return {
       success: false,
       error: error instanceof Error ? error : new Error(String(error)),
@@ -478,7 +583,11 @@ export async function createRecord(
 ): Promise<RecordSaveResult> {
   try {
     // Шаг 1: Загружаем данные каталога
-    const catalogResult = await getOrfetchCatalogGET(moduleName, applName, catalogName);
+    const catalogResult = await getOrfetchCatalogGET({
+      moduleName,
+      applName,
+      catalogName,
+    });
 
     if (!catalogResult.success || !catalogResult.catalog) {
       return {
@@ -547,7 +656,8 @@ export async function createRecord(
       recordData: response,
     };
   } catch (error) {
-    console.error('Ошибка при создании записи:', error);
+    const errorMessage = 'Ошибка при создании записи';
+    showErrorToast(errorMessage, error);
     return {
       success: false,
       error: error instanceof Error ? error : new Error(String(error)),
@@ -621,7 +731,8 @@ export async function saveRecord(
       recordData: response,
     };
   } catch (error) {
-    console.error(`Ошибка при обновлении записи ${recordId}:`, error);
+    const errorMessage = `Ошибка при обновлении записи ${recordId}`;
+    showErrorToast(errorMessage, error);
     return {
       success: false,
       error: error instanceof Error ? error : new Error(String(error)),

@@ -22,7 +22,7 @@ CatalogDataTable отвечает только за отображение да�
               icon="pi pi-refresh"
               class="p-button-rounded p-button-text"
               :disabled="loading"
-              @click=""
+              @click="handleRefresh"
               :loading="loading"
               aria-label="Обновить данные"
               v-tooltip="'Обновить данные'"
@@ -76,31 +76,23 @@ CatalogDataTable отвечает только за отображение да�
     <div class="catalog-details">
       <DataTable
         ref="dataTableRef"
-        :tableRows="tableRows"
-        :tableColumns="currentCatalog?.OPTIONS?.layout?.TABLE_COLUMNS"
         :primaryKey="currentCatalog?.OPTIONS?.layout?.pk || 'id'"
         :selectionMode="getSelectionMode()"
         :selectedItems="tableSelection"
         :onColumnReorder="onColumnReorder"
-        :loading="loading"
-        :locale="userLocale"
         :modifiedRows="selectedRowsForDetailTables"
         @update:selectedItems="tableSelection = $event"
         @row-click="handleRowClick"
-        @show-details-table="handleShowDetails"
         :isTableScrollable="isTableScrollable"
         :totalRecords="totalRecords"
-        :showDetailsColumn="!!catalogDetailsInfo"
-        :shouldShowDetailsForRow="shouldShowDetailsForRow"
+        :catalogDescriptor="{
+          moduleName,
+          applName,
+          catalogName,
+          filters: props.filters,
+        }"
         data-testid="table-datatable"
       />
-
-      <!-- Элемент для отслеживания с помощью Intersection Observer -->
-      <div ref="loadMoreTrigger" class="load-more-trigger" data-testid="table-load-more">
-        <ProgressSpinner v-if="loadingMore" style="width: 30px; height: 30px" />
-        <span v-else-if="!hasMoreData && totalRecords >= 20">Все данные загружены</span>
-        <span v-else-if="hasMoreData">Загрузка дополнительных данных...</span>
-      </div>
     </div>
     <!-- Статус-бар с информацией о количестве элементов (скрывается в модальном режиме) -->
     <div class="status-bar" v-if="!props.isModalMode" data-testid="table-status-bar">
@@ -121,22 +113,15 @@ CatalogDataTable отвечает только за отображение да�
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+  import { computed, ref, watch } from 'vue';
   import { useRouter } from 'vue-router';
-  import { useModuleStore, type Catalog } from '../../stores/module-factory';
   import { FiltersResult } from '../../router';
-  import { useSettingsStore } from '../../stores/settingsStore';
-  import { getOrfetchCatalogGET, getOrFetchCatalogOPTIONS } from '../../stores/data-loaders';
   import ColumnVisibilitySelector from './components/ColumnVisibilitySelector.vue';
   import DataTable from './components/DataTable.vue';
   import Message from 'primevue/message';
   import Button from 'primevue/button';
-  import ProgressSpinner from 'primevue/progressspinner';
 
   const router = useRouter();
-
-  const settingsStore = useSettingsStore();
-  const userLocale = computed(() => settingsStore.locale);
 
   const props = defineProps<{
     moduleName: string; // Обязательный параметр
@@ -162,72 +147,24 @@ CatalogDataTable отвечает только за отображение да�
   }
 
   // Состояние компонента
-  const loading = ref(true);
-  const error = ref<string | null>(null);
-  // Используем ref для оптимизации обновления данных при пагинации
-  const tableRows = ref<any[]>([]);
   const tableSelection = ref<any[]>([]);
   const isTableScrollable = ref(false);
-  const totalRecords = ref(0);
 
   // Локальное состояние для хранения выбранных строк для деталь-таблиц и подсветки
   const selectedRowsForDetailTables = ref<Set<string>>(new Set<string>());
-
-  // Функция для проверки условия show_if
-  const detailsShowIfFn = ref<Function | null>(null);
-
-  // Реф для элемента триггера ленивой загрузки
-  const loadMoreTrigger = ref<HTMLDivElement | null>(null);
-  // Отдельный флаг для отображения загрузки дополнительных данных
-  const loadingMore = ref(false);
-  // Проверяем, есть ли еще данные для загрузки
-  const hasMoreData = computed(() => {
-    return totalRecords.value > 0 && tableRows.value.length < totalRecords.value;
-  });
 
   // Из props
   const moduleName = computed(() => props.moduleName);
   const applName = computed(() => props.applName);
   const catalogName = computed(() => props.catalogName);
 
-  const moduleStore = computed(() => useModuleStore(moduleName.value));
-  // Устанавливаем currentCatalog из результата getOrfetchCatalogGET
-  const currentCatalog = ref<Catalog | null>(null);
+  // Состояние компонента
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+  const totalRecords = ref(0);
+  const currentCatalog = ref<any>(null);
 
-  // Computed свойство для получения details_info из OPTIONS
-  const catalogDetailsInfo = computed(() => {
-    return currentCatalog.value?.OPTIONS?.details_info || null;
-  });
-
-  // Функция для проверки условия show_if
-  const shouldShowDetailsForRow = (rowData: any): boolean => {
-    const detailsConfig = catalogDetailsInfo.value;
-    if (!detailsConfig || !detailsConfig.show_if) {
-      return !!detailsConfig; // Показываем, если есть details_info без условий
-    }
-
-    const showIf = detailsConfig.show_if;
-
-    // Если show_if - строка с JS кодом
-    if (typeof showIf === 'string') {
-      try {
-        if (!detailsShowIfFn.value) {
-          detailsShowIfFn.value = new Function('data', showIf);
-        }
-        return detailsShowIfFn.value(rowData);
-      } catch (error) {
-        console.error('Ошибка выполнения show_if функции:', error);
-        return false;
-      }
-    }
-
-    // Если show_if - название поля, проверяем его значение
-    if (typeof showIf === 'string' && !showIf.includes('return')) {
-      return !!rowData[showIf];
-    }
-
-    return false;
-  };
+  // Функция для проверки условия show_if перенесена в компонент DataTable
 
   // Computed свойство для отображения активных фильтров
   const filtersText = computed(() => {
@@ -280,23 +217,6 @@ CatalogDataTable отвечает только за отображение да�
     storeDetails.userSettings.displayColumns = newColumns;
 
     console.log('Порядок столбцов изменен:', newColumns);
-  };
-
-  // Функция для обработки клика по иконке деталей
-  const handleShowDetails = (rowData: any) => {
-    if (!rowData || !rowData.id) return;
-    // Обновляем состояние выбранных строк
-    const rowId = String(rowData.id);
-    const newSet = new Set(selectedRowsForDetailTables.value);
-    if (newSet.has(rowId)) {
-      newSet.delete(rowId);
-    } else {
-      newSet.add(rowId);
-    }
-    // Обновляем состояние
-    selectedRowsForDetailTables.value = newSet;
-    // // Эмитим событие для показа деталь-таблицы в родительский компонент
-    // emit('show-details-table', rowData);
   };
 
   const handleRowClick = (event: any) => {
@@ -352,160 +272,21 @@ CatalogDataTable отвечает только за отображение да�
     { immediate: true },
   );
 
-  const loadCatalogData = async (offset: number) => {
-    if (!moduleName.value || !catalogName.value || !applName.value) {
-      console.warn('Не все необходимые параметры доступны для загрузки данных');
-      return;
-    }
-
-    loading.value = true;
-
-    // Используем фильтры напрямую из props, если они переданы
-    // Преобразуем структуру фильтров для API (извлекаем только value)
-    let filters: Record<string, any> | undefined = undefined;
-    if (props.filters) {
-      filters = {};
-      Object.entries(props.filters).forEach(([key, filterObj]) => {
-        filters![key] = filterObj.value;
-      });
-    }
-
-    const catalogResult = await getOrfetchCatalogGET(
-      moduleName.value,
-      applName.value,
-      catalogName.value,
-      offset,
-      20, // limit
-      filters,
-    );
-
-    if (!catalogResult.success || !catalogResult.catalog) {
-      console.error('Ошибка при загрузке каталога:', catalogResult.error?.message);
-      error.value = catalogResult.error?.message || 'Ошибка при загрузке каталога';
-      loading.value = false;
-      return;
-    }
-
-    const { catalog, cacheKey } = catalogResult;
-
-    // Обновляем ссылку на каталог
-    currentCatalog.value = catalog;
-
-    // Используем данные из каталога по ключу кэша
-    tableRows.value = catalog && cacheKey ? catalog[cacheKey]?.results || [] : [];
-    totalRecords.value =
-      catalog && cacheKey ? catalog[cacheKey]?.count || tableRows.value.length : 0;
-
-    loading.value = false;
-  };
-
-  // Функция для обработки пересечения элемента с областью видимости
-  const handleIntersection = (entries: IntersectionObserverEntry[]) => {
-    const entry = entries[0];
-
-    // Если элемент виден и не идет загрузка, и есть еще данные для загрузки
-    if (entry.isIntersecting && !loadingMore.value && hasMoreData.value) {
-      loadingMore.value = true;
-
-      const currentLength = tableRows.value.length;
-
-      loadCatalogData(currentLength).finally(() => {
-        loadingMore.value = false;
-      });
+  // Функция для обработки клика по кнопке обновления
+  const handleRefresh = () => {
+    if (dataTableRef.value && typeof dataTableRef.value.refreshData === 'function') {
+      dataTableRef.value.refreshData();
     }
   };
 
-  // Создаем и настраиваем Intersection Observer
-  let observer: IntersectionObserver | null = null;
-
-  onMounted(async () => {
-    // Проверяем наличие всех необходимых параметров перед загрузкой данных
-    if (moduleName.value && applName.value && catalogName.value) {
-      await loadCatalogData(0);
-      await getOrFetchCatalogOPTIONS(moduleName.value, applName.value, catalogName.value);
-    } else {
-      console.warn('Не все параметры доступны при монтировании компонента');
-      loading.value = false;
-    }
-
-    // Создаем наблюдатель, если браузер поддерживает IntersectionObserver
-    if ('IntersectionObserver' in window) {
-      observer = new IntersectionObserver(handleIntersection, {
-        root: null, // используем viewport как корневой элемент
-        rootMargin: '0px',
-        threshold: 0.1, // срабатывает, когда 10% элемента видно
-      });
-
-      if (loadMoreTrigger.value) {
-        observer.observe(loadMoreTrigger.value);
-      }
-    }
-  });
-
-  // Обновляем наблюдение при изменении элемента
-  watch(loadMoreTrigger, (newValue) => {
-    if (observer && newValue) {
-      observer.disconnect();
-      observer.observe(newValue);
-    }
-  });
-
-  // Ссылка на компонент DataTable
   const dataTableRef = ref();
 
-  // Функция для прокрутки к записи и её выделения
-  const scrollToRecord = async (recordId: string) => {
-    if (!recordId || !tableRows.value.length) return;
-
-    console.log('Прокрутка к записи:', recordId);
-
-    // Находим запись в массиве данных по ID
-    const recordIndex = tableRows.value.findIndex((item) => String(item.id) === String(recordId));
-
-    if (recordIndex === -1) {
-      console.warn('Запись не найдена в текущих данных:', recordId);
-      return;
-    }
-
-    // Устанавливаем выбранную запись
-    tableSelection.value = [tableRows.value[recordIndex]];
-
-    // Ждем следующего цикла рендеринга
-    await nextTick();
-
-    // Используем метод дочернего компонента для прокрутки к строке
-    if (dataTableRef.value && typeof dataTableRef.value.scrollToRowByIndex === 'function') {
-      dataTableRef.value.scrollToRowByIndex(recordIndex);
-    } else {
-      console.warn('Метод scrollToRowByIndex не найден в компоненте DataTable');
-    }
-  };
+  // Функция для прокрутки к записи и её выделения - временно отключена
+  // Должна быть перенесена в компонент DataTable или обновлена
 
   // Проверяем наличие lastEditedID в хранилище после загрузки данных
-  watch(
-    () => tableRows.value.length,
-    async () => {
-      if (tableRows.value.length > 0) {
-        const catalogKey = `${applName.value}_${catalogName.value.toLowerCase()}`;
-        const lastEditedID = (moduleStore.value as any)[catalogKey]?.GET?.lastEditedID;
-
-        if (lastEditedID) {
-          await scrollToRecord(lastEditedID);
-
-          // Очищаем ID после скроллинга, чтобы избежать повторной прокрутки
-          // moduleStore.value.loadedCatalogsByApplName[applName][catalogName.value].GET.lastEditedID = null;
-        }
-      }
-    },
-    { immediate: true },
-  );
-
-  onUnmounted(() => {
-    if (observer) {
-      observer.disconnect();
-      observer = null;
-    }
-  });
+  // Теперь эта логика должна быть перенесена в компонент DataTable или обновлена
+  // для работы с новым подходом к загрузке данных
 </script>
 
 <style scoped>

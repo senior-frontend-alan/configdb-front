@@ -178,7 +178,7 @@ export interface Catalog {
     loadedCount?: number; // Количество загруженных записей
     [key: string]: any;
   };
-  OPTIONS: any;
+  OPTIONS?: import('../services/CatalogService').CatalogOPTIONS;
   // Динамические поля для кэша с разными параметрами фильтрации
   [key: string]: any;
 }
@@ -278,7 +278,7 @@ export function createModuleStore(moduleConfig: Module): any {
             results: [], // Массив записей
             loadedCount: 0, // Количество загруженных записей
           },
-          OPTIONS: {},
+          OPTIONS: {} as any,
         };
 
         // Добавляем каталог напрямую в стор потому что $patch не создает каталог, но зато делает его видимым в DevTools
@@ -298,7 +298,7 @@ export function createModuleStore(moduleConfig: Module): any {
         newResults: any[],
         offset: number,
         limit: number,
-        filters?: Record<string, any>,
+        filters?: Record<string, any>, // transaction: '1' !!!НЕ transaction: {value: '1'}
       ): void {
         const existingResults = catalog[cacheKey]?.results || [];
 
